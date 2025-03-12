@@ -1,0 +1,5 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+data/siegel_temperature/siegel_mfsr.rds
