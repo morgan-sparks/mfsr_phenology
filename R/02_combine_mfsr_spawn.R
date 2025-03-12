@@ -1,4 +1,4 @@
-library(fs); library(stringr); library(purrr); library(readr); library(readxl)
+library(fs);library(purrr); library(readxl); library(dplyr)
 
 # list of spawn data from russ thurow
 spawn_files <- dir_ls("./data/russ_spawn/raw/")
@@ -14,5 +14,7 @@ data_2004$EASTING <- as.numeric(data_2004$EASTING) # change easting to a charact
 
 # put all data into mfsr_spawn object
 mfsr_spawn <- bind_rows(mfsr_spawn, data_2004)
+mfsr_spawn$UNIQUE_ID <- c(1000:(999+nrow(mfsr_spawn)))
 
 write_rds(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.rds")
+write_csv(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.csv")
