@@ -1,0 +1,30 @@
+---
+title: "spawn_data_notes"
+output: html_document
+date: "2025-03-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# From Russ
+
+Definitions:
+Redd = completed Chinook salmon Redd
+IP = In Progress and likely to later be recorded as a Redd
+Tredd = Test Redd
+Fredd = False Redd (features that might erroneously be observed as a Redd such as natural scour, beaver or elk activity, angler wading, etc.)
+
+Redd Monitor = Trained observer who recorded redds in specific stream reaches on 4-5 day intervals throughout the Chinook salmon spawning period. 
+
+
+File Descriptions:
+01_ReddMonitor_AvgXY.xls.  Final redd tally for each reach (only 4 reaches done in 01). UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  
+
+02_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2, Capehorn, and Knapp were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
+
+03_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2, Capehorn, and Knapp were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
+
+04_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2, Capehorn, and Knapp were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
+
+05_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2 and Capehorn (no Knapp in 05) were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
