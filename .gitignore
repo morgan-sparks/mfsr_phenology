@@ -4,3 +4,4 @@
 .Ruserdata
 data/siegel_temperature/siegel_mfsr.rds
 .DS_Store
+data/.DS_Store

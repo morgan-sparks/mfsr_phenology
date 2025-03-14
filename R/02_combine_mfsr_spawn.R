@@ -16,5 +16,5 @@ data_2004$EASTING <- as.numeric(data_2004$EASTING) # change easting to a charact
 mfsr_spawn <- bind_rows(mfsr_spawn, data_2004)
 mfsr_spawn$UNIQUE_ID <- c(1000:(999+nrow(mfsr_spawn)))
 
-write_rds(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.rds")
-write_csv(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.csv")
+#write_rds(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.rds")
+#write_csv(mfsr_spawn, "./data/russ_spawn/mfsr_spawn_combined.csv")
