@@ -12,6 +12,6 @@ huc_17062_files <- dir_ls("~/Downloads/st_pred_170602/")
 # put mfsr files in a df together
 mfsr_huc8 <- huc_17062_files |> 
   str_subset(pattern = ("17060205|17060206")) |> # str subset on mfsr huc8
-  map_df(read_tsv, .id = "file", col_types = cols())
+  map_df(read_csv, .id = "file", col_types = cols())
 
 write_rds(mfsr_huc8, "./data/siegel_temperature/siegel_mfsr.rds")
