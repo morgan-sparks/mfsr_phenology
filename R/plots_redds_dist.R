@@ -11,7 +11,7 @@ mfsr_all <- mfsr_spawn_cleaned |>
   group_by(yday) 
 
 
-plot <- mfsr_spawn_cleaned |> 
+plot <-  mfsr_spawn_cleaned |> 
   filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) |> 
   mutate(across(year, as.character)) |> 
   group_by(stream, year) |> 
