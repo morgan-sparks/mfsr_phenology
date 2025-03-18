@@ -26,8 +26,8 @@ p.cumsum <- tmp |>
   ggplot(aes(x = yday, y = cum_redds_p, color = as.factor(year))) +
   lemon::facet_rep_wrap(~stream, ncol = 1, scales = "free_y") +
   # facet_wrap(~year, ncol = 1, scales = "free_y") +
-  geom_line(linewidth = 1) + 
-  geom_point() + 
+  geom_line(linewidth = 0.5) + 
+  geom_point(size = 0.3) + 
   theme_classic() + 
   scale_color_brewer(palette = "Dark2") + 
   labs(
@@ -39,7 +39,7 @@ p.cumsum
 
 # save plot
 ggsave(
-  here::here("plots", "redd_cumsum.png"), 
+  here::here("plots", "redd_cumsum.pdf"), 
   p.cumsum, 
-  height = 11, 
+  height = 8, 
   width = 3)
