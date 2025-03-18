@@ -7,6 +7,12 @@ date: "2025-03-14"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+# Questions
+
+Beaver only has new redds on one day in 2001 and 2002
+
+Should we just remove 2001, there is no variation in the data?
+
 # From Russ
 
 Definitions:
@@ -28,3 +34,5 @@ File Descriptions:
 04_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2, Capehorn, and Knapp were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
 
 05_ReddMonitor_AvgXY.xls.  Final redd tally for each reach. UTM coordinates for each redd (and IP, other, fredd, tredd) from multiple dates are averaged.  Marsh2 and Capehorn (no Knapp in 05) were done by IDFG on only one date and only have redds recorded (i.e. no Tredds, fredds, etc).  The rest of the reaches were done in ReddValidn project on multiple dates.
+
+
