@@ -34,6 +34,12 @@ lines <- st_read(
   layer = "flowline_pn17_nsi_MFSR"
 )
 
+lines_focus <- st_read(
+  dsn = paste0(here::here(), "/data/gis/study_streams2.gpkg"),
+  layer = "study_streams2"
+
+)
+
 watershed <- st_read(
   dsn = paste0(here::here(), "/data/gis/HU8_MFSR_dissolved.gpkg"),
   layer = "HU8_MFSR_dissolved"
@@ -48,23 +54,7 @@ p1 <-
   ggplot() +
   geom_sf(data = watershed, fill = NA, color = "black", linewidth = .5) +
   geom_sf(data = lines, color = "dodgerblue", linewidth = 0.3) +
-  geom_sf(
-    data = lines |> filter(GNIS_NAME %in% c(
-      "Middle Fork Salmon River",
-      "Bear Valley Creek",
-      "Beaver Creek",
-      "Big Creek",
-      "Camas Creek",
-      "Cape Horn Creek",
-      "Elk Creek",
-      "Knapp Creek",
-      "Loon Creek",
-      "Marsh Creek",
-      "Sulphur Creek"
-    )),
-    color = "blue", 
-    linewidth = 0.5
-  ) +
+  geom_sf(data = lines_focus, color = "blue", linewidth = 0.5) +
   geom_sf(
     data = sfc |> filter(UNIQUE_ID != 5065),
     aes(fill = stream),
