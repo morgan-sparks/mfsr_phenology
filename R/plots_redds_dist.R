@@ -29,8 +29,8 @@ plot <-  mfsr_spawn_cleaned |>
 
 ggsave(here::here("plots", "redd_spawn_distributions.pdf"),
                   plot, 
-                  height = 8,
-                  width = 3,
+                  height = 11,
+                  width = 4,
                   units = "in",
                   dpi = 300)
 
