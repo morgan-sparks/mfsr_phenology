@@ -25,21 +25,36 @@ tmp
 p.cumsum <- tmp |> 
   ggplot(aes(x = yday, y = cum_redds_p, color = as.factor(year))) +
   lemon::facet_rep_wrap(~stream, ncol = 1, scales = "free_y") +
-  # facet_wrap(~year, ncol = 1, scales = "free_y") +
   geom_line(linewidth = 0.5) + 
   geom_point(size = 0.3) + 
   theme_classic() + 
   scale_color_brewer(palette = "Dark2") + 
   labs(
-    x = "Day of Year (Julian)",
+    x = "Day of Year",
     y = "Proportional Cumulative Redds",
     color = ""
   )
 p.cumsum
 
-# save plot
+# Save plot ====================================================================
+
+path <- here::here("plots", "redd_cumsum")
+
 ggsave(
-  here::here("plots", "redd_cumsum.pdf"), 
+  glue::glue("{path}.png"), 
   p.cumsum, 
-  height = 8, 
-  width = 3)
+  device = ragg::agg_png, 
+  height = 11,
+  width = 4,
+  res = 300,  
+  units = "in"
+) 
+
+ggsave(
+  glue::glue("{path}.pdf"), 
+  p.cumsum, 
+  device = cairo_pdf, 
+  height = 11,
+  width = 4,
+  units = "in"
+) 
