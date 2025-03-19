@@ -50,17 +50,4 @@ ggsave(
   height = 11,
   width = 4,
   units = "in"
-) 
-
-
-ggsave(here::here("plots", "redd_spawn_distributions.pdf"),
-                  plot, 
-                  height = 8,
-                  width = 3,
-                  units = "in",
-                  dpi = 300)
-
-mfsr_spawn_cleaned |>  filter(stream == "Knapp")  |> 
-  ggplot(aes(x = yday, y = y)) +
-aes(y = after_stat(count))+
-  theme_classic()
+)
