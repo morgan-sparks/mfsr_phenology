@@ -49,13 +49,13 @@ comid_temperature <- function(temperature_data,
 # 
 # date = "08312001"
 # 
-# days = 90 
+# days = 90
 # 
-# period = "before"
+# period = "after"
 # 
 # comid_temperature(temperature_data = temperature_data,
 #            comid = comid,
 #            redd_id = redd_id,
 #           days = days,
 #           date = date,
-#           period = "before")
+#           period = period)
