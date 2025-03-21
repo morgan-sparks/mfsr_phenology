@@ -17,7 +17,7 @@ dat
 
 
 dat2 <- dat |> 
-  tidyr::expand_grid(days_spead = c(30, 60, 90), 
+  tidyr::expand_grid(days_spead = c(30, 60, 90, 120, 150, 180), 
                      period = c("before", "span", "after"))
 
 args <- list(
@@ -52,7 +52,10 @@ out |>
   mutate(duration = case_when(
     duration == 30 ~ "30 days",
     duration == 60 ~ "60 days",
-    duration == 90 ~ "90 days"
+    duration == 90 ~ "90 days", 
+    duration == 120 ~ "120 days",
+    duration == 150 ~ "150 days",
+    duration == 180 ~ "180 days"
   )) |>
   mutate(date = yday(spawn_date)) |> 
   ggplot(aes(x = avg_temp, y = date, color = period)) +
