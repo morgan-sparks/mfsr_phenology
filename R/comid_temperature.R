@@ -8,8 +8,10 @@ comid_temperature <- function(temperature_data,
                               date, 
                               period = c("before, after, span")){
   
+  #make data a dttm
   dttm = mdy(date)
   
+  # make a seq of dates depending on period you want
   if(period == "after"){
     #days after
     duration <- seq(dttm, dttm + (days -1), by = "days" )} else if (period == "before"){
@@ -25,7 +27,7 @@ comid_temperature <- function(temperature_data,
     filter(spawn_date %in% duration ) |> 
     summarise(avg_temp = mean(prd.stream_temp))
   
-  # out object
+  # out object with all the goodies
   out <- tibble(spawn_date = mdy(date),
                 comid = comid,
                 redd_id = redd_id,
