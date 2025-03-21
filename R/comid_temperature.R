@@ -1,4 +1,4 @@
-library(dplyr); library(lubridate)
+library(tidyverse)
 
 
 comid_temperature <- function(temperature_data, 
@@ -21,7 +21,7 @@ comid_temperature <- function(temperature_data,
         duration <-  seq (dttm -ceiling(days/2), dttm + floor(days/2), by = "days")}
   
   # calculate average temp
-  avg_temp <- data |> 
+  avg_temp <- temperature_data |> 
     filter(COMID == comid) |>
     mutate(spawn_date = ymd(tim.date)) |> 
     filter(spawn_date %in% duration ) |> 
