@@ -58,6 +58,7 @@ out |>
     duration == 180 ~ "180 days"
   )) |>
   mutate(date = yday(spawn_date)) |> 
+  filter(period == "before") |> 
   ggplot(aes(x = avg_temp, y = date, color = period)) +
   geom_smooth(method = "lm", se = FALSE) +
   facet_wrap(~as.factor(duration), ncol = 1) +
@@ -68,11 +69,28 @@ out |>
   theme_classic()
 
 
+# spawn dates ~ temperature before and after
+out  |>
+  mutate(date = yday(spawn_date)) |> 
+  filter(period == "after" & duration == 150) |>
+  mutate(avg_round = round(avg_temp, digits = 0)) |> 
+  ggplot() +
+  geom_density_ridges(aes(x = date, y =as.factor(avg_round))) +
+  theme_classic()
+
+
+
 out_wide <- out |> 
   as_tibble() |> 
   pivot_wider(names_from = period, values_from = avg_temp) 
 
 out_wide |> 
+  filter(duration %in% c(60,90,120)) |> 
   ggplot(aes(x = before, y = after)) +
   facet_wrap(~as.factor(duration), ncol = 1) +
-  geom_point() 
+  geom_point(size =0.1) +
+  theme_classic()
+
+out_wide_90 <-  out_wide |> filter(duration == 90)
+
+cor(out_wide_90$before, out_wide_90$after)
