@@ -35,7 +35,9 @@ out <- args |> pmap(
   map_df(~ as.data.frame(.x))
 
 # save out to .rdata
-save(out, file = here::here("./data/comid_temps.RData"))
+#save(out, file = here::here("./data/comid_temps.RData"))
+
+load(here::here("./data/comid_temps.RData"))
 
 out |> 
   mutate(date = yday(spawn_date)) |> 
@@ -94,3 +96,38 @@ out_wide |>
 out_wide_90 <-  out_wide |> filter(duration == 90)
 
 cor(out_wide_90$before, out_wide_90$after)
+
+spawn_data <- read_csv(here::here("./data/russ_spawn/mfsr_spawn_cleaned.csv"))
+
+mfsr_spawn_temps <- out |> 
+  mutate(duration = case_when(
+    duration == 30 ~ "30 days",
+    duration == 60 ~ "60 days",
+    duration == 90 ~ "90 days", 
+    duration == 120 ~ "120 days",
+    duration == 150 ~ "150 days",
+    duration == 180 ~ "180 days"
+  )) |>
+  mutate(date = yday(spawn_date)) |> 
+  left_join(y = spawn_data, by = join_by(redd_id == UNIQUE_ID)) |> 
+  filter(period != "span" & duration != "30 days") |> 
+  pivot_wider(names_from = c(duration, period), values_from = avg_temp)
+
+glimpse(mfsr_spawn_temps)
+
+temp_mod <-lm(yday ~ stream   *      
+                       # `60 days_before` +
+                       # `60 days_after`  +
+                       # `90 days_before` +
+                       # `90 days_after`  +
+                       # `120 days_before` +
+                       # `120 days_after`  +
+                       # `150 days_before` ,
+                       # `150 days_after`  +
+                      #  `180 days_before` +
+                       # `180 days_after`,
+              data = mfsr_spawn_temps )
+
+sjPlot::tab_model(temp_mod)
+
+emmeans::emmeans(temp_mod, ~stream *  `180 days_after`)
