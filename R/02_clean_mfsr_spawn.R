@@ -18,17 +18,17 @@ mfsr_spawn_cleaned <- mfsr_spawn |>
   filter(OBJ_CLASS %in% c("Redd", "REDD")) |> # filter only for redds
   filter(UNIQUE_ID != 3589)
 
-# plot to look at densities
-mfsr_spawn_cleaned |> 
-  ggplot(aes(x = yday, y = as.character(year))) +
-  geom_density_ridges(scale = 1.1) +
-  labs(x = "Day of Year", y = "Year") +
-  theme_classic()
-
-# tally by year
-mfsr_spawn_cleaned |> 
-  group_by(year) |> 
-  tally()
+# # plot to look at densities
+# mfsr_spawn_cleaned |> 
+#   ggplot(aes(x = yday, y = as.character(year))) +
+#   geom_density_ridges(scale = 1.1) +
+#   labs(x = "Day of Year", y = "Year") +
+#   theme_classic()
+# 
+# # tally by year
+# mfsr_spawn_cleaned |> 
+#   group_by(year) |> 
+#   tally()
 
 reach_names <- unique(mfsr_spawn_cleaned$REACH)
 
