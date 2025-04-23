@@ -1,0 +1,52 @@
+---
+title: "MFSR Chinook Spawn Timing Phenology"
+output: pdf_document
+date: "2025-04-23"
+---
+
+## Methods
+
+In this paper, we examine how stream geomorphic attributes, water temperature profiles, habitat features, climatic factors, and spawning escapements influence wild Chinook salmon phenotypic diversity, specifically, the timing of spawning. We compare detailed salmon spawn timing data across four years in twelve stream reaches within six major watersheds, all within a relatively intact river basin in central Idaho.
+
+### Study area
+
+(Text below verbatim from Isaak and Thurow 2006)
+
+This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. 1). The MFSR drains 7330 km2 of forested and steeply mountainous terrain in central Idaho that ranges in elevation from 1000 to 3150 m. Most of the area (>95%) is administered by the USDA Forest Service and was managed as a primitive area from 1930 to 1980 before receiving permanent protection as part of the Frank Church – River of No Return – Wilderness in 1980. As a result, road and trail densities are low and most areas exist in relatively pristine condition. Some areas continue to recover from the effects of grazing or mining, but cessation of many of these activities has occurred since wilderness designation and listing of Snake River salmon stocks under the Endangered Species Act. Natural disturbances from fires, hillslope movements, and floods persist, and these processes maintain a dynamic mosaic of landscape conditions.
+
+Figure 1. Map of the Middle Fork Salmon River (MFSR) study area showing redd locations (2002-2005) and stream reaches.
+
+![](images/MFsalmonRedds-01.jpg){height=40%}
+
+\newpage
+
+### Spawn timing data
+
+Spawn timing data for Chinook salmon were collected from 2002 to 2005 in the MFSR. DETAILS. 
+
+To describe variation in spawn timing, we used redd counts from XX stream reaches (Fig. 1) in the MFSR. Redd counts were conducted... Redds were counted by walking the stream and visually identifying redds. The number of redds was recorded for each stream reach and the date of the count was noted. The data were then compiled into a single dataset for analysis.
+
+![](images/redd_spawn_distributions.png){height=70%}
+
+Figure 2. Temporal distribution of spawn timing for Chinook salmon in the MFSR. 2002-2005.
+
+-   colors = year
+-   x axis = day of year
+-   y-axis = count of unique redds
+-   dashed lines (black) = average spawning distribution by site across all years
+-   vertical dotted lines (purple) = 5th and 95th quantile for ALL MFSR redds across years
+-   vertical dotted line (blue): median (50th quantile) for ALL MFSR redds across years
+
+\newpage
+
+### Proportional cumulative redds
+
+![](images/redd_cumsum.png){height=70%}
+
+Figure 3. Proportional cumulative redds by stream.
+
+-   color = year
+-   x-axis = day of year
+-   y-axis = Proportional cumulative redds
+
+\newpage
