@@ -4,15 +4,19 @@ output: pdf_document
 date: "2025-04-23"
 ---
 
-```{r, echo=FALSE}
-knitr::opts_chunk$set(echo = FALSE, 
-                      message = FALSE,
-                      warning = FALSE)
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+library(tidyverse)
+library(here)
 ```
 
 ## Methods
 
-In this paper, we 1)compare detailed salmon spawn timing data across four years in twelve stream reaches within six major watersheds, all within a relatively intact river basin in central Idaho, and 2) examine how water temperature profiles, habitat features, and spawning escapements influence wild Chinook salmon phenotypic diversity, specifically, the timing of spawning. 
+In this paper, we 1)compare detailed salmon spawn timing data across four years in nine stream reaches within six major watersheds, all within a relatively intact river basin in central Idaho, and 2) examine how water temperature profiles, habitat features, and spawning escapements influence wild Chinook salmon phenotypic diversity, specifically, the timing of spawning.
 
 ### Study area
 
@@ -20,23 +24,60 @@ In this paper, we 1)compare detailed salmon spawn timing data across four years 
 
 This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. 1). The MFSR drains 7330 km2 of forested and steeply mountainous terrain in central Idaho that ranges in elevation from 1000 to 3150 m. Most of the area (\>95%) is administered by the USDA Forest Service and was managed as a primitive area from 1930 to 1980 before receiving permanent protection as part of the Frank Church – River of No Return – Wilderness in 1980. As a result, road and trail densities are low and most areas exist in relatively pristine condition. Some areas continue to recover from the effects of grazing or mining, but cessation of many of these activities has occurred since wilderness designation and listing of Snake River salmon stocks under the Endangered Species Act. Natural disturbances from fires, hillslope movements, and floods persist, and these processes maintain a dynamic mosaic of landscape conditions.
 
-\newpage
+More details...
 
-Figure 1. Map of the Middle Fork Salmon River (MFSR) study area showing redd locations (2002-2005) and stream reaches.
-
-![](images/MFsalmonRedds_GT2001_BigYellow_Apr24.jpg){height="75%"}
+![Map of the Middle Fork Salmon River (MFSR) study area showing redd locations used in the analysis (2002-2005) and stream reaches.](images/MFsalmonRedds_GT2001_BigYellow_Apr24.jpg){width="50%"}
 
 \newpage
 
 ### Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2002 to 2005 in the MFSR. DETAILS.
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
 
-To describe variation in spawn timing, we used redd counts from XX stream reaches (Fig. 1) in the MFSR. Redd counts were conducted... Redds were counted by walking the stream and visually identifying redds. The number of redds was recorded for each stream reach and the date of the count was noted. The data were then compiled into a single dataset for analysis.
+```{r}
+spawn_data <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
+spawn_data <- spawn_data |>
+  filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001)
+# glimpse(spawn_data)
+```
 
-![](images/redd_spawn_distributions.png){height="70%"}
+We will use the `yday` column (day of year a redd is assumed to be complete) as our response variable (spawn timing). We visualize variation in day of year redds are complete using destiny plots:
 
-Figure 2. Temporal distribution of spawn timing for Chinook salmon in the MFSR. 2002-2005.
+```{r fig.cap="Temporal distribution of spawn timing for Chinook salmon in the MFSR. 2002-2005."}
+mfsr_by_site <- spawn_data |>
+  group_by(stream, yday)
+
+mfsr_all <- spawn_data |>
+  summarise(
+    median = median(yday),
+    percentile_95 = quantile(yday, probs = 0.95),
+    percentile_5 = quantile(yday, probs = 0.05)
+  )
+
+
+plot <- spawn_data |>
+  mutate(across(year, as.character)) |>
+  group_by(stream, year) |>
+  ggplot() +
+  # facet_wrap(~stream, scales = "free_y", ncol = 1) +
+  lemon::facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
+  geom_vline(
+    xintercept = mfsr_all$median, 
+    color = "blue", 
+    linetype = "dashed") +
+  geom_vline(
+    xintercept = c(mfsr_all$percentile_95, mfsr_all$percentile_5), 
+    color = "purple", 
+    linetype = "dashed") +
+  geom_density(aes(x = yday, y = after_stat(count), fill = year), alpha = 0.5) +
+  geom_density(data = mfsr_by_site, aes(x = yday, after_stat(count)), alpha = 0, linetype = "dashed") +
+  scale_fill_brewer(palette = "Dark2", name = "Year") +
+  labs(x = "Spawn Day of Year", y = "Count of redds") +
+  theme_classic()
+plot
+```
+
+<!-- ![](images/redd_spawn_distributions.png){height="70%"} -->
 
 -   colors = year
 -   x axis = day of year
@@ -49,9 +90,38 @@ Figure 2. Temporal distribution of spawn timing for Chinook salmon in the MFSR. 
 
 ### Proportional cumulative redds
 
-![](images/redd_cumsum.png){height="70%"}
+Next, for each year and stream system, we calculate the proportional cumulative number of redds. This is done by first calculating the cumulative number of redds for each year and stream, and then dividing that by the maximum cumulative number of redds for that year and stream.
 
-Figure 3. Proportional cumulative redds by stream.
+```{r fig.cap="Proportional cumulative redds by stream."}
+# For each year and stream, calculate the prop. cumulative number of redds
+tmp <- spawn_data |> 
+  select(year, stream, yday) |>
+  group_by(year, stream, yday) |>
+  add_count() |> 
+  distinct() |> 
+  group_by(year, stream) |>
+  arrange(year, stream, yday) |>
+  mutate(cum_redds = cumsum(n)) |> 
+  mutate(cum_redds_p = cum_redds / max(cum_redds))
+# tmp
+
+# Plot pro. cumsums
+p.cumsum <- tmp |> 
+  ggplot(aes(x = yday, y = cum_redds_p, color = as.factor(year))) +
+  lemon::facet_rep_wrap(~stream, ncol = 2, scales = "free_y") +
+  geom_line(linewidth = 0.5) + 
+  geom_point(size = 0.3) + 
+  theme_classic() + 
+  scale_color_brewer(palette = "Dark2") + 
+  labs(
+    x = "Day of Year",
+    y = "Proportional Cumulative Redds",
+    color = ""
+  )
+p.cumsum
+```
+
+<!-- ![](images/redd_cumsum.png){height="70%"} -->
 
 -   color = year
 -   x-axis = day of year
@@ -61,72 +131,70 @@ Figure 3. Proportional cumulative redds by stream.
 
 ### Models and model selection
 
-Import data and combine:
+Next we load covariate data and combine with spawn timing data:
 
-```{r, message=FALSE}
-library(tidyverse); library(here)
+```{r}
 # Import data -------------------------------------------------------------
 
-spawn_data <- read_csv(here("./data/russ_spawn/mfsr_spawn_cleaned.csv"))
-flow_data <- read_csv(here("./data/spawn_flows.csv"))
-comid_data <- readRDS(here("./data/elevslope.rds"))
-load("~/Library/CloudStorage/Box-Box/Morgan.Sparks/Projects/mfsr_phenology/data/comid_temps.RData")
+flow_data <- read_csv(here("data", "spawn_flows.csv"))
+comid_data <- readRDS(here("data", "elevslope.rds"))
+load(here("data", "comid_temps.RData"))
 
 # Combine data ------------------------------------------------------------
 
 # read in temperature data and reshape
-temp_data <- out |> 
-  filter(period == "before" & duration %in% c(30,60,90)) |> 
+temp_data <- out |>
+  filter(period == "before" & duration %in% c(30, 60, 90)) |>
   pivot_wider(names_from = "duration", values_from = avg_temp, names_prefix = "temp_")
 
-#commbine flow and spawn in combined data
-combined_data  <- spawn_data |> 
+# commbine flow and spawn in combined data
+combined_data <- spawn_data |>
   left_join(flow_data, join_by(date == spawn_date))
 
-#add temperature data to combined data
-combined_data  <- combined_data  |> 
-  left_join(temp_data, join_by( UNIQUE_ID == redd_id))
+# add temperature data to combined data
+combined_data <- combined_data |>
+  left_join(temp_data, join_by(UNIQUE_ID == redd_id))
 
-# add physical data to combined data and then filter 
-combined_data  <- combined_data  |> 
-  left_join(comid_data, join_by(COMID)) |> 
-  mutate(mean_elevation = (MAXELEVSMO + MINELEVSMO)/2/100, # take avg elev. & convert to m
-         yday = yday(date)) |> # make DOY
-  filter( stream != "Knapp" & stream != "Cape Horn" & year != 2001) # filter out bad sites and years
+# add physical data to combined data and then filter
+combined_data <- combined_data |>
+  left_join(comid_data, join_by(COMID)) |>
+  mutate(
+    mean_elevation = (MAXELEVSMO + MINELEVSMO) / 2 / 100, # take avg elev. & convert to m
+    yday = yday(date)
+  ) |> # make DOY
+  filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) # filter out bad sites and years
 
 # make a df of just response and covariates
-model_data <- combined_data |> 
-  select(yday, stream, year,
-         flow_30, flow_60,flow_90,
-         temp_30, temp_60, temp_90,
-         SLOPE, mean_elevation)
+model_data <- combined_data |>
+  select(
+    yday, stream, year,
+    flow_30, flow_60, flow_90,
+    temp_30, temp_60, temp_90,
+    SLOPE, mean_elevation
+  )
 
 model_data$year <- as.factor(model_data$year)
-
-
+head(model_data)
 ```
 
 Now we check for colinearity between covariates (expect temp and flow to be bad). Remove covariates with corr \>= 0.6.
 
 ```{r, message=FALSE}
 model_data |> 
-  select(-yday) |> 
+  select(-yday, -stream, -year) |> 
 GGally::ggpairs()
 ```
 
-If we look at the above figure we see temperature and flow at the 30, 60, and 90 day intervals are colinear with one another within the larger covariate (temp or flow). So we need to choose our best predictive variable from that set (though note corr of temp_30 and temp_90 are \<0.6, barely).
+Temperature and flow at the 30, 60, and 90 day intervals are colinear with one another within the larger covariate (temp or flow). So we need to choose our best predictive variable from that set (though note corr of temp_30 and temp_90 are \<0.6, barely).
 
 We also see high correlation between temp_90 and the different flow metrics. So we will look to see which temp metric to choose and make decisions about which flow metrics to include after.
 
-```{r}
-# temp models
+```{r echo=TRUE}
 lm_30 <- lm(yday ~ temp_30, data = model_data)
 lm_60 <- lm(yday ~ temp_60, data = model_data)
 lm_90 <- lm(yday ~ temp_90, data = model_data)
 
 AIC(lm_30, lm_60, lm_90)
-
-#sjPlot::tab_model(lm_30, lm_60, lm_90)
 ```
 
 We can see the model with 90 days of temperature before spawning is much better than the other models (delta AIC = 1734.69)
@@ -135,54 +203,64 @@ Let's look at correlation again when removing temp_60 and temp_30.
 
 ```{r}
 model_data |> 
-  select(-yday, -temp_30, -temp_60) |> 
+  select(-yday, -stream, -year, -temp_30, -temp_60) |> 
 GGally::ggpairs()
 ```
 
 So now we see that flow_30 and flow_60 are highly correlated with temp_90 so we need to also remove those.
 
-Our final model coviates then will be temp_90, slope, elevation, year, site, and abundance (once added).
+Our final model covariates will be temp_90, slope, elevation, year, site, and abundance (once added). We next z-score the continuous covariates and fit three models:
+
+1.  Full model with all covariates
+2.  Model with interaction between stream and temp_90
+3.  Intercept only model
 
 ```{r}
 # standardize function
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 
 # standardize continuous covariates
-model_data_final <- model_data |> 
-  select(yday, 
-         stream, 
-         year,
-         flow_90,
-         temp_90,
-         SLOPE, 
-         mean_elevation) |> 
+model_data_final <- model_data |>
+  select(
+    yday,
+    stream,
+    year,
+    flow_90,
+    temp_90,
+    SLOPE,
+    mean_elevation
+  ) |>
   mutate(across(c("flow_90", "temp_90", "mean_elevation", "SLOPE"), scale2))
 
-full_model <- lm(yday ~
-                   stream +
-                   year +
-                   flow_90 +
-                   temp_90 +
-                   SLOPE +
-                   mean_elevation, 
-                 data = model_data_final)
+full_model <- lm(
+  yday ~
+    stream +
+    year +
+    flow_90 +
+    temp_90 +
+    SLOPE +
+    mean_elevation,
+  data = model_data_final
+)
 
 
-int_model <- lm(yday ~
-                   year +
-                   flow_90 +
-                   temp_90 * stream +
-                   SLOPE +
-                   mean_elevation, 
-                 data = model_data_final)
+int_model <- lm(
+  yday ~
+    year +
+    flow_90 +
+    temp_90 * stream +
+    SLOPE +
+    mean_elevation,
+  data = model_data_final
+)
 
-intercept_model <- lm(yday ~
-                   1, 
-                 data = model_data_final)
+intercept_model <- lm(
+  yday ~
+    1,
+  data = model_data_final
+)
 
 AIC(full_model, int_model, intercept_model)
-
-
 ```
 
 From AIC selection we see that the interaction model preforms the best by far. We can look at the model output below.
@@ -191,5 +269,3 @@ From AIC selection we see that the interaction model preforms the best by far. W
 summary(int_model)
 #sjPlot::tab_model(int_model)
 ```
-
-R\^2 =0.923!
