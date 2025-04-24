@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = FALSE,
 
 ## Methods
 
-In this paper, we examine how stream geomorphic attributes, water temperature profiles, habitat features, climatic factors, and spawning escapements influence wild Chinook salmon phenotypic diversity, specifically, the timing of spawning. We compare detailed salmon spawn timing data across four years in twelve stream reaches within six major watersheds, all within a relatively intact river basin in central Idaho.
+In this paper, we 1)compare detailed salmon spawn timing data across four years in twelve stream reaches within six major watersheds, all within a relatively intact river basin in central Idaho, and 2) examine how water temperature profiles, habitat features, and spawning escapements influence wild Chinook salmon phenotypic diversity, specifically, the timing of spawning. 
 
 ### Study area
 
@@ -24,7 +24,7 @@ This study was conducted in the Middle Fork of the Salmon River (MFSR) in centra
 
 Figure 1. Map of the Middle Fork Salmon River (MFSR) study area showing redd locations (2002-2005) and stream reaches.
 
-![](images/MFsalmonRedds-01.jpg){height="75%"}
+![](images/MFsalmonRedds_GT2001_BigYellow_Apr24.jpg){height="75%"}
 
 \newpage
 
