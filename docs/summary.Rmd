@@ -220,6 +220,19 @@ Our final model covariates will be temp_90, slope, elevation, year, site, and ab
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 
 # standardize continuous covariates
+# model_data_final <- model_data |>
+#   select(
+#     yday,
+#     stream,
+#     year,
+#     flow_90,
+#     temp_90,
+#     SLOPE,
+#     mean_elevation
+#   ) |>
+#   mutate(across(c("flow_90", "temp_90", "mean_elevation", "SLOPE"), scale2))
+
+# unscaled
 model_data_final <- model_data |>
   select(
     yday,
@@ -229,26 +242,39 @@ model_data_final <- model_data |>
     temp_90,
     SLOPE,
     mean_elevation
-  ) |>
-  mutate(across(c("flow_90", "temp_90", "mean_elevation", "SLOPE"), scale2))
+  )
 
 full_model <- lm(
   yday ~
     stream +
     year +
     flow_90 +
+    I(temp_90^2) +
     temp_90 +
     SLOPE +
     mean_elevation,
   data = model_data_final
 )
 
-
+#interaction with temp_90
 int_model <- lm(
   yday ~
     year +
     flow_90 +
     temp_90 * stream +
+    I(temp_90^2) +
+    SLOPE +
+    mean_elevation,
+  data = model_data_final
+)
+
+#interaction with quadratic temp_90
+int_model2 <- lm(
+  yday ~
+    year +
+    flow_90 +
+    temp_90 +
+    I(temp_90^2) * stream +
     SLOPE +
     mean_elevation,
   data = model_data_final
@@ -260,12 +286,66 @@ intercept_model <- lm(
   data = model_data_final
 )
 
-AIC(full_model, int_model, intercept_model)
+AIC(full_model, int_model,int_model2, intercept_model)
 ```
 
 From AIC selection we see that the interaction model preforms the best by far. We can look at the model output below.
 
 ```{r}
-summary(int_model)
+summary(int_model2)
 #sjPlot::tab_model(int_model)
+```
+
+### Marginal means
+
+Marginal means of stream:
+
+```{r}
+library(modelbased)
+
+stream_means <- estimate_means(int_model2, by = "stream")
+stream_means
+
+year_means <- estimate_means(int_model2, by = "year")
+year_means
+```
+
+Plot model fit of spawn date as a function of stream and temp_90 while holding other variables fixed:
+
+```{r}
+vizdata <- insight::get_datagrid(model_data_final,
+  by = c("temp_90", "stream"),
+  length = 100,
+  preserve_range = TRUE
+)
+
+vizdata$Predicted <- insight::get_predicted(int_model2, vizdata)
+
+
+ggplot(model_data_final, aes(x = temp_90, y = yday, color = stream)) +
+  geom_point(size = 0.1) +
+  geom_line(data = vizdata, aes(y = Predicted), linewidth = .75) +
+  labs( x = "Average 90-day Antecedent Temperature (°C)",
+        y = "Spawn Day of Year") +
+  theme_classic()
+```
+
+Same but replace stream with year:
+
+```{r}
+vizdata <- insight::get_datagrid(model_data_final,
+  by = c("temp_90", "year"),
+  length = 100,
+  preserve_range = TRUE
+)
+
+vizdata$Predicted <- insight::get_predicted(int_model2, vizdata)
+
+
+ggplot(model_data_final, aes(x = temp_90, y = yday, color = year)) +
+  geom_point(size = 0.1) +
+  geom_line(data = vizdata, aes(y = Predicted), linewidth = .75) +
+  labs( x = "Average 90-day Antecedent Temperature (°C)",
+        y = "Spawn Day of Year") +
+  theme_classic()
 ```
