@@ -104,7 +104,7 @@ emergence_data |>
 # calculate ranges for phenological events (at 5th and 95th quantiles)
 phenology_ranges <- emergence_data |> 
   filter(stream != "Knapp" & stream != "Cape Horn") |> 
-  group_by(stream, year) |> 
+  group_by(COMID, year, stream ) |> 
   summarise(spawn_5 = quantile(spawn_yday, probs = 0.05),
             spawn_95 = quantile(spawn_yday, probs = 0.95),
             emerge_5 = quantile(emerge_yday, probs = 0.05),
