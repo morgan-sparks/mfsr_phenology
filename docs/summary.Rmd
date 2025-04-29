@@ -129,7 +129,9 @@ p.cumsum
 
 \newpage
 
-### Models and model selection
+## Models and model selection
+
+### Linear models
 
 Next we load covariate data and combine with spawn timing data:
 
@@ -170,7 +172,7 @@ model_data <- combined_data |>
     yday, stream, year,
     flow_30, flow_60, flow_90,
     temp_30, temp_60, temp_90,
-    SLOPE, mean_elevation
+    SLOPE, mean_elevation, UNIQUE_ID, COMID
   )
 
 model_data$year <- as.factor(model_data$year)
@@ -220,19 +222,6 @@ Our final model covariates will be temp_90, slope, elevation, year, site, and ab
 scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
 
 # standardize continuous covariates
-# model_data_final <- model_data |>
-#   select(
-#     yday,
-#     stream,
-#     year,
-#     flow_90,
-#     temp_90,
-#     SLOPE,
-#     mean_elevation
-#   ) |>
-#   mutate(across(c("flow_90", "temp_90", "mean_elevation", "SLOPE"), scale2))
-
-# unscaled
 model_data_final <- model_data |>
   select(
     yday,
@@ -241,15 +230,31 @@ model_data_final <- model_data |>
     flow_90,
     temp_90,
     SLOPE,
-    mean_elevation
-  )
+    mean_elevation,
+    UNIQUE_ID,
+    COMID 
+  ) |>
+  mutate(across(c("flow_90", "temp_90", "mean_elevation", "SLOPE"), scale2))
+
+# unscaled
+# model_data_final <- model_data |>
+#   select(
+#     yday,
+#     stream,
+#     year,
+#     flow_90,
+#     temp_90,
+#     SLOPE,
+#     mean_elevation,
+#     UNIQUE_ID,
+#     COMID 
+#   )
 
 full_model <- lm(
   yday ~
     stream +
     year +
     flow_90 +
-    I(temp_90^2) +
     temp_90 +
     SLOPE +
     mean_elevation,
@@ -262,23 +267,11 @@ int_model <- lm(
     year +
     flow_90 +
     temp_90 * stream +
-    I(temp_90^2) +
     SLOPE +
     mean_elevation,
   data = model_data_final
 )
 
-#interaction with quadratic temp_90
-int_model2 <- lm(
-  yday ~
-    year +
-    flow_90 +
-    temp_90 +
-    I(temp_90^2) * stream +
-    SLOPE +
-    mean_elevation,
-  data = model_data_final
-)
 
 intercept_model <- lm(
   yday ~
@@ -286,27 +279,27 @@ intercept_model <- lm(
   data = model_data_final
 )
 
-AIC(full_model, int_model,int_model2, intercept_model)
+AIC(full_model, int_model, intercept_model)
 ```
 
 From AIC selection we see that the interaction model preforms the best by far. We can look at the model output below.
 
 ```{r}
-summary(int_model2)
+summary(int_model)
 #sjPlot::tab_model(int_model)
 ```
 
-### Marginal means
+#### Marginal means
 
 Marginal means of stream:
 
 ```{r}
 library(modelbased)
 
-stream_means <- estimate_means(int_model2, by = "stream")
+stream_means <- estimate_means(int_model, by = "stream")
 stream_means
 
-year_means <- estimate_means(int_model2, by = "year")
+year_means <- estimate_means(int_model, by = "year")
 year_means
 ```
 
@@ -319,7 +312,7 @@ vizdata <- insight::get_datagrid(model_data_final,
   preserve_range = TRUE
 )
 
-vizdata$Predicted <- insight::get_predicted(int_model2, vizdata)
+vizdata$Predicted <- insight::get_predicted(int_model, vizdata)
 
 
 ggplot(model_data_final, aes(x = temp_90, y = yday, color = stream)) +
@@ -339,7 +332,7 @@ vizdata <- insight::get_datagrid(model_data_final,
   preserve_range = TRUE
 )
 
-vizdata$Predicted <- insight::get_predicted(int_model2, vizdata)
+vizdata$Predicted <- insight::get_predicted(int_model, vizdata)
 
 
 ggplot(model_data_final, aes(x = temp_90, y = yday, color = year)) +
@@ -348,4 +341,166 @@ ggplot(model_data_final, aes(x = temp_90, y = yday, color = year)) +
   labs( x = "Average 90-day Antecedent Temperature (°C)",
         y = "Spawn Day of Year") +
   theme_classic()
+```
+
+### Mixed-effects model
+
+Because the data are hierarchical, it makes sense to run the model in a mixed-model framework. It will essentially be the same model but with a random effect (slopes and intercepts) of Redd ID nested in COMID nested in stream nested in year.
+
+We'll use a similar model selection process as before.
+
+```{r}
+library(lme4)
+
+# REML TOGGLE
+toggle <- FALSE
+
+full_mod_mixed <- lmer(yday ~
+    stream +
+    year +
+    flow_90 +
+    temp_90 +
+    SLOPE +
+    mean_elevation +
+     (1 | COMID ),
+    REML = toggle,
+  data = model_data_final
+)
+
+int_mod_mixed <- lmer(yday ~
+    year +
+    flow_90 +
+    temp_90 * stream +
+    SLOPE +
+    mean_elevation +
+     (1 | COMID) ,
+    REML = toggle,
+  data = model_data_final
+)
+
+int_mod_mixed2 <- lmer(yday ~
+    flow_90 * year +
+    temp_90 * stream +
+    SLOPE +
+    mean_elevation +
+     (1 | COMID) ,
+    REML = toggle,
+  data = model_data_final
+)
+
+
+intercept_model_mixed <-
+  lmer(yday ~
+    1 +
+  (1 | COMID) ,
+    REML = toggle,
+  data = model_data_final
+)
+
+AIC(full_mod_mixed, int_mod_mixed, int_mod_mixed2, intercept_model_mixed)
+
+summary(int_mod_mixed2)
+
+#sjPlot::tab_model(full_mod_mixed, int_mod_mixed, int_mod_mixed2, intercept_model_mixed)
+```
+
+### Bayesian fit
+
+Fit it bayesian to avoid all the singularity mumbo jumbo
+
+```{r, message=FALSE}
+library(brms); library(cmdstanr)
+
+iter = 6000
+chains = 4
+cores = 4 
+backend = "cmdstanr"
+warmup = 1000
+
+full_mod_bay <- brm(yday ~
+                      stream +
+                      year +
+                      flow_90 +
+                      temp_90 +
+                      SLOPE +
+                      mean_elevation +
+                        (1 | COMID) ,
+                    data = model_data_final,
+                    set_prior("normal(0,1)", class = "b"),
+                    family = gaussian(),
+                    adapt_delta = 0.95,
+                    iter = iter,
+                    warmup = warmup,
+                    chains = chains,
+                    cores = cores,
+                    backend = backend)
+
+
+int_mod_bay <- brm(yday ~
+                     stream +
+                     year +
+                     flow_90  +
+                     temp_90 * stream +
+                     SLOPE +
+                     mean_elevation +
+                      (1 | COMID) ,
+                   data = model_data_final,
+                   set_prior("normal(0,1)", class = "b"),
+                   family = gaussian(),
+                   adapt_delta = 0.95,
+                   iter = iter,
+                    warmup = warmup,
+                    chains = chains,
+                    cores = cores,
+                    backend = backend)
+
+int_mod_bay2 <- brm(yday ~
+                     year * flow_90 +
+                     temp_90 * stream +
+                     SLOPE +
+                     mean_elevation +
+                      (1 | COMID) ,
+                   data = model_data_final,
+                   set_prior("normal(0,1)", class = "b"),
+                   family = gaussian(),
+                   adapt_delta = 0.95,
+                   iter = iter,
+                    warmup = warmup,
+                    chains = chains,
+                    cores = cores,
+                    backend = backend)
+
+
+intercept_model_bay <- brm(yday ~
+                             1 +
+                               (1 | COMID) ,
+                           data = model_data_final,
+                           #set_prior("normal(0,1)", class = "b"),
+                           family = gaussian(),
+                           adapt_delta = 0.95,
+                           iter = iter,
+                    warmup = warmup,
+                    chains = chains,
+                    cores = cores,
+                    backend = backend)
+
+```
+
+Compare models with leave-one-out cross validation
+
+```{r}
+library(loo)
+
+loo_full <- loo(full_mod_bay)
+loo_int <- loo(int_mod_bay)
+loo_int2 <- loo(int_mod_bay2)
+loo_intercept <- loo(intercept_model_bay)
+
+loo_compare(loo_full, loo_int, loo_int2, loo_intercept)
+```
+
+Intercept model performs best, let's look at the summary:
+
+```{r}
+summary(int_mod_bay2)
 ```
