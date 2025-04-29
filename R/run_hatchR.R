@@ -65,7 +65,7 @@ emergence_data <- emergence_data |>
 emergence_data |> 
   ggplot(aes(x = avg_emergence_temp, y = spawn_yday, color = stream)) +
   geom_point(size =0.5) +
-  geom_smooth(method = "lm", se = FALSE) +
+  geom_smooth(method = "lm", se = TRUE) +
   labs(x= "Average incubation temp (Emergence)", y = "Spawn DOY") +
   lims(x = c(2.5,5)) +
   theme_classic()
@@ -96,9 +96,10 @@ emergence_data |>
 #emerge day ~ spawn day
 emergence_data |> 
   filter(emerge_yday <= 300) |> 
-  ggplot(aes(x = spawn_yday, y = emerge_yday, colour = stream)) +
+  ggplot(aes(x = spawn_yday, y = emerge_yday, colour = stream, shape = as.factor(year))) +
   geom_point(size = 0.75) +
   geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~stream) +
   theme_classic()
 
 # calculate ranges for phenological events (at 5th and 95th quantiles)
@@ -120,4 +121,32 @@ phenology_ranges |>
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
   geom_smooth(method = "lm", se = FALSE) +
   lims(x = c(0,75), y = c(0,75)) +
+  theme_classic()
+
+
+# Compare temp_90 to incubation temp --------------------------------------
+load(here("data", "comid_temps.RData"))
+
+# read in temperature data and reshape
+sum_temp_data <-  out |>
+  filter(period == "before" & duration %in% c(30, 60, 90)) |>
+  pivot_wider(names_from = "duration", values_from = avg_temp, names_prefix = "temp_")
+
+emergence_data_temps <- emergence_data |> 
+  left_join(sum_temp_data, by = join_by(COMID == comid))
+
+emergence_data_temps |> 
+  filter(year != 2001) |> 
+  filter(stream != "Knapp" & stream != "Cape Horn") |> 
+  ggplot(aes(x = temp_90, y = avg_emergence_temp, color = as.factor(year))) +
+  geom_point(size = 0.75) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~stream) +
+  theme_classic()
+
+emergence_data_temps |> 
+  filter(stream != "Knapp" & stream != "Cape Horn" & avg_emergence_temp <= 5) |> 
+  ggplot(aes(x = temp_90, y = avg_emergence_temp, color = stream)) +
+  geom_point(size = 0.75) +
+  geom_smooth(method = "lm", se = FALSE) +
   theme_classic()
