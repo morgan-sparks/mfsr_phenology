@@ -12,12 +12,14 @@ theme_custom <- function() {
       axis.ticks = element_line(color = "black", linewidth = 0.3),
       axis.line.x = element_line(color = "black", linewidth = 0.8),
       axis.line.y = element_line(color = "black", linewidth = 0.8),
+      # panel.grid.major = element_line(color = "gray80", linewidth = 0.5),
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       plot.title = element_text(face = "bold"),
       # plot.subtitle = element_text(),
       legend.position = "none",
-      plot.margin = margin(10, 10, 10, 10)
+      plot.margin = margin(10, 10, 10, 10), 
+      strip.text = element_text(hjust = 0),
     )
 }
 
