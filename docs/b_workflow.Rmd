@@ -70,7 +70,13 @@ To test for environmental factors driving variation in spawn timing, we quantifi
 
 We selected covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
 
-Our focal independent variable were the average daily flow (cfs) and stream temperature (°C) during the 30, 60, and 90 days prior to spawning. We also included the slope of the stream reach and the mean elevation of the stream reach.
+Our focal independent variable were and stream temperature (°C), average daily flow (cfs), mean elevation of a spawning reach, and stream slope.
+
+Stream temperature data were modeled dailvy average stream temperature values at the stream segment scale (COMID in the National Hydrography Dataset) from Siegel et al. 2023. These data were downloaded and filtered to 2001-2005 and for the MFSR HUC. We calculated metrics relative to a COMID a redd was constructed and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1. This and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+Stream flow data were compiled from a single USGS Gage lower in the watershed...
+
+Elevation and stream slope data were available at the COMID )stream reach) scale from the NHD.
 
 ```{r load-covariates}
 # load covariate data -----------------------------------------------------
@@ -198,6 +204,8 @@ p1 / (p2 + p3)
 -   var \< mean (no overdispersion) data are right-skewed, lumpy/multimodal, and not symmetric at least
 -   Poisson family is response is count of spawning events per day, Gaussian if model density as continuous
 
+### Spawn time by stream and year
+
 ```{r fig.width=8}
 # plot spawn dates by stream an year
 labs <- spawn_data |> 
@@ -219,6 +227,15 @@ p4 <- spawn_data |>
     y = "Spawn Date (DOY)"
   )
 p4
+```
+
+### Spawn time by COMID and stream
+
+```{r}
+spawn_data |> 
+  ggplot(aes(x = COMID, y = yday, color = stream)) + 
+  # lemon::facet_rep_wrap(~stream) + 
+  geom_boxplot()
 ```
 
 ### Spawn time variation by stream
@@ -631,7 +648,7 @@ model_data_final <- model_data |>
 We should only include a grouping variable as both fixef and ranef when you want to model differenct aspects of the effect. E.g., stream as fixed to compared average effects by stream, but as ranefs to account for non-independence of obs within each stream but not to compare average effects. Include as both when you want population-level estimates AND when you expect stream-level random variation around those means. Do not include both when intercepts are redundant (\~ stream + (1\| stream)), or too few levels for the random effect to be estimated (e.g., \<5 levels).
 
 | Variable | Fixed? | Random? | Why |
-|-----------------|-----------------|--------------------|--------------------|
+|------------------|------------------|-------------------|-------------------|
 | COMID | No | Yes (but must check data availability among levels; likely sparse) | Not estimating individual COMID effects, just accounting for correlation. |
 | Stream | Yes | Maybe (only if random slope or complex structure) | May want to estimate differences and account for grouping. |
 | Year | Yes (comparing years) | Maybe (account for inter-annual variability) | Use one or the other depending on goal. |
@@ -735,9 +752,7 @@ AIC(m_fixed, m_rand) |>
 # summary(m_rand)  # Check variance estimate for COMID
 ```
 
-Does adding (1|COMID) improve it without overfiitg? Improves AIC by >2700. 
-Is the variance explained by COMID non-zero and meaningful? Variance is 60 and likely meaninful. 
-But, is it overfitting? Yes, the model is overfitting. The AIC is much lower, but the predictions are not close to the observed data (Not shown). 
+Does adding (1\|COMID) improve it without overfiitg? Improves AIC by \>2700. Is the variance explained by COMID non-zero and meaningful? Variance is 60 and likely meaninful. But, is it overfitting? Yes, the model is overfitting. The AIC is much lower, but the predictions are not close to the observed data (Not shown).
 
 ### Final candidate covariates and interactions
 
@@ -777,7 +792,7 @@ AIC(m1, m2, m3, m4) |>
   mutate(delta = AIC - min(AIC)) 
 ```
 
-Full interaction (m4) is best. We will now compare all possible combinations of the interactions, except stream x year. 
+Full interaction (m4) is best. We will now compare all possible combinations of the interactions, except stream x year.
 
 ### Dredge
 
