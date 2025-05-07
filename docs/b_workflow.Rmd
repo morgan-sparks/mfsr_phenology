@@ -136,9 +136,9 @@ glimpse(model_data)
 
 ## Descriptive stats and visualizations
 
-We evaluated variation in spawn timing using histograms, boxplots, density plots. We also calculated summary statistics for spawn timing.
+### Response data
 
-### Spawn time variation
+#### Variation in spawn timing
 
 ```{r plot-desc-spawn, echo=FALSE, fig.width=10, fig.height=8}
 # historgram and density of spawn timing
@@ -204,41 +204,41 @@ p1 / (p2 + p3)
 -   var \< mean (no overdispersion) data are right-skewed, lumpy/multimodal, and not symmetric at least
 -   Poisson family is response is count of spawning events per day, Gaussian if model density as continuous
 
-### Spawn time by stream and year
+#### Spawn time variation by year and stream
 
 ```{r fig.width=8}
-# plot spawn dates by stream an year
-labs <- spawn_data |> 
-  group_by(year, stream) |> 
-  tally()
+# labs <- spawn_data |> 
+#   group_by(year, stream) |> 
+#   tally()
 
 p4 <- spawn_data |>
   ggplot(aes(x = year, y = yday, color = year)) +
   lemon::facet_rep_wrap(~stream) + 
   geom_boxplot() + 
-  geom_text(data = labs,
-            aes(year, 210, label = n), vjust = 1) +
+  # geom_text(data = labs, aes(year, 210, label = n), vjust = 1) +
   scale_y_continuous(limits = c(200, 270), breaks = seq(200, 270, 20)) +
   theme_custom() + 
   labs(
-    title = "Spawn Date by Year and Stream",
-    subtitle = "(sample size below boxplot)", 
+    # title = "Spawn Date by Year and Stream",
+    # subtitle = "(sample size below boxplot)", 
     x = "",
     y = "Spawn Date (DOY)"
   )
 p4
 ```
 
-### Spawn time by COMID and stream
+#### Spawn time by COMID and stream
 
 ```{r}
 spawn_data |> 
   ggplot(aes(x = COMID, y = yday, color = stream)) + 
-  # lemon::facet_rep_wrap(~stream) + 
-  geom_boxplot()
+  facet_wrap(~stream, scales = "free_x") +
+  geom_boxplot() + 
+  theme_custom() + 
+  theme(axis.text.x = element_text(angle = 90, size = 8))
 ```
 
-### Spawn time variation by stream
+#### Spawn time distributions by stream
 
 ```{r plot-temp-dist-spawn, fig.height=10}
 mfsr_by_site <- spawn_data |>
@@ -272,7 +272,7 @@ p5 <- plot <- spawn_data |>
 p5
 ```
 
-### Cumulative proportions of redds by stream
+#### Cumulative proportions of redds by stream
 
 ```{r plot-cum-props, fig.height=10}
 # Proportional cumulative redds ------------------------------------------------
@@ -315,6 +315,41 @@ p6 <- props |>
     color = ""
   )
 p6
+```
+
+### Covariates
+
+#### Temperature
+
+```{r}
+
+```
+
+#### Streamflows
+
+```{r}
+mfsr_flow <- read_csv("data/mfsr_flow.csv")
+
+# get day of year and year
+mfsr_flow <- mfsr_flow |> 
+  mutate(yday = yday(Date), year = as_factor(year(Date))) |> 
+  mutate(flow_csm = Flow * 0.028316846592) |> 
+  filter(year != 2001)
+
+mfsr_flow |> 
+  ggplot(aes(x = yday, y = flow_csm, color = year)) +
+  geom_line() +
+  scale_color_brewer(palette = "Dark2") +
+  scale_x_continuous(breaks = seq(1,361, 30)) + 
+  scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
+  # scale_y_log10() +
+  labs(
+    x = "Day of year starting 1 December", 
+    y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
+  ) + 
+  theme_custom() + 
+  theme(legend.position = "right", 
+        axis.title.y = ggtext::element_markdown()) 
 ```
 
 ## Bivariate relationships with covariates
