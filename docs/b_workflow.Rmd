@@ -12,9 +12,7 @@ date: "2025-04-29"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = FALSE, warning = FALSE, message = FALSE
-  )
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(here)
 library(patchwork)
@@ -23,8 +21,17 @@ library(ggeffects)
 library(lme4)
 library(mgcv)
 library(gratia)
-source(here("R", "gg_theme.R"))
+# source(here("R", "gg_theme.R"))
 library(MuMIn)
+```
+
+```{r}
+# Lower granite dam counts -----------------------------------------------------
+# lgd_chinook <-tibble(year = c(2002,2003,2004,2005),
+#                      spring_chinook = c(75025,70609,70742,26028),
+#                      spring_jacks = c(2089,8295,4482,1258),
+#                      all_chinook = c(109535, 98763, 94469, 43958)) |> 
+#   mutate(year = as.factor(year))
 ```
 
 ## Goal
@@ -41,25 +48,25 @@ This study was conducted in the Middle Fork of the Salmon River (MFSR) in centra
 
 ### Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR (Fig. 1). We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
 
 We consider the day of year a redd is assumed to be complete as our response variable (spawn timing).
 
-Each redd location was assigned a COMID based on the NHD, which is analogous to a stream reach. The COMID is used to link the spawn timing data with covariate data associated with the stream reach on which it is located.
+Each redd location was assigned a COMID based on the NHD, analogous to a stream reach. The COMID is used to link the spawn timing data with covariate data associated with the stream reach on which it is located.
 
 ```{r load-spawn-data, echo=TRUE}
-# Response data ---------------
+# data were compiled and clean in compile_mfsr_spawn.R and clean_mfsr_spawn.R
 spawn_data <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
 
 # remove bad data
 spawn_data <- spawn_data |>
   filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) |> 
-  mutate(year = as.factor(year), stream = as.factor(stream), COMID = as.factor(COMID))
+  mutate(year = as.factor(year), stream = as.factor(stream), COMID = as.factor(COMID), DATE = mdy(DATE)) |> 
+  select(
+    UNIQUE_ID, COMID, DATE, stream, year, yday
+  )
 
 glimpse(spawn_data)
-# length(unique(spawn_data$COMID))  # 104
-# length(unique(spawn_data$stream))  # 8
-# length(unique(spawn_data$year))  # 4
 ```
 
 The data comprise `r nrow(spawn_data)` redd observation from `r length(unique(spawn_data$stream))` streams across `r length(unique(spawn_data$year))` years. The redds were observed between day `r min(spawn_data$yday)` and `r max(spawn_data$yday)`.
@@ -70,28 +77,42 @@ To test for environmental factors driving variation in spawn timing, we quantifi
 
 We selected covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
 
-Our focal independent variable were and stream temperature (°C), average daily flow (cfs), mean elevation of a spawning reach, and stream slope.
+Our focal independent variable were:
 
-Stream temperature data were modeled dailvy average stream temperature values at the stream segment scale (COMID in the National Hydrography Dataset) from Siegel et al. 2023. These data were downloaded and filtered to 2001-2005 and for the MFSR HUC. We calculated metrics relative to a COMID a redd was constructed and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1. This and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+-   stream temperature (°C)
+-   average daily flow (cms)
+-   elevation (m above sea level)
+-   stream gradient (slope)
 
-Stream flow data were compiled from a single USGS Gage lower in the watershed...
+#### Stream temperature
 
-Elevation and stream slope data were available at the COMID )stream reach) scale from the NHD.
+Stream temperature data were modeled daily average stream temperature values at the stream segment scale (COMID in the NHD) from Siegel et al. 2023 (available from https://zenodo.org/records/8174951). These data were downloaded and filtered to 2001-2005 and for the MFSR HUC 6. 
 
-```{r load-covariates}
-# load covariate data -----------------------------------------------------
-flow_data <- read_csv(here("data", "spawn_flows.csv"))
-comid_data <- readRDS(here("data", "elevslope.rds"))
+```{r}
+# temp data (see siegel_mfsr_temps.R)
+df_temp <- readRDS(here::here("data/siegel_temperature/siegel_mfsr_comid.RDS"))
+
+xref_comid_stream <- spawn_data |> 
+  distinct(COMID, stream) 
+
+# filter to just the spawn data
+df_temp <- df_temp |>
+  mutate(COMID = as.character(COMID)) |>
+  filter(COMID %in% spawn_data$COMID) |>
+  filter(tim.date %in% spawn_data$DATE) |> 
+  select(COMID, date = tim.date, temp = prd.stream_temp) |> 
+  left_join(xref_comid_stream, by = "COMID") 
+
+# raw temp data 
+head(df_temp)
+```
+
+We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1. The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+```{r}
+# summarized temperature data (`out`), see (map_comid_temps.R)
 load(here("data", "comid_temps.RData"))
-# lgd_chinook <-tibble(year = c(2002,2003,2004,2005),
-#                      spring_chinook = c(75025,70609,70742,26028),
-#                      spring_jacks = c(2089,8295,4482,1258),
-#                      all_chinook = c(109535, 98763, 94469, 43958)) |> 
-#   mutate(year = as.factor(year))
 
-# Combine data ------------------------------------------------------------
-
-# temperature data and reshape
 temp_data <- out |>
   filter(period == "before" & duration %in% c(30, 60, 90)) |>
   pivot_wider(
@@ -99,6 +120,46 @@ temp_data <- out |>
     values_from = avg_temp, 
     names_prefix = "temp_"
     )
+
+# summarized temp data
+head(temp_data)
+```
+
+
+#### Discharge (streamflow)
+
+Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220). 
+
+```{r}
+# raw flow data (see flow_calculations.R)
+df_flows <- read_csv("data/mfsr_flow.csv")
+```
+
+
+
+```{r}
+# summarized flow data (see flow_calculations.R)
+flow_data <- read_csv(here("data", "spawn_flows.csv"))
+flow_data
+```
+
+
+#### Elevation and stream gradient (slope)
+
+Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
+
+```{r}
+# elevation and slope from NHD
+comid_data <- readRDS(here("data", "elevslope.rds")) |> 
+  as_tibble()
+comid_data
+```
+
+
+```{r load-covariates}
+
+
+# Combine data ------------------------------------------------------------
 
 # commbine flow and spawn in combined data
 combined_data <- spawn_data |>
