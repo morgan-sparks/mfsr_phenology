@@ -38,7 +38,7 @@ library(MuMIn)
 
 Describe variation in spawn timing and how it relates to environmental covariates.
 
-## Study Area and species
+## Study area and species
 
 This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. 1).
 
@@ -48,11 +48,13 @@ This study was conducted in the Middle Fork of the Salmon River (MFSR) in centra
 
 ### Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR (Fig. 1). We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR (Fig. 1).
 
-We consider the day of year a redd is assumed to be complete as our response variable (spawn timing).
+We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
 
-Each redd location was assigned a COMID based on the NHD, analogous to a stream reach. The COMID is used to link the spawn timing data with covariate data associated with the stream reach on which it is located.
+Because redds were not observed daily, we infered spawn dates as the initial date a completed redd was observed.
+
+We joined each redd location to the NHD and assigned them a COMID, analogous to a stream reach. The COMID is used to link the spawn time data with covariate data associated with the stream reach on which it is located.
 
 ```{r load-spawn-data, echo=TRUE}
 # data were compiled and clean in compile_mfsr_spawn.R and clean_mfsr_spawn.R
@@ -63,10 +65,10 @@ spawn_data <- spawn_data |>
   filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) |> 
   mutate(year = as.factor(year), stream = as.factor(stream), COMID = as.factor(COMID), DATE = mdy(DATE)) |> 
   select(
-    UNIQUE_ID, COMID, DATE, stream, year, yday
+    redd_id = UNIQUE_ID, COMID, spawn_date = DATE, stream, year, yday
   )
 
-glimpse(spawn_data)
+spawn_data
 ```
 
 The data comprise `r nrow(spawn_data)` redd observation from `r length(unique(spawn_data$stream))` streams across `r length(unique(spawn_data$year))` years. The redds were observed between day `r min(spawn_data$yday)` and `r max(spawn_data$yday)`.
@@ -79,14 +81,14 @@ We selected covariates based on the following criteria: (1) they are known to in
 
 Our focal independent variable were:
 
--   stream temperature (°C)
--   average daily flow (cms)
+-   stream temperature (°C) - in-basin effect on how fast fish ripen and commit to spawning
+-   stream discharge (cms) - out of basin year effect on when fish initially make it to spawn grounds
 -   elevation (m above sea level)
 -   stream gradient (slope)
 
 #### Stream temperature
 
-Stream temperature data were modeled daily average stream temperature values at the stream segment scale (COMID in the NHD) from Siegel et al. 2023 (available from https://zenodo.org/records/8174951). These data were downloaded and filtered to 2001-2005 and for the MFSR HUC 6. 
+We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023; available from <https://zenodo.org/records/8174951>). These data were downloaded and filtered to 2001-2005 and for the MFSR HUC 6.
 
 ```{r}
 # temp data (see siegel_mfsr_temps.R)
@@ -95,17 +97,86 @@ df_temp <- readRDS(here::here("data/siegel_temperature/siegel_mfsr_comid.RDS"))
 xref_comid_stream <- spawn_data |> 
   distinct(COMID, stream) 
 
-# filter to just the spawn data
+# clean up
 df_temp <- df_temp |>
-  mutate(COMID = as.character(COMID)) |>
-  filter(COMID %in% spawn_data$COMID) |>
-  filter(tim.date %in% spawn_data$DATE) |> 
   select(COMID, date = tim.date, temp = prd.stream_temp) |> 
+  mutate(
+    yday = yday(date), 
+    year = as_factor(year(date)), 
+    COMID = as.character(COMID)) |> 
+  filter(COMID %in% spawn_data$COMID) |>
+  filter(year %in% c("2001","2002","2003","2004","2005")) |>
   left_join(xref_comid_stream, by = "COMID") 
 
 # raw temp data 
 head(df_temp)
 ```
+
+##### Summarized thermal regimes by stream
+
+```{r}
+# calculate 40 to 60th percentiles and full range for each COMID
+df_temp_stream <- df_temp |> 
+  group_by(stream, yday) |> 
+  summarise(
+    mean = mean(temp),
+    temp_40 = quantile(temp, probs = 0.4),
+    temp_60 = quantile(temp, probs = 0.6),
+    temp_min = min(temp),
+    temp_max = max(temp), 
+    .groups = "drop"
+  )
+
+# plot ribbom of 40-60th percentiles and range over yday
+df_temp_stream |> 
+  ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+  facet_rep_wrap(~stream, ncol = 2) +
+  geom_ribbon(data = df_temp_stream, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
+  geom_ribbon(data = df_temp_stream, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
+  geom_line(aes(y = mean), color = "black") + 
+  scale_color_brewer(palette = "Accent") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  labs(
+    title = "Modeled thermal regimes (2001-2004) for MFSR tributaries",
+    subtitle = "Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range",
+    x = "", 
+    y = "Daily water<br>temperature (\u00b0C)",
+    color = "Year"
+  ) + 
+  theme_bw() +
+  theme(axis.title.y = ggtext::element_markdown())
+
+# # calculate 40 to 60th percentiles and full range for each stream an year
+# df_temp_stream_year <- df_temp |> 
+#   group_by(year, stream, yday) |> 
+#   summarise(
+#     temp_40 = quantile(temp, probs = 0.4),
+#     temp_60 = quantile(temp, probs = 0.6),
+#     temp_min = min(temp),
+#     temp_max = max(temp), 
+#     .groups = "drop"
+#   )
+# 
+# # plot ribbom of 40-60th percentiles and range over yday
+# df_temp_stream_year |> 
+#   ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+#   facet_rep_grid(cols = vars(year), rows = vars(stream)) +
+#   geom_ribbon(data = df_temp_stream_year, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
+#   geom_ribbon(data = df_temp_stream_year, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
+#   scale_color_brewer(palette = "Accent") +
+#   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+#   labs(
+#     # title = glue::glue("Modeled thermal regime (2001-2004) at COMID {unique(df_temp$COMID)}"),
+#     caption = "Red ribbom = 40-60th percentiles\nGrey ribbom = full range",
+#     x = "", 
+#     y = "Daily water<br>temperature (\u00b0C)",
+#     color = "Year"
+#   ) + 
+#   theme_bw() +
+#   theme(axis.title.y = ggtext::element_markdown())
+```
+
+##### Stream temperature metrics
 
 We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1. The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
 
@@ -119,23 +190,107 @@ temp_data <- out |>
     names_from = "duration", 
     values_from = avg_temp, 
     names_prefix = "temp_"
-    )
+    ) |> 
+  select(redd_id, COMID = comid, spawn_date, temp_30, temp_60, temp_90)
 
 # summarized temp data
 head(temp_data)
 ```
 
-
 #### Discharge (streamflow)
 
-Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220). 
+Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220). Becuase flow data are not COMID- or stream-specific, it makes sense to think about and represent flow as an out-of-basin year effect that determines when adults make it back to the MFSR and initially onto the spawning grounds.
 
 ```{r}
 # raw flow data (see flow_calculations.R)
 df_flows <- read_csv("data/mfsr_flow.csv")
+
+# get day of year and year
+df_flows <- df_flows |> 
+  select(date = Date, flow_cfs = Flow) |> 
+  mutate(yday = yday(date), year = as_factor(year(date))) |> 
+  mutate(flow_csm = flow_cfs * 0.028316846592) 
+df_flows
 ```
 
+##### Inter-annual variability
 
+```{r}
+p.flow.1 <- df_flows |> 
+  ggplot(aes(x = as.Date("2000-12-31") + yday, y = flow_csm, color = year)) +
+  geom_line() +
+  scale_color_brewer(palette = "Dark2") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
+  labs(
+    title = "Linear scale",
+    x = "", 
+    y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
+    color = "Year"
+  ) + 
+  theme_bw() + 
+  theme(axis.title.y = ggtext::element_markdown()) 
+
+p.flow.2 <- df_flows |> 
+  ggplot(aes(x = as.Date("2000-12-31") + yday, y = flow_csm, color = year)) +
+  geom_line() +
+  scale_color_brewer(palette = "Dark2") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  # scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
+  scale_y_log10() +
+  labs(
+    title = "Log scale",
+    x = "", 
+    y = "",
+    # y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
+    color = "Year"
+  ) + 
+  theme_bw() + 
+  theme(axis.title.y = ggtext::element_markdown()) 
+
+# p.flow.1 + p.flow.2 + 
+#   plot_layout(guides = "collect") + 
+#   plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220")
+
+# calculate 40 to 60th percentiles and full range for each COMID
+tmp <- df_flows |> 
+  group_by(yday) |>
+  summarise(
+    mean = mean(flow_csm),
+    flow_40 = quantile(flow_csm, probs = 0.4),
+    flow_60 = quantile(flow_csm, probs = 0.6),
+    flow_10 = quantile(flow_csm, probs = 0.1),
+    flow_90 = quantile(flow_csm, probs = 0.9), 
+    .groups = "drop"
+  )
+
+# plot ribbom of 40-60th percentiles and range over yday
+p.flow.3 <- tmp |> 
+  ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+  geom_ribbon(data = tmp, aes(ymin = flow_10, ymax = flow_90), fill = "grey") +
+  geom_ribbon(data = tmp, aes(ymin = flow_40, ymax = flow_60), fill = "blue") +
+  geom_line(aes(y = mean), color = "black") + 
+  scale_color_brewer(palette = "Accent") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_log10() +
+  labs(
+    # title = "Measured discharge at MF Lodge, USGS Gage 13309220",
+    subtitle = "Black line = mean, blue ribbon = 40 - 60th percentiles, Grey ribbon = full range",
+    x = "", 
+    y = "Log Daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
+    color = "Year"
+  ) + 
+  theme_bw() +
+  theme(axis.title.y = ggtext::element_markdown())
+
+(p.flow.1 + p.flow.2) / p.flow.3 + 
+  plot_layout(guides = "collect") + 
+  plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220")
+```
+
+##### Flow metrics
+
+We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
 
 ```{r}
 # summarized flow data (see flow_calculations.R)
@@ -143,37 +298,38 @@ flow_data <- read_csv(here("data", "spawn_flows.csv"))
 flow_data
 ```
 
-
 #### Elevation and stream gradient (slope)
 
 Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
 
 ```{r}
 # elevation and slope from NHD
-comid_data <- readRDS(here("data", "elevslope.rds")) |> 
-  as_tibble()
-comid_data
+df_elev_slope <- readRDS(here("data", "elevslope.rds")) |> 
+  as_tibble() |> 
+  mutate(mean_elevation = (MAXELEVSMO + MINELEVSMO) / 2 / 100) |> 
+  select(COMID, slope = SLOPE, mean_elevation)
+df_elev_slope
 ```
 
+#### Combine datasets
 
-```{r load-covariates}
+```{r combine-data}
 
-
-# Combine data ------------------------------------------------------------
-
-# commbine flow and spawn in combined data
 combined_data <- spawn_data |>
-  left_join(flow_data, join_by(date == spawn_date))
+  left_join(temp_data |> select(-spawn_date), by = "redd_id") |>
+  left_join(flow_data, by = "spawn_date") |> 
+  left_join(df_elev_slope |> mutate(COMID = as.factor(COMID)), join_by(COMID)) |>
+  mutate(
+    yday = yday(date)
+  )
 
-# add temperature data to combined data
 combined_data <- combined_data |>
   left_join(temp_data, join_by(UNIQUE_ID == redd_id))
 
 # add physical data to combined data and then filter
 combined_data <- combined_data |>
-  left_join(comid_data |> mutate(COMID = as.factor(COMID)), join_by(COMID)) |>
+  left_join(df_elev_slope |> mutate(COMID = as.factor(COMID)), join_by(COMID)) |>
   mutate(
-    mean_elevation = (MAXELEVSMO + MINELEVSMO) / 2 / 100,
     yday = yday(date)
   )
 
@@ -376,41 +532,6 @@ p6 <- props |>
     color = ""
   )
 p6
-```
-
-### Covariates
-
-#### Temperature
-
-```{r}
-
-```
-
-#### Streamflows
-
-```{r}
-mfsr_flow <- read_csv("data/mfsr_flow.csv")
-
-# get day of year and year
-mfsr_flow <- mfsr_flow |> 
-  mutate(yday = yday(Date), year = as_factor(year(Date))) |> 
-  mutate(flow_csm = Flow * 0.028316846592) |> 
-  filter(year != 2001)
-
-mfsr_flow |> 
-  ggplot(aes(x = yday, y = flow_csm, color = year)) +
-  geom_line() +
-  scale_color_brewer(palette = "Dark2") +
-  scale_x_continuous(breaks = seq(1,361, 30)) + 
-  scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
-  # scale_y_log10() +
-  labs(
-    x = "Day of year starting 1 December", 
-    y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
-  ) + 
-  theme_custom() + 
-  theme(legend.position = "right", 
-        axis.title.y = ggtext::element_markdown()) 
 ```
 
 ## Bivariate relationships with covariates
@@ -744,7 +865,7 @@ model_data_final <- model_data |>
 We should only include a grouping variable as both fixef and ranef when you want to model differenct aspects of the effect. E.g., stream as fixed to compared average effects by stream, but as ranefs to account for non-independence of obs within each stream but not to compare average effects. Include as both when you want population-level estimates AND when you expect stream-level random variation around those means. Do not include both when intercepts are redundant (\~ stream + (1\| stream)), or too few levels for the random effect to be estimated (e.g., \<5 levels).
 
 | Variable | Fixed? | Random? | Why |
-|------------------|------------------|-------------------|-------------------|
+|------------------|------------------|------------------|------------------|
 | COMID | No | Yes (but must check data availability among levels; likely sparse) | Not estimating individual COMID effects, just accounting for correlation. |
 | Stream | Yes | Maybe (only if random slope or complex structure) | May want to estimate differences and account for grouping. |
 | Year | Yes (comparing years) | Maybe (account for inter-annual variability) | Use one or the other depending on goal. |
