@@ -1,14 +1,14 @@
 ---
-title: "MFK Salmon River Chinook spawn time analysis: BMM workflow"
+title: "MFSR Chinook spawn timing analysis"
 output:
-  html_document:
+  bookdown::html_document2:
     toc: true
     number_sections: true
     toc_depth: 2
     toc_float:
       collapsed: false
       smooth_scroll: false
-date: "2025-04-29"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
 ```{r setup, include=FALSE}
@@ -23,7 +23,8 @@ library(mgcv)
 library(gratia)
 # source(here("R", "gg_theme.R"))
 library(MuMIn)
-
+library(sjPlot)
+library(broom)
 
 cols.streams <- c(
   "Bear Valley" = "#55FF00", 
@@ -43,9 +44,15 @@ cols.years <- c(
   "2005" = "#E7298A", 
   "2001" = "#66A61E"
   )
+
+fixed_date <- as.Date("2000-12-31")
+scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
+summary_table <- function(model) {
+  tidy(model)[, c("term", "estimate", "std.error", "p.value")]
+}
 ```
 
-```{r}
+```{r lgd-data}
 # Lower granite dam counts -----------------------------------------------------
 # lgd_chinook <-tibble(year = c(2002,2003,2004,2005),
 #                      spring_chinook = c(75025,70609,70742,26028),
@@ -60,15 +67,17 @@ Describe variation in spawn timing and how it relates to environmental covariate
 
 ## Study area and species
 
-This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. 1).
+This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (\@ref(fig:map)). The MFSR is a tributary of the Salmon River and is part of the larger Columbia River Basin. The MFSR is home to several species of salmon, including Chinook salmon (*Oncorhynchus tshawytscha*).
 
-![Map of the Middle Fork Salmon River (MFSR) study area showing redd locations used in the analysis (2002-2005) and stream reaches.](images/MFsalmonRedds_May2.jpg){width="50%"}
+```{r map, fig.width = 6, fig.height = 4, fig.cap = "Map of the Middle Fork Salmon River (MFSR) study area showing redd locations used in the analysis (2002-2005) and stream reaches."}
+knitr::include_graphics(here("plots", "MFsalmonRedds_May2.jpg"))
+```
 
 ## Data prep and inspection
 
 ### Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR (Fig. 1).
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR.
 
 We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
 
@@ -76,7 +85,7 @@ Because redds were not observed daily, we inferred spawn dates as the initial da
 
 We joined each redd location to the NHD and assigned them a COMID, analogous to a stream reach. The COMID is used to link the spawn time data with covariate data associated with the stream reach on which it is located.
 
-```{r load-spawn-data, echo=TRUE}
+```{r spawn-data}
 # data were compiled and clean in compile_mfsr_spawn.R and clean_mfsr_spawn.R
 spawn_data <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
 
@@ -93,6 +102,7 @@ spawn_data <- spawn_data |>
     redd_id = UNIQUE_ID, COMID, spawn_date = DATE, stream, year, yday
   )
 
+# print spawn data
 spawn_data
 ```
 
@@ -100,7 +110,8 @@ The data comprise `r nrow(spawn_data)` redd observation from `r length(unique(sp
 
 #### Variation in spawn timing
 
-```{r plot-desc-spawn, echo=FALSE, fig.width=10, fig.height=8}
+```{r plot-spawn, fig.width=8, fig.height=8, fig.cap = "Histogram and density of spawn timing data (DOY) for all streams and years."}
+
 # historgram and density of spawn timing
 p1 <- ggplot(spawn_data, aes(x = yday)) +
   geom_histogram(
@@ -110,8 +121,6 @@ p1 <- ggplot(spawn_data, aes(x = yday)) +
   geom_vline(
     aes(xintercept = mean(yday)),
     color = "black", linetype = "dashed", linewidth = 1.2) +
-  # scale_x_continuous(limits = c(200, 270), breaks = seq(200, 270, 10)) +
-  # lemon::coord_capped_cart(bottom='both', left = "both") +
   annotate(
     "text", x = 260, y = .06, hjust = 1, vjust = 1, size = 4.5,
     label = paste0
@@ -127,16 +136,17 @@ p1 <- ggplot(spawn_data, aes(x = yday)) +
   labs(
     title = "Histogram and Density of Spawn Dates",
     x = "Spawn Date (DOY)",
-    y = "Density"
+    y = "Density function\n of spawn dates",
   ) +
   theme_bw()
 
 # plot spawn date by stream
 p2 <- spawn_data |> 
-  ggplot(aes(x = stream, y = yday)) +
+  ggplot(aes(x = stream, y = fixed_date + yday)) +
   geom_boxplot() +
   geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
   scale_color_manual(values = cols.streams) +
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   labs(
     title = "Spawn Date by Stream",
     x = "",
@@ -148,10 +158,11 @@ p2 <- spawn_data |>
 
 # Plot spawn date by year
 p3 <- spawn_data |> 
-  ggplot(aes(x = year, y = yday)) +
+  ggplot(aes(x = year, y = fixed_date + yday)) +
   geom_boxplot() +
   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
   scale_color_manual(values = cols.years) +
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   labs(
     title = "Spawn Date by Year",
     x = "Year",
@@ -171,14 +182,16 @@ p1 / (p2 + p3)
 
 #### Spawn time variation by year and stream
 
-```{r fig.width=8}
+```{r plot-spawn-yr-strm, fig.cap= "Spawn time variation by year and stream."}
 spawn_data |>
-  ggplot(aes(x = year, y = yday, color = year)) +
+  ggplot(aes(x = year, y = fixed_date + yday, color = year)) +
   lemon::facet_rep_wrap(~stream) + 
   geom_boxplot() + 
+  geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
   # geom_text(data = labs, aes(year, 210, label = n), vjust = 1) +
   scale_y_continuous(limits = c(200, 270), breaks = seq(200, 270, 20)) +
   scale_color_manual(values = cols.years) +
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   labs(
     x = "",
     y = "Spawn Date (DOY)"
@@ -189,12 +202,14 @@ spawn_data |>
 
 #### Spawn time by COMID and stream
 
-```{r}
+```{r plot-spawn-comid, fig.cap= "Spawn time by COMID and stream."}
 spawn_data |> 
-  ggplot(aes(x = COMID, y = yday, color = stream)) + 
+  ggplot(aes(x = COMID, y = fixed_date + yday, color = stream)) + 
   facet_wrap(~stream, scales = "free_x") +
   geom_boxplot() + 
+  geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
   scale_color_manual(values = cols.streams) +
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   theme_bw() + 
   theme(axis.text.x = element_text(angle = 90, size = 8)) + 
   guides(color = "none")
@@ -202,22 +217,22 @@ spawn_data |>
 
 #### Spawn time distributions by stream
 
-```{r plot-temp-dist-spawn, fig.height=10}
+```{r plot-temp-dist-spawn, fig.width=8, fig.height = 8, fig.cap= "Spawning phenology of adult Chinook Salmon. In all panels, the black density function represented stream-level spawn timing, while the colored density functions represent the spawn timing of individual years. The dashed vertical purple lines represent the 5th and 95th percentiles of the basin-wide spawn timing."}
 mfsr_by_site <- spawn_data |>
   group_by(stream, yday)
 
 mfsr_all <- spawn_data |>
   summarise(
     median = median(yday),
-    percentile_95 = quantile(yday, probs = 0.95),
-    percentile_5 = quantile(yday, probs = 0.05)
+    percentile_95 = fixed_date + quantile(yday, probs = 0.95),
+    percentile_5 = fixed_date + quantile(yday, probs = 0.05)
   )
 
 spawn_data |>
   mutate(across(year, as.character)) |>
   group_by(stream, year) |>
   ggplot() +
-  lemon::facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
+  facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
   geom_vline(
     xintercept = mfsr_all$median, 
     color = "blue", 
@@ -226,20 +241,22 @@ spawn_data |>
     xintercept = c(mfsr_all$percentile_95, mfsr_all$percentile_5), 
     color = "purple", 
     linetype = "dashed") +
-  geom_density(aes(x = yday, y = after_stat(count), fill = year), alpha = 0.5) +
+  geom_density(aes(x = fixed_date + yday, y = after_stat(count), fill = year), alpha = 0.5) +
   geom_density(
     data = mfsr_by_site, 
-    aes(x = yday, after_stat(count)), 
+    aes(x = fixed_date + yday, after_stat(count)), 
     alpha = 0, 
-    linetype = "dashed") +
+    linetype = "dashed", color = "black") +
   scale_fill_brewer(palette = "Dark2", name = "Year") +
-  labs(x = "Spawn Day of Year", y = "Count of redds") +
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  labs(x = "Date", 
+       y = "Density function of spawn dates") +
   theme_bw()
 ```
 
 #### Cumulative proportions of redds by stream
 
-```{r plot-cum-props, fig.height=10}
+```{r plot-cum-props, , fig.width=8, fig.height = 8, fig.cap= "Cumulative proportion of completed of redds by stream."}
 # Proportional cumulative redds ------------------------------------------------
 # spawn_data %>%
 #   group_by(stream, yday) %>%
@@ -267,7 +284,7 @@ props <- spawn_data |>
 
 # Plot pro. cumsums
 props |> 
-  ggplot(aes(x = yday, y = cum_redds_p, color = as.factor(year))) +
+  ggplot(aes(x = fixed_date + yday, y = cum_redds_p, color = as.factor(year))) +
   lemon::facet_rep_wrap(~stream, ncol = 2, scales = "free_y") +
   geom_line(linewidth = 0.5) + 
   geom_point(size = 0.3) + 
@@ -275,7 +292,7 @@ props |>
   scale_color_manual(values = cols.years, name = "Year") +
   labs(
     x = "Day of Year",
-    y = "Proportional Cumulative Redds",
+    y = "Proportion of ccumulative redds",
     color = ""
   ) + 
   theme_bw()
@@ -296,9 +313,9 @@ Our focal independent variable were:
 
 #### Stream temperature
 
-We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023; available from <https://zenodo.org/records/8174951>). These data were downloaded and filtered to 2001-2005 and for the MFSR HUC 6.
+We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023; available from <https://zenodo.org/records/8174951>). These data were downloaded and filtered to 2001-2005 and for the MFSR.
 
-```{r}
+```{r siegel-temp-data}
 # temp data (see siegel_mfsr_temps.R)
 df_temp <- readRDS(here::here("data/siegel_temperature/siegel_mfsr_comid.RDS"))
 
@@ -315,14 +332,11 @@ df_temp <- df_temp |>
   filter(COMID %in% spawn_data$COMID) |>
   filter(year %in% c("2001","2002","2003","2004","2005")) |>
   left_join(xref_comid_stream, by = "COMID") 
-
-# raw temp data 
-head(df_temp)
 ```
 
 ##### Summarized thermal regimes by stream
 
-```{r}
+```{r plot-temp-regime, fig.width=8, fig.height=10, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries. Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range."}
 # calculate 40 to 60th percentiles and full range for each COMID
 df_temp_stream <- df_temp |> 
   group_by(stream, yday) |> 
@@ -337,18 +351,18 @@ df_temp_stream <- df_temp |>
 
 # plot ribbom of 40-60th percentiles and range over yday
 df_temp_stream |> 
-  ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+  ggplot(aes(x = fixed_date + yday)) +
   facet_rep_wrap(~stream, ncol = 2) +
   geom_ribbon(data = df_temp_stream, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
   geom_ribbon(data = df_temp_stream, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
   geom_line(aes(y = mean), color = "black") + 
-  scale_color_brewer(palette = "Accent") +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_color_brewer(palette = "Accent") +
   labs(
-    title = "Modeled thermal regimes (2001-2005) for MFSR tributaries",
-    subtitle = "Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range",
+    # title = "Modeled thermal regimes (2001-2005) for MFSR tributaries",
+    # subtitle = "Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range",
     x = "", 
-    y = "Daily water<br>temperature (\u00b0C)",
+    y = "Daily water temperature (\u00b0C)",
     color = "Year"
   ) + 
   theme_bw() +
@@ -367,7 +381,7 @@ df_temp_stream |>
 # 
 # # plot ribbom of 40-60th percentiles and range over yday
 # df_temp_stream_year |> 
-#   ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+#   ggplot(aes(x = fixed_date + yday)) +
 #   facet_rep_grid(cols = vars(year), rows = vars(stream)) +
 #   geom_ribbon(data = df_temp_stream_year, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
 #   geom_ribbon(data = df_temp_stream_year, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
@@ -386,9 +400,15 @@ df_temp_stream |>
 
 ##### Stream temperature metrics
 
-We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1. The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date.
 
-```{r}
+For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days.
+
+We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1.
+
+The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+```{r temp-metrics}
 # summarized temperature data (`out`), see (map_comid_temps.R)
 load(here("data", "comid_temps.RData"))
 
@@ -409,26 +429,25 @@ head(temp_data)
 
 Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220). Becuase flow data are not COMID- or stream-specific, it makes sense to think about and represent flow as an out-of-basin year effect that determines when adults make it back to the MFSR and initially onto the spawning grounds.
 
-```{r}
+```{r usgs-flow-data}
 # raw flow data (see flow_calculations.R)
-df_flows <- read_csv("data/mfsr_flow.csv")
+df_flows <- read_csv(here::here("data", "mfsr_flow.csv"))
 
 # get day of year and year
 df_flows <- df_flows |> 
   select(date = Date, flow_cfs = Flow) |> 
   mutate(yday = yday(date), year = as_factor(year(date))) |> 
   mutate(flow_csm = flow_cfs * 0.028316846592) 
-df_flows
 ```
 
 ##### Inter-annual variability
 
-```{r}
+```{r plot-flow, fig.width=8, fig.height=10, fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
 p.flow.1 <- df_flows |> 
-  ggplot(aes(x = as.Date("2000-12-31") + yday, y = flow_csm, color = year)) +
+  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
   geom_line() +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
+  # scale_y_continuous(limits = c(0,400), breaks = seq(0, 400, 50)) +
   scale_color_manual(values = cols.years, name = "Year") +
   labs(
     title = "Linear scale",
@@ -437,10 +456,15 @@ p.flow.1 <- df_flows |>
   ) + 
   theme_bw() + 
   theme(axis.title.y = ggtext::element_markdown()) + 
-  theme(legend.position = "inside", legend.position.inside =  c(.8, .7))
+  theme(
+    legend.position = "inside",
+    legend.position.inside =  c(.8, .65), 
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+    )
 
 p.flow.2 <- df_flows |> 
-  ggplot(aes(x = as.Date("2000-12-31") + yday, y = flow_csm, color = year)) +
+  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
   geom_line() +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   scale_y_log10() +
@@ -463,17 +487,17 @@ p.flow.2 <- df_flows |>
 tmp <- df_flows |> 
   group_by(yday) |>
   summarise(
-    mean = mean(flow_csm),
-    flow_40 = quantile(flow_csm, probs = 0.4),
-    flow_60 = quantile(flow_csm, probs = 0.6),
-    flow_10 = quantile(flow_csm, probs = 0.1),
-    flow_90 = quantile(flow_csm, probs = 0.9), 
+    mean = mean(flow_cfs),
+    flow_40 = quantile(flow_cfs, probs = 0.4),
+    flow_60 = quantile(flow_cfs, probs = 0.6),
+    flow_10 = quantile(flow_cfs, probs = 0.1),
+    flow_90 = quantile(flow_cfs, probs = 0.9), 
     .groups = "drop"
   )
 
 # plot ribbom of 40-60th percentiles and range over yday
 p.flow.3 <- tmp |> 
-  ggplot(aes(x = as.Date("2000-12-31") + yday)) +
+  ggplot(aes(x = fixed_date + yday)) +
   geom_ribbon(data = tmp, aes(ymin = flow_10, ymax = flow_90), fill = "grey") +
   geom_ribbon(data = tmp, aes(ymin = flow_40, ymax = flow_60), fill = "blue") +
   geom_line(aes(y = mean), color = "black") + 
@@ -484,7 +508,7 @@ p.flow.3 <- tmp |>
     # title = "Measured discharge at MF Lodge, USGS Gage 13309220",
     subtitle = "Black line = mean, blue ribbon = 40 - 60th percentiles, Grey ribbon = full range",
     x = "", 
-    y = "Log Daily discharge (m<sup>3</sup> s<sup>-1</sup>)",
+    y = "Log Daily discharge (ft<sup>3</sup> s<sup>-1</sup>)",
     color = "Year"
   ) + 
   theme_bw() +
@@ -497,9 +521,13 @@ p.flow.3 <- tmp |>
 
 ##### Flow metrics
 
-We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date.
 
-```{r}
+For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days.
+
+The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+```{r flow-metrics}
 # summarized flow data (see flow_calculations.R)
 flow_data <- read_csv(here("data", "spawn_flows.csv"))
 flow_data
@@ -509,7 +537,7 @@ flow_data
 
 Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
 
-```{r}
+```{r elev-slope-data}
 # elevation and slope from NHD
 df_elev_slope <- readRDS(here("data", "elevslope.rds")) |> 
   as_tibble() |> 
@@ -545,13 +573,13 @@ plots <- map(covariates, ~ plot_covariate(model_data, .x))
 gridExtra::grid.arrange(grobs = plots, ncol = 2)
 ```
 
--   temp_30 = no relationship, drop
--   temp_60 = good non-linear, drop for temp_90?
--   temp_90 = better non-linear
--   flow_30 and flow_60 = similar decaying exponential
--   flow_90 = inflections, interesting grouping really spreads out, year effect
--   SLOPE = no relationship, drop
--   mean_elevation = slightly negative linear?
+-   `temp_30` = no relationship, drop
+-   `temp_60` = good non-linear, drop for temp_90?
+-   `temp_90` = better non-linear
+-   `flow_30` and `flow_60` = similar decaying exponential
+-   `flow_90` = inflections, interesting grouping really spreads out, year effect
+-   `SLOPE` = no relationship, drop
+-   `mean_elevation` = slightly negative linear?
 
 ## Check for co-linearity
 
@@ -561,8 +589,9 @@ model_data |>
   GGally::ggpairs()
 ```
 
--   There is strong colinearity among temp variable. Retaining temp_90 as it has the strongest relationship.
--   flow_30 and flow_60 are highly correlated with flow_90. We will keep flow_90 as it has the strongest relationship.
+-   There is strong colinearity among temp variable. Retaining `temp_90` as it has the strongest relationship.
+-   `flow_30` and `flow_60` are highly correlated with `flow_90.`
+-   Keep `flow_90` as it has the strongest relationship.
 -   elevation good to keep
 
 Check VIFs with and without `flow_30` and `flow_60`:
@@ -572,24 +601,26 @@ car::vif(lm(yday ~ flow_30 + flow_60 + flow_90 + temp_90 + mean_elevation + stre
 car::vif(lm(yday ~ flow_90 + temp_90 + mean_elevation + stream + year, data = model_data))
 ```
 
--   more reason to drop flow 30 and 90
+-   more reason to drop `flow_30` and `flow_60`
 
 ## Closer look at covariates
 
-### Temp_90
+### `Temp_90` {#sec-temp_90}
 
-```{r plot-temp_90, fig.height=8}
-(ggplot(model_data, aes(x = temp_90, y = yday, color = year)) +
+```{r plot-temp_90, fig.width=6, fig.height=6, fig.cap = "Spawn timing vs. 90-day mean temperature pre spawn."}
+(ggplot(model_data, aes(x = temp_90, y = fixed_date + yday, color = year)) +
   geom_point() +
   geom_smooth(method = "lm") +
   scale_color_manual(values = cols.years) + 
   theme_bw() + 
+  labs(y = "Date", x = "") + 
   theme(legend.position = "right")) /
 
-(ggplot(model_data, aes(x = temp_90, y = yday, color = stream)) +
+(ggplot(model_data, aes(x = temp_90, y = fixed_date + yday, color = stream)) +
   geom_point() +
   geom_smooth(method = "lm") +
   scale_color_manual(values = cols.streams) + 
+  labs(y = "Date", x = "90-day mean temp before spawning") + 
   theme_bw() + 
   theme(legend.position = "right")) +
   plot_annotation(title = "Spawn Timing vs. 90-day mean temperature pre spawn")
@@ -598,11 +629,11 @@ car::vif(lm(yday ~ flow_90 + temp_90 + mean_elevation + stream + year, data = mo
 -   clear positive relationship, certainly some non-linearity
 -   stream- and year-level variation (interactions)
 
-Check simple models for temp to examine functional structure:
+Check simple models for temp to examine functional structure and compare with AIC:
 
 ```{r temp_90-mods, echo=TRUE}
 m1 <- lm(yday ~ temp_90, data = model_data)
-m2 <- lm(yday ~ poly(temp_90, 2), data = model_data)
+m2 <- lm(yday ~ I(temp_90^2), data = model_data)
 m3 <- lm(yday ~ temp_90 + year, data = model_data)
 m4 <- lm(yday ~ temp_90 + year + stream, data = model_data)
 m5 <- lm(yday ~ temp_90 * stream, data = model_data)
@@ -610,19 +641,23 @@ m6 <- lm(yday ~ temp_90 * stream + year, data = model_data)
 m7 <- lm(yday ~ temp_90 * year + stream, data = model_data)
 m8 <- lm(yday ~ temp_90 * stream + I(temp_90^2), data = model_data)
 m9 <- lm(yday ~ temp_90 * stream + year + I(temp_90^2), data = model_data)
+```
 
+```{r aic-temp_90, caption = "Model selection for spawn timing vs. 90-day mean temperature."}
 AIC(m1, m2, m3, m4, m5, m6, m7, m8, m9) |> 
   arrange(AIC) |> 
   mutate(delta = AIC - min(AIC)) |>
   kableExtra::kbl() |> 
-  kableExtra::kable_styling("striped", full_width = F)
+  kableExtra::kable_styling("striped", full_width = FALSE)
 ```
 
--   best is m9: yday \~ temp_90 \* stream + year + I(temp_90\^2)
--   linear and quadratic temp effect, temp x stream interaction, additive year effect
--   next best is m6: yday \~ temp_90 \* stream + year (no quadratic)
+-   best is `m9`: yday \~ temp_90 \* stream + year + I(temp_90\^2)
+    -   linear and quadratic temp effect, temp x stream interaction, additive year effect
+-   next best is `m6`: yday \~ temp_90 \* stream + year (no quadratic)
 
-```{r temp_90_preds, fig.height=12}
+Let's plot the predictions from `m9` to see how well it fits the data.
+
+```{r temp_90_preds, fig.height=12, fig.cap = "Predicted spawn timing by stream and year."}
 # new_data <- expand.grid(
 #   temp_90 = seq(min(model_data$temp_90), max(model_data$temp_90), length.out = 100), 
 #   stream = unique(model_data$stream), 
@@ -656,75 +691,85 @@ new_data$lower <- pred_out$fit - 1.96 * pred_out$se.fit
 new_data$upper <- pred_out$fit + 1.96 * pred_out$se.fit
 
 new_data |> 
-  ggplot(aes(x = temp_90, y = pred)) + 
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.4) + 
+  ggplot(aes(x = temp_90, y = fixed_date + pred)) + 
+  geom_ribbon(aes(ymin = fixed_date + lower, ymax = fixed_date + upper), fill = "grey80", alpha = 0.4) + 
   geom_line(color = "steelblue") + 
   facet_rep_grid(stream ~ year) + 
-  geom_point(data = model_data, aes(temp_90, yday)) +
+  geom_point(data = model_data, aes(temp_90, fixed_date + yday)) +
+  labs(
+    title = "Predicted Spawn Timing by Stream and Year",
+    subtitle = "Model: yday ~ temp_90 * stream + year + I(temp_90^2)",
+    x = "90-day Mean Temperature", y = "Predicted Spawn Day"
+  ) + 
   theme_bw()
 ```
 
 Observations from the plot
 
--   strong curvature captured overall: most stream × year panels show a clean, concave-up trend, matching the expected acceleration of spawning with rising temps.
--   confidence ribbons are narrow in data-dense cells and wider where observations are sparse — great to see.
+-   Strong curvature captured overall
+-   Panels show increasing concave-down trend
 
 Notable spatial breaks in some streams
 
 -   Big and Camas
     -   Both show discontinuities or grouping in temp ranges with clear vertical offsets
     -   Possibly distinct COMIDs (upper vs. lower Big or Camas)
-    -   Or abrupt temperature transitions across years or geomorphic controls
+    -   Or abrupt temperature transitions across years or geomorphic controls (elevation?)
 -   Loon and Marsh
     -   Patterns are tighter but still show micro-clustering → likely subtle COMID-level shifts.
 
 Interpretation
 
--   The quadratic model captures macro-scale thermal responses well, but within-stream variation suggests that local (COMID-scale) differences are meaningful.
+-   Quadratic model captures macro-scale thermal responses well
+-   But within-stream variation suggests that local (COMID-scale) differences are meaningful.
 -   Stream-wide models may oversmooth important spatial heterogeneity.
 -   Finer-scale modeling (e.g., random intercepts for COMID) could account for these offsets.
 
 Visual inspection of stream- and year-specific fits revealed curvature in temperature–spawn timing relationships, with apparent within-stream variation in baseline timing across COMIDs. This suggested spatial heterogeneity not explained by stream-level fixed effects alone.
 
-To account for this, we evaluated the addition of random intercepts for COMID with both top models (m6 and m9).
+To account for this, we evaluated the addition of random intercepts for COMID with both top models (`m6` and `m9`).
 
-```{r, echo=TRUE}
+```{r temp_90-mods-re, echo=TRUE}
 m6_re <- lmer(yday ~ temp_90 * stream + year + (1|COMID), data = model_data)
 m9_re <- lmer(yday ~ temp_90 * stream + year + I(temp_90^2) + (1|COMID), data = model_data)
+```
 
+```{r aic-temp_90-re, caption = "Model selection for spawn timing vs. 90-day mean temperature with random intercepts."}
 AIC(m6, m9, m6_re, m9_re) |> 
   arrange(AIC) |> 
   mutate(delta = AIC - min(AIC)) |>
   kableExtra::kbl() |> 
-  kableExtra::kable_styling("striped", full_width = F)
+  kableExtra::kable_styling("striped", full_width = FALSE)
 ```
 
 1.  Effect of COMID Random Intercepts
 
--   Comparing m6 vs m6_re (same fixed effects, RE added): ΔAIC = 2796.1
+-   Comparing `m6` vs `m6_re` (same fixed effects, RE added): ΔAIC = 2796.1
 -   Massive improvement → shows strong unmodeled structure at the COMID level
 -   Including (1 \| COMID) is important
 
 2.  Effect of Quadratic Term
 
--   Comparing m6_re vs m9_re: ΔAIC = 38.7
--   evidence that the quadratic term explains real signal above and beyond COMID-level differences
+-   Comparing `m6_re` vs `m9_re`: ΔAIC = 38.7
+-   evidence that the quadratic term explains real signal beyond COMID-level differences
 -   The curvature isn't just compensating for omitted structure — it's meaningful even when that structure is accounted for
 
 3.  Quadratic w/o RE vs Linear w/ RE
 
--   m9 (quadratic only) still has a much worse AIC than m6_re (linear w/ RE): 15602 vs 13050 → ΔAIC ≈ 2552
+-   `m9` (quadratic only) still has a much worse AIC than `m6_re` (linear w/ RE): 15602 vs 13050 → ΔAIC ≈ 2552
 -   This shows that random effects contribute far more than nonlinearity alone
--   But combining them (in m9_re) gives best performance
+-   But combining them (in `m9_re`) gives best performance
 
 Takeaways
 
 -   Random intercepts account for baseline spawn timing differences between reaches
 -   the quadratic temperature effect describes a real, nonlinear thermal response
 -   Possibly related to metabolic thresholds, photoperiod interactions, or non-additive developmental cues
--   The combined model (m9_re) is strongly supported: it reflects both spatial variation and nonlinear phenological drivers
+-   The combined model (`m9_re`) is supported: reflects spatial variation and nonlinear phenological drivers
 
-```{r}
+Plot predictions with random intercepts:
+
+```{r temp_90_preds-re, fig.height=12, fig.cap = "Predicted spawn timing by stream and year with random intercepts."}
 # Step 1: Create one row per COMID with its associated stream
 comid_stream_lookup <- model_data %>%
   select(COMID, stream) %>%
@@ -733,6 +778,27 @@ comid_stream_lookup <- model_data %>%
 # Step 2: Expand across temp_90 sequence
 temp_seq <- seq(min(model_data$temp_90), max(model_data$temp_90), length.out = 100)
 
+newdata <- expand.grid(
+  temp_90 = temp_seq,
+  COMID = unique(model_data$COMID)
+  )  |> 
+  left_join(comid_stream_lookup, by = "COMID")  |> 
+  mutate(year = "2004")
+
+# m6_re -----
+# newdata$pred <- predict(m6_re, newdata = newdata, re.form = NULL)
+# 
+# ggplot(newdata, aes(x = temp_90, y = fixed_date + pred, group = COMID, color = COMID)) +
+#   facet_wrap(~stream) +
+#   geom_line(alpha = 0.6) +
+#   geom_point(data = model_data, aes(temp_90, fixed_date + yday), alpha = 0.2) +
+#   labs(title = "Predicted Spawn Timing by COMID",
+#        subtitle = "Model: yday ~ temp_90 * stream + year + (1|COMID)",
+#        x = "90-day Mean Temperature", y = "Predicted Spawn Day") +
+#   theme_minimal() +
+#   theme(legend.position = "none")
+
+## m9_re ----
 newdata_comid <- expand.grid(
   temp_90 = temp_seq,
   COMID = unique(model_data$COMID)
@@ -743,13 +809,15 @@ newdata_comid <- expand.grid(
 
 newdata_comid$pred <- predict(m9_re, newdata = newdata_comid, re.form = NULL)
 
-ggplot(newdata_comid, aes(x = temp_90, y = pred, group = COMID, color = COMID)) +
+p.m9 <- newdata_comid |> 
+  ggplot(aes(x = temp_90, y = fixed_date + pred, group = COMID, color = COMID)) +
+  facet_wrap(~stream, ncol = 3) +
   geom_line(alpha = 0.6) +
-  facet_wrap(~stream) +
-  labs(title = "Predicted Spawn Timing by COMID (Simplified Model)",
+  geom_point(data = model_data, aes(temp_90, fixed_date + yday), alpha = 0.2) +
+  labs(title = "Predicted Spawn Timing by COMID",
        subtitle = "Model: yday ~ temp_90 * stream + year + I(temp_90^2) + (1|COMID)",
        x = "90-day Mean Temperature", y = "Predicted Spawn Day") +
-  theme_minimal() +
+  theme_bw() +
   theme(legend.position = "none")
 
 
@@ -757,30 +825,34 @@ ggplot(newdata_comid, aes(x = temp_90, y = pred, group = COMID, color = COMID)) 
 ranef_comid <- ranef(m9_re)$COMID
 ranef_comid$COMID <- rownames(ranef_comid)
 
-ggplot(ranef_comid, aes(x = reorder(COMID, `(Intercept)`), y = `(Intercept)`)) +
+p.m9.re <- ranef_comid |> 
+  ggplot(aes(x = reorder(COMID, `(Intercept)`), y = `(Intercept)`)) +
   geom_point() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   coord_flip() +
   labs(title = "Random Intercepts by COMID",
        y = "Intercept Deviation", x = "COMID") +
-  theme_minimal()
+  theme_bw()
+
+p.m9 / p.m9.re + 
+  plot_annotation(tag_levels = "A") + 
+  plot_layout(ncol = 1, heights = c(2, 1))
 ```
 
 What this shows:
 
 -   Vertical offsets in curves within each stream = COMID-specific random intercepts
--   Parallel lines = the model assumes that all COMIDs in a stream respond similarly to temperature, but start at different baselines
+-   Parallel lines = all COMIDs in a stream respond similarly to temperature, but start at different baselines
 -   The inclusion of (1 \| COMID) is doing its job — capturing consistent differences in spawn timing offset between reaches
-
-Ecological Takeaways
 
 Streams with wide COMID spread:
 
 -   Big, Camas, and Bear Valley stand out
--   Likely reflect real ecological or geomorphic differences: -
+-   Likely reflect real ecological or geomorphic differences
     -   Distance from confluence
     -   Groundwater influence
     -   Channel type, etc.
+    -   elevation?
 
 Streams with tight COMID clustering:
 
@@ -792,28 +864,31 @@ Streams with tight COMID clustering:
 
 The simplified model with COMID random intercepts is capturing reach-level variation without overwhelming the model. This is a strong candidate structure to carry forward or use as a baseline for comparing against more complex interaction models.
 
-Thoughts from Dan
+**Thoughts from Dan:** Temporal compression in lower reaches?
 
-Temporal compression in lower reaches? Dan's field observation: fish in warmer, lower reaches spawn later and over a shorter window.
+Dan's field observation: fish in warmer, lower reaches spawn later and over a shorter window.
 
 Upstream vs. downstream dynamics in Big, Camas, Loon, etc. likely manifest in:
 
 -   Vertical intercept shifts (already captured by (1 \| COMID))
--   But also differences in slope (i.e., how they respond to temperature).
+-   But also differences in slope (i.e., how they respond to temperature)
+-   the latter may suggest a true linear effect on much smaller spatial scales
 
-Statistical implication:
+**Statistical implication:**
 
-Should we add COMID slopes? The next logical step is to consider random slopes. This lets each COMID have its own slope for temp_90, capturing different rates of response to temperature.
+Should we add COMID slopes?
+
+The next logical step is to consider random slopes. This lets each COMID have its own slope for `temp_90`, capturing different rates of response to temperature.
 
 But…
 
 Overfitting risk! Here's the situation:
 
-| Factor    | Status      | Col3 |
-|-----------|-------------|------|
-| `COMID`   | 108 levels  |      |
-| Many have | \< 5 redds  |      |
-| Some have | only 1 redd |      |
+| Factor    | Status      |
+|-----------|-------------|
+| `COMID`   | 108 levels  |
+| Many have | \< 5 redds  |
+| Some have | only 1 redd |
 
 Random slopes are data-hungry. With sparse COMID-level samples, this model will:
 
@@ -826,22 +901,26 @@ So — stick with random intercepts, and revisit slopes later only if:
 -   We restrict to high-sample COMIDs
 -   Or pool into zones (e.g., upper/lower) for slope comparisons
 
-I think we will proceese and compare the full interaction model with and without the quadratic term. We'll Stick with (1 \| COMID) for now — it gets the key structure without overfitting. And flag a future option to explore grouped random slopes, or COMID × temp_90 interaction if biologically and statistically justified.
+**Conclusion**
 
-### Flow_90
+I think we will proceed and compare the full interaction model with and without the quadratic term. We'll Stick with (1 \| COMID) for now — it gets the key structure without overfitting. And flag a future option to explore grouped random slopes, or COMID × temp_90 interaction if biologically and statistically justified.
 
-```{r plot-flow_90, fig.height=8}
-(ggplot(model_data, aes(x = flow_90, y = yday, color = year)) +
+### `Flow_90`
+
+```{r plot-flow_90, fig.width=6, fig.height=6, fig.cap = "Spawn timing vs. 90-day mean discharge pre spawn at MF Lodge."}
+(ggplot(model_data, aes(x = flow_90, y = fixed_date + yday, color = year)) +
   geom_point() +
   geom_smooth(method = "lm") +
   scale_color_manual(values = cols.years) + 
+  labs(x = "", y = "Date") + 
   theme_bw() + 
   theme(legend.position = "right")) /
 
-(ggplot(model_data, aes(x = flow_90, y = yday, color = stream)) +
+(ggplot(model_data, aes(x = flow_90, y = fixed_date + yday, color = stream)) +
   geom_point() +
   geom_smooth(method = "lm") +
   scale_color_manual(values = cols.streams) + 
+  labs(x = "90-day mean flow (CFS) pre spawn", y = "Date") + 
   theme_bw() + 
   theme(legend.position = "right")) + 
   plot_annotation(title = "Spawn Timing vs. 90-day mean flow pre spawn")
@@ -853,11 +932,11 @@ I think we will proceese and compare the full interaction model with and without
 -   stream-level variation as well, different intercepts and slopes
 -   this is really a year effect with variation by stream and comid (local)
 
-Check simple models for flow to examine functional structure:
+Check simple models for flow to examine functional structure and comapare with AIC:
 
 ```{r flow_90_mods, echo=TRUE}
 m1 <- lm(yday ~ flow_90, data = model_data)
-m2 <- lm(yday ~ poly(flow_90, 2), data = model_data)
+m2 <- lm(yday ~ I(flow_90^2), data = model_data)
 m3 <- lm(yday ~ flow_90 + year, data = model_data)
 m4 <- lm(yday ~ flow_90 + year + stream, data = model_data)
 m5 <- lm(yday ~ flow_90 * stream, data = model_data)
@@ -865,18 +944,22 @@ m6 <- lm(yday ~ flow_90 * stream + year, data = model_data)
 m7 <- lm(yday ~ flow_90 * year + stream, data = model_data)
 m8 <- lm(yday ~ flow_90 * stream + I(flow_90^2), data = model_data)
 m9 <- lm(yday ~ flow_90 * stream + year + I(flow_90^2), data = model_data)
+```
 
+```{r aic-flow_90, caption = "Model selection for spawn timing vs. 90-day mean flow."}
 AIC(m1, m2, m3, m4, m5, m6, m7, m8, m9) |> 
   arrange(AIC) |> 
   mutate(delta = AIC - min(AIC)) |>
   kableExtra::kbl() |> 
-  kableExtra::kable_styling("striped", full_width = F)
+  kableExtra::kable_styling("striped", full_width = FALSE)
 ```
 
--   best is m7: yday \~ flow_90 \* year + stream
+-   best is `m7`: yday \~ flow_90 \* year + stream
 -   flow x year interaction, additive stream effect
 
-```{r flow_90_preds_year, fig.height=6}
+Let's plot the predictions from `m7` to see how well it fits the data.
+
+```{r flow_90_preds_year, fig.height=4, fig.cap = "Predicted spawn timing by year."}
 new_data <- expand.grid(
   flow_90 = seq(min(model_data$flow_90), max(model_data$flow_90), length.out = 100), 
   stream = unique(model_data$stream)[1], 
@@ -888,15 +971,20 @@ new_data$lower <- pred_out$fit - 1.96 * pred_out$se.fit
 new_data$upper <- pred_out$fit + 1.96 * pred_out$se.fit
 
 new_data |> 
-  ggplot(aes(x = flow_90, y = pred)) + 
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.4) + 
-  geom_line(color = "steelblue") + 
+  ggplot(aes(x = flow_90, y = fixed_date + pred)) + 
   facet_rep_grid(~year) + 
-  geom_point(data = model_data, aes(flow_90, yday)) +
+  geom_ribbon(aes(ymin = fixed_date + lower, ymax = fixed_date + upper), fill = "grey80", alpha = 0.4) + 
+  geom_line(color = "steelblue") + 
+  geom_point(data = model_data, aes(flow_90, fixed_date + yday)) +
+  labs(
+    title = "Predicted Spawn Timing by Year",
+    subtitle = "Model: yday ~ flow_90 * year + stream",
+    x = "90-day Mean Flow", y = "Predicted Spawn Day"
+  ) + 
   theme_bw()
 ```
 
-```{r flow_90_preds_all, fig.height=12}
+```{r flow_90_preds_all, fig.height=12, fig.cap = "Predicted spawn timing by stream and year."}
 new_data <- expand.grid(
   flow_90 = seq(min(model_data$flow_90), max(model_data$flow_90), length.out = 100), 
   stream = unique(model_data$stream), 
@@ -908,61 +996,72 @@ new_data$lower <- pred_out$fit - 1.96 * pred_out$se.fit
 new_data$upper <- pred_out$fit + 1.96 * pred_out$se.fit
 
 new_data |> 
-  ggplot(aes(x = flow_90, y = pred)) + 
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.4) + 
+  ggplot(aes(x = flow_90, y = fixed_date + pred)) + 
+  geom_ribbon(aes(ymin = fixed_date + lower, ymax = fixed_date + upper), fill = "grey80", alpha = 0.4) + 
   geom_line(color = "steelblue") + 
   facet_rep_grid(stream ~ year) + 
-  geom_point(data = model_data, aes(flow_90, yday)) +
+  geom_point(data = model_data, aes(flow_90, fixed_date + yday)) +
+  labs(
+    title = "Predicted Spawn Timing by Year and Stream",
+    subtitle = "Model: yday ~ flow_90 * year + stream",
+    x = "90-day Mean Flow", y = "Predicted Spawn Day"
+  ) + 
   theme_bw()
 ```
 
 1.  Strong, consistent negative relationship across panels
 
--   In every stream and year combo, yday decreases with increasing flow_90.
+-   In every stream and year combo, yday decreases with increasing `flow_90`
 -   This is a strong, consistent pattern across all years and streams.Suggests that higher pre-spawn flow leads to earlier spawning — ecologically plausible if higher flows coincide with snowmelt recession or cooler temps.
 
 2.  Variation in slope
 
--   Slopes diverge across years, meaning the flow_90 × year interaction may be statistically retained and meaningfully variable.
+-   Slopes diverge across years, meaning the `flow_90` × year interaction may be statistically retained and meaningfully variable.
 -   This suggests a non-stationary flow effect over the four years.
 
 3.  Flow is clearly confounded with year
 
 -   Flow values in each year are clearly distinct
--   flow_90 behaves like a proxy for year, and its explanatory power may be redundant with year.
--   flow_90 is still a basin-wide measure, not stream-specific
+-   `flow_90` behaves like a proxy for year, and its explanatory power may be redundant with year.
+-   `flow_90` is still a basin-wide measure, not stream-specific
 -   Even if the relationship looks strong here, it may artificially inflate R² because it imposes a covariate that’s similar across streams for a given redd's spawn date.
 -   Could explain strong apparent fits without truly representing local flow conditions.
 
-Ecological Interpretation - Spawn timing is earlier in years or settings with higher pre-spawn flow" — this makes sense, especially if: - Higher flows coincide with spring snowmelt → fish advance spawning - Lower flows delay environmental cues
+**Ecological Interpretation**
 
-But this doesn't necessarily mean site-specific flow is a driver — just that flow_90 tracks broader seasonal variation (i.e., interannual hydrology), already captured by year.
+-   Spawn timing is earlier in years or settings with higher pre-spawn flow" — this makes sense, especially if:
+    -   Higher flows coincide with spring snowmelt → fish advance spawning
+    -   Lower flows delay environmental cues
+
+But this doesn't necessarily mean site-specific flow is a driver. Just that `flow_90` tracks broader seasonal variation (i.e., interannual hydrology), already captured by year.
 
 Flow could be valid in a year-based model, or as a year-level summary, but not site-level unless spatially resolved.
 
 #### To include or not to include flow_90?
 
-Including flow_90 could introduce spurious precision and possibly overfitting. Why flow_90 might be problematic:
+Including `flow_90` could introduce spurious precision and possibly overfitting. Why `flow_90` might be problematic:
 
 1.  Not spatially resolved
 
 -   We are modeling spawn timing at the redd level (COMID/stream)
--   But flow_90 is calculated from a single downstream gauge, and applied to all redds
+-   But `flow_90` is calculated from a single downstream gauge, and applied to all redds
 -   This assumes flow conditions are identical across all sites, which is rarely true in a branching stream network
 -   Including it gives the illusion of spatially resolved variation that isn’t there
 
 2.  Likely correlated with year
 
--   Since flow_90 varies mostly across years, (albeit slightly with streams), it is strongly confounded with year
+-   Since `flow_90` varies mostly across years, (albeit slightly with streams), it is strongly confounded with year
 -   Any flow-related signal is probably already captured by your year fixed effect
--   Including both flow_90 and year risks collinearity, and may produce misleading inferences
+-   Including both `flow_90` and year risks collinearity, and may produce misleading inferences
 
 3.  Spawn-time aligned flow ≠ experienced flow
 
--   While flow_90 is aligned to each redd’s spawn date, it still reflects a lower-basin gauge, not the actual hydrologic conditions experienced at the redd site
+-   While `flow_90` is aligned to each redd’s spawn date, it still reflects a lower-basin gauge, not the actual hydrologic conditions experienced at the redd site
 -   So it might be precisely wrong — aligned in time but irrelevant in space
 
-**Bottom Line**: Unless we have site-specific or spatially disaggregated flow data, flow_90 is probably not a valid covariate for redd-level models.
+**Bottom Line**:
+
+Unless we have site-specific or spatially disaggregated flow data, flow_90 is probably not a valid covariate for redd-level models.
 
 Including it may:
 
@@ -970,30 +1069,29 @@ Including it may:
 -   Complicate interpretation (e.g., why one stream "responds" to flows measured elsewhere?)
 -   Mask true year or site effects
 
-**Recommendation**: Drop flow_90 from model (or at most, keep it as a year-level covariate if we summarize it to a single annual value for all observations)
+**Recommendation**:
 
-Text for ms:
+Drop `flow_90` from model (or at most, keep it as a year-level covariate if we summarize it to a single annual value for all observations)
 
-Although we initially considered including 90-day mean streamflow (`flow_90`) as a predictor of spawn timing, this variable was ultimately excluded due to concerns about ecological validity and model overfitting. Streamflow data were derived from a single downstream USGS gauge and did not capture spatial variation across the study streams or reaches. Moreover, because flow_90 was closely aligned with year, it introduced strong collinearity with the year effect and risked attributing site-level variation to flow patterns not actually experienced by individual redds. As such, we excluded flow_90 to avoid misleading inference.
+**Text for ms**:
 
-## Scale and final dataset
+Although we initially considered including 90-day mean streamflow (`flow_90`) as a predictor of spawn timing, this variable was ultimately excluded due to concerns about ecological validity and model overfitting. Streamflow data were derived from a single downstream USGS gauge and did not capture spatial variation across the study streams or reaches. Moreover, because `flow_90` was closely aligned with year, it introduced strong collinearity with the year effect and risked attributing site-level variation to flow patterns not actually experienced by individual redds. As such, we excluded `flow_90` to avoid misleading inference.
+
+## Final dataset and scale covariates
 
 Final dataset includes:
 
--   response: spawn time (doy), continuous
--   grouping variables: comid, stream, year
--   temp_90, elevation
+-   response: spawn time (`yday`), continuous
+-   grouping variables: `comid`, `stream`, `year`
+-   covariates: `temp_90`, `elevation`
 
-```{r final-dataset, echo=TRUE}
-# select variables and standardize continuous covariates
-scale2 <- function(x, na.rm = FALSE) (x - mean(x, na.rm = na.rm)) / sd(x, na.rm)
-
+```{r final-dataset}
 # model_data_final <- model_data |>
 #   select(yday, COMID, stream, year, temp_90, mean_elevation) 
-
 model_data_final <- model_data |>
-  select(yday, COMID, stream, year, temp_90, mean_elevation) |>
-  mutate(across(c("temp_90", "mean_elevation"), scale2))
+  select(yday, COMID, stream, year, temp_90, mean_elevation, slope) |>
+  mutate(across(c("temp_90", "mean_elevation", "slope"), scale2))
+model_data_final
 ```
 
 ## Model specification
@@ -1004,39 +1102,29 @@ We should only include a grouping variable as both fixef and ranef when you want
 
 | Variable | Fixed? | Random? | Why |
 |------------------|------------------|------------------|------------------|
-| COMID | No | Yes (but must check data availability among levels; likely sparse) | Not estimating individual COMID effects, just accounting for correlation. |
-| Stream | Yes | Maybe (only if random slope or complex structure) | May want to estimate differences and account for grouping. |
-| Year | Yes (comparing years) | Maybe (account for inter-annual variability) | Use one or the other depending on goal. |
+| `COMID` | No | Yes (but must check data availability among levels; likely sparse) | Not estimating individual COMID effects, just accounting for correlation. |
+| `Stream` | Yes | Maybe (only if random slope or complex structure) | May want to estimate differences and account for grouping. |
+| `Year` | Yes (comparing years) | Maybe (account for inter-annual variability) | Use one or the other depending on goal. |
 
-In this case, it makes sense to include year as fixed because:
+In this case, it makes sense to include `year` as fixed because:
 
 -   only has 4 levels - so a ranef would estimate variance poorly and shrink aggressively
 -   year captures unmeasured inter annual variability (snow pack, flow, temp anomalies all wrapped in)
 -   we want to compare among years given we only have 4 years of data, hard to extrapolate
 
-### Overfitting
+Let's interrogate the grouping structure within the data to make a final decision about `COMID`s.
 
-On our first couple passes, we used models with renefs, but were observing strong overfitting. Here’s what’s likely going wrong with the mixed-effects model:
+<!-- ### Overfitting -->
 
-High AIC-based model performance but stream-level predictions far from observed data , so random effects absorbing noise or overfitting sparse groups. Random intercepts for COMID dominate variance becuase many COMIDs have only 1 observation → intercepts become noise. Unequal data across years and streams means random intercepts get misled by imbalance, especially for sparse years (like 2005). Random slopes and interactions fail to improve fit because not enough data per group to support slope variation.
+<!-- On our first couple passes, we used models with renefs, but were observing strong overfitting. Here’s what’s likely going wrong with the mixed-effects model: -->
 
-A simple lm may be better here because it treats stream and year as explicit, estimable fixed effects, which gives you real, interpretable estimates for group means. It doesn’t try to “guess” partial-pooling intercepts or slopes where data are lacking. The model becomes transparent — predictions reflect what’s in the data, not what the model infers from structure.
+<!-- High AIC-based model performance but stream-level predictions far from observed data , so random effects absorbing noise or overfitting sparse groups. Random intercepts for COMID dominate variance becuase many COMIDs have only 1 observation → intercepts become noise. Unequal data across years and streams means random intercepts get misled by imbalance, especially for sparse years (like 2005). Random slopes and interactions fail to improve fit because not enough data per group to support slope variation. -->
 
-Let's interrogate the grouping structure within the data to make a final decision.
+<!-- A simple lm may be better here because it treats stream and year as explicit, estimable fixed effects, which gives you real, interpretable estimates for group means. It doesn’t try to “guess” partial-pooling intercepts or slopes where data are lacking. The model becomes transparent — predictions reflect what’s in the data, not what the model infers from structure. -->
 
 ### Grouping structure of data
 
-#### COMIDs per stream, and observations per COMID
-
-```{r}
-# number of comids per stream
-spawn_data |> 
-  distinct(stream, COMID) |> 
-  count(stream, name = "n_COMIDs") |> 
-  arrange(desc(n_COMIDs)) |> 
-  kableExtra::kbl(caption = "Number of comids per stream") |>
-  kableExtra::kable_styling("striped", full_width = TRUE) 
-
+```{r comid-counts}
 # How many COMIDs have <5 observations?
 n_sparse_COMIDS_5 <- spawn_data |> 
   count(COMID, name = "n_redds") |> 
@@ -1048,21 +1136,33 @@ n_sparse_COMIDS_2 <- spawn_data |>
   nrow()
 
 # what percent of comids have <= 1 obervation?
-# spawn_data |> 
-#   count(COMID, name = "n_redds") |> 
-#   filter(n_redds <= 1) |> 
-#   nrow() / length(unique(spawn_data$COMID)) * 100
-# 
-# spawn_data |> 
-#   count(COMID, name = "n_redds") |> 
-#   filter(n_redds <= 2) |> 
-#   nrow() / length(unique(spawn_data$COMID)) * 100
-# 
-# spawn_data |> 
-#   count(COMID, name = "n_redds") |> 
-#   filter(n_redds <= 5) |> 
-#   nrow() / length(unique(spawn_data$COMID)) * 100
+n_perc_1 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 1) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
 
+n_perc_2 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 2) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+
+n_perc_5 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 5) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+```
+
+```{r comid-str, caption = "Number of COMIDs per stream."}
+# number of comids per stream
+spawn_data |> 
+  distinct(stream, COMID) |> 
+  count(stream, name = "n_COMIDs") |> 
+  arrange(desc(n_COMIDs)) |> 
+  kableExtra::kbl() |> 
+  kableExtra::kable_styling("striped", full_width = FALSE) 
+```
+
+```{r comid-str-plot, fig.width=6, fig.height=4, fig.cap = "Number of observations (redds) per COMID."}
 # number of observations per COMID
 spawn_data |> 
   count(COMID, name = "n_redds") |> 
@@ -1070,388 +1170,685 @@ spawn_data |>
   ggplot(aes(n_redds)) +
   geom_bar() + 
   scale_y_continuous(breaks = seq(0,10,1)) + 
-  labs(title = "Number of obervations (redds) per COMID") + 
+  labs(title = "Number of obervations (redds) per COMID", 
+       x = "Number of redds", 
+       y = "Count") + 
   theme_bw()
 ```
 
-There are at least 6 COMIDs per stream, and the number of observations per COMID is highly variable. The histogram shows that most COMIDs have 1-2 observations, but some have many more. `r n_sparse_COMIDS_5` COMIDs have fewer than 5 observations.
-
 #### Summary
 
-Are the enough COMIDs per stream to consider stream/COMID nested random effects? No.
+Are the enough COMIDs per stream to consider stream/COMID nested random effects? Not really...
 
-Are groups well sampled? (Do most COMIDs have \>1-2 redds?) No. 23 COMIDs have \<5 redds (25%), 13 have \<= 2. (12.5%) With \<5 obs/level, variance estimates become unstable -\> overfit and absorb noise (low AIC / high R2) -\> singular fits.
+Are groups well sampled? (Do most COMIDs have \>1-2 redds?) No. `r n_sparse_COMIDS_5` COMIDs have \<5 redds (`r n_perc_5`%), `r n_sparse_COMIDS_2` have \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates become unstable -\> overfit and absorb noise (low AIC / high R2) -\> singular fits.
 
 Are year or stream-level random effects justifiable? We want to compare streams and years in this dataset, not generalize beyond them, so we should use fixed effects. Further, stream are known, of interest, and were not randomly sampled. Including (1 \| stream) would be statistically redundant (stream intercepts would be double-modeled) and would lead to misleading AIC comparisons.
 
-Random slopes?. The needs multiple obs per group across a range of slope variable (temp_90), enough replication to estimate variation in slopes, not just intercepts. Need \~8+ obs per group spread across the covariate. We could do this for stream or year. Prob not.
+Random slopes?. The needs multiple obs per group across a range of slope variable (`temp_90`), enough replication to estimate variation in slopes, not just intercepts. Need \~8+ obs per group spread across the covariate. We could do this for stream or year. Prob not.
 
 So, we should use a simple linear model with no random effects. This allows for interpretable results, no overfitting from random effects, and is a reasonable approach given the design.
 
-If we did try (1 \| COMID), expect singularity, low variance estimates for COMID, and predictions will likley miss the groups means.
+If we did try (1 \| COMID), expect singularity, low variance estimates for COMID, and predictions will likely miss the groups means.
+
+That said, as shown in [Temp_90](#sec-temp_90), we probably should be including COMID as a random effect. So we many have to simple the model (e.g., omit elevation), to ovoid over fitting.
 
 ## Model fitting and comparison
 
-### Evaluate COMID as random intercept
-
-```{r}
-# Baseline fixed-effect model
-m_fixed <- lm(yday ~ temp_90 + stream + year, data = model_data_final)
-
-# Mixed-effect model with random intercept for COMID
-m_rand <- lmer(yday ~ temp_90 + stream + year + (1 | COMID), data = model_data_final, REML = FALSE)
-
-AIC(m_fixed, m_rand) |> 
-  arrange(AIC) |> 
-  mutate(delta = AIC - min(AIC)) 
-# summary(m_rand)  # Check variance estimate for COMID
-```
-
-Does adding (1\|COMID) improve it without overfiitg? Improves AIC by \>2700. Is the variance explained by COMID non-zero and meaningful? Variance is 60 and likely meaninful. But, is it overfitting? Yes, the model is overfitting. The AIC is much lower, but the predictions are not close to the observed data (Not shown).
-
-### Final candidate covariates and interactions
-
--   temp_90: 90-day mean temperature
--   mean_elevation: mean elevation of the stream reach
--   stream: stream name
--   year: year of observation
-
-| Interaction | Description | Possible Interpretation |
-|------------------|------------------------|------------------------------|
-| `temp_90 × stream` | Temperature effects on spawn timing vary across streams | Some streams may be more thermally sensitive (e.g., due to groundwater, shading, etc.) |
-| `temp_90 × year` | Interannual differences in how temperature affects spawn timing | Annual climate conditions (e.g., snowmelt timing, baseflow) modify temp-timing response |
-| `stream × year` | Stream-specific interannual variation | Some streams respond more strongly to wet/dry or hot/cool years |
-| `mean_elevation × stream` | Elevation effects on timing vary by stream | Elevation proxies snowpack or gradient, which may matter differently by stream |
-| `mean_elevation × year` | Elevation effects change across years | Snowmelt timing shifts may be more impactful in some years |
-| `temp_90 × mean_elevation` | Thermal effects depend on elevation | High-elevation streams may respond more strongly or weakly to the same temp range |
-
-The most plausible core interactions to include a prior are: - `temp_90 × stream` - `temp_90 × year`
-
-Others like `stream x year` are data hungry and may overfit without strong replication. Interactions with `mean_elevation` does not make much sense.
-
-We used AIC-based model selection to identify the best-supported linear model that included temp_90, mean_elevation, stream, year, and all two-way interactions. This model outperformed all simpler alternatives by a large AIC margin. We then tested an alternative model including a raw quadratic term (I(temp_90\^2)) to account for potential nonlinearity in the temperature–spawn timing relationship. Model performance was evaluated using AIC and visual assessment of stream- and year-specific predictions.
-
 ### Simple LM
 
-First we'll fit simple linear models to get a sense of the data and the relationships. Adding new interactions each time.
+First we'll fit simple linear models to get a sense of the data and the relationships. Adding new interactions each time. 
 
-```{r echo=TRUE}
-# m0 <- lmer(yday ~ temp_90 + stream + year + (1 | COMID), data = model_data_final)
-m1 <- lm(yday ~ temp_90 + mean_elevation + stream + year, data = model_data_final)
-m2 <- lm(yday ~ temp_90 * stream + temp_90 + mean_elevation + stream + year, data = model_data_final)
-m3 <- lm(yday ~ temp_90 * stream + temp_90 * year + temp_90 + mean_elevation + stream + year, data = model_data_final)
-m4 <- lm(yday ~ temp_90 * stream + temp_90 * year + stream * year + temp_90 + mean_elevation + stream + year, data = model_data_final)
+```{r simple-lm, echo=TRUE}
+# All combinations of 1–5 fixed effects: temp_90, stream, year, mean_elevation, SLOPE
+# 31 total
+m1 <- lm(yday ~ temp_90, data = model_data)
+m2 <- lm(yday ~ stream, data = model_data)
+m3 <- lm(yday ~ year, data = model_data)
+m4 <- lm(yday ~ mean_elevation, data = model_data)
+m5 <- lm(yday ~ slope, data = model_data)
 
-AIC(m1, m2, m3, m4) |> 
+m6  <- lm(yday ~ temp_90 + stream, data = model_data)
+m7  <- lm(yday ~ temp_90 + year, data = model_data)
+m8  <- lm(yday ~ temp_90 + mean_elevation, data = model_data)
+m9  <- lm(yday ~ temp_90 + slope, data = model_data)
+m10 <- lm(yday ~ stream + year, data = model_data)
+m11 <- lm(yday ~ stream + mean_elevation, data = model_data)
+m12 <- lm(yday ~ stream + slope, data = model_data)
+m13 <- lm(yday ~ year + mean_elevation, data = model_data)
+m14 <- lm(yday ~ year + slope, data = model_data)
+m15 <- lm(yday ~ mean_elevation + slope, data = model_data)
+
+m16 <- lm(yday ~ temp_90 + stream + year, data = model_data)
+m17 <- lm(yday ~ temp_90 + stream + mean_elevation, data = model_data)
+m18 <- lm(yday ~ temp_90 + stream + slope, data = model_data)
+m19 <- lm(yday ~ temp_90 + year + mean_elevation, data = model_data)
+m20 <- lm(yday ~ temp_90 + year + slope, data = model_data)
+m21 <- lm(yday ~ temp_90 + mean_elevation + slope, data = model_data)
+m22 <- lm(yday ~ stream + year + mean_elevation, data = model_data)
+m23 <- lm(yday ~ stream + year + slope, data = model_data)
+m24 <- lm(yday ~ stream + mean_elevation + slope, data = model_data)
+m25 <- lm(yday ~ year + mean_elevation + slope, data = model_data)
+
+m26 <- lm(yday ~ temp_90 + stream + year + mean_elevation, data = model_data)
+m27 <- lm(yday ~ temp_90 + stream + year + slope, data = model_data)
+m28 <- lm(yday ~ temp_90 + stream + mean_elevation + slope, data = model_data)
+m29 <- lm(yday ~ temp_90 + year + mean_elevation + slope, data = model_data)
+m30 <- lm(yday ~ stream + year + mean_elevation + slope, data = model_data)
+
+m31 <- lm(yday ~ temp_90 + stream + year + mean_elevation + slope, data = model_data)
+```
+
+```{r simple-lm-better}
+# Do the above better -----------------
+# # All combinations of 1–5 fixed effects: temp_90, stream, year, mean_elevation, slope
+# fixed_vars <- c("temp_90", "stream", "year", "mean_elevation", "slope")
+# 
+# # Generate all additive model formulas
+# fixed_formulas <- unlist(lapply(1:length(fixed_vars), function(k) {
+#   combn(fixed_vars, k, simplify = FALSE)
+# }), recursive = FALSE)
+# 
+# models <- list()
+# 
+# for (i in seq_along(fixed_formulas)) {
+#   fmla_str <- paste("yday ~", paste(fixed_formulas[[i]], collapse = " + "))
+#   models[[paste0("m", i)]] <- lm(as.formula(fmla_str), data = model_data)
+# }
+# 
+# # Compare with AIC
+# model_aic_table <- AICc(models[[1]])
+# for (i in 2:length(models)) {
+#   model_aic_table <- rbind(model_aic_table, AICc(models[[i]]))
+# }
+# 
+# # Name rows for clarity
+# rownames(model_aic_table) <- names(models)
+# model_aic_table |> 
+#   rownames_to_column() |> 
+#   rename(model = rowname, AIC = V1) |> 
+#   mutate(delta = AIC - min(AIC)) |> 
+#   arrange(delta) |> 
+#   as_tibble()
+```
+
+```{r aic-simple-lm, caption = "Model selection for addtive LMs. Top 10 of 31 shown."}
+aic_tab <- AIC(m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
+    m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31) |> 
   arrange(AIC) |> 
-  mutate(delta = AIC - min(AIC)) 
+  rownames_to_column(var = "Model") |>
+  mutate(delta = AIC - min(AIC)) |> 
+  as_tibble()
+
+aic_tab |> 
+  slice_head(n = 10) |>
+  kableExtra::kbl() |>
+  kableExtra::kable_styling("striped", full_width = FALSE)
 ```
 
-Full interaction (m4) is best. We will now compare all possible combinations of the interactions, except stream x year.
+| Rank | Model | Formula (inferred)                                 | df | AIC      | ΔAIC    |
+| ---- | ----- | -------------------------------------------------- | -- | -------- | ------- |
+| 1    | m31   | `temp_90 + stream + year + mean_elevation + SLOPE` | 15 | 15849.91 | 0.00    |
+| 2    | m26   | `temp_90 + stream + year + mean_elevation`         | 14 | 15933.83 | 83.91   |
+| 3    | m27   | `temp_90 + stream + year + SLOPE`                  | 14 | 16190.84 | 340.93  |
+| 4    | m16   | `temp_90 + stream + year`                          | 13 | 16245.22 | 395.31  |
+| 5    | m28   | `temp_90 + stream + mean_elevation + SLOPE`        | 13 | 16950.14 | 1100.23 |
 
-### Dredge
+Interpretation
 
-```{r dredge, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
-# global_model <- lm(yday ~ temp_90 * stream + temp_90 * year + stream * year + temp_90 + mean_elevation + stream + year, data = model_data_final)
-global_model <- lm(yday ~ temp_90 * stream + temp_90 * year + temp_90 + stream + year + mean_elevation, data = model_data_final)
+Model m31 (best)
+-   Contains all five covariates
+-   Suggests that each adds unique, non-redundant signal
+-   Likely a solid benchmark, but might be at risk of overfitting or including covariates of weak effect
 
-# Run dredge
-options(na.action = "na.fail")  # Required for dredge
-model_set <- dredge(global_model, trace = 1, rank = "AIC")
+🔻 Model m26
+-   Drops `slope` → minimal ΔAIC (Δ = 84)
+-   Suggests slope may not be that influential when year and elevation are included
 
-model_set
-```
+🔻 Model m27
+-   Drops `mean_elevation` instead → ΔAIC = 341
+-   Implies elevation likely provides more explanatory power than slope in this model context
 
-Model 64 with all 2-way interactions (save stream x year) is the best supported model based on AIC.
+🔻 Model m16
+-   Drops both `mean_elevation` and `slope`
+-   Still relatively good (Δ = 395), meaning that `temp_90 + stream + year` explains the bulk of variation
 
-**NOTE** ELEVATION IS THE ISSUE CAUSING OFFSETS!!!! The best fitting model without elevation in the full model with all 2-way interactions. When plotting predictions using the model without elevation, the linear offsets are no more. This makes sense because the estimated coefficients for models with elevation are positive, which does not align with the observed data:
+🔻 Model m28
+-   general model as suggest by Dan
+-   Omits `year`, includes everything else → ΔAIC = 1100
+-   Big drop confirms that `year` is critically important, likely absorbing interannual hydrology, climate variation, or escapement. 
 
-```{r echo=TRUE}
-final_model <- get.models(model_set, 1)[[1]]
-tmp <- ggeffects::ggpredict(final_model, terms = c("mean_elevation"))
+Takeaways
 
-ggplot(tmp, aes(x = x, y = predicted)) +
-  geom_line(size = 1.1) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, color = NA) +
-  geom_point(data = model_data_final, aes(x = mean_elevation, y = yday), size = .5) + 
-  theme_bw() + 
-  labs(title = "Elevation effect on spawn timing",
-       subtitle = "Note the strong mismatch between predicted trend and observed data",
-       x = "Mean Elevation (m)", y = "Spawn Day of Year") 
-```
+-   `year` and `stream` are foundational — they’re in all top models.
+-   `temp_90` is always present — unsurprisingly.
+-   Mean elevation is more helpful than slope, but may interact or confound in full models (as you saw earlier).
+-   slope adds little alone but may act synergistically in certain combinations.
 
-So we will select the best fitting model without elevation (model 127; AIC rank = 6)
+Recommendation:
 
-## Diagnostics
+-   Retain year, stream, temp_90 in all further models.
+-   Test dropping slope from top models — see if model simplification is justified.
+-   Explore parameter estimates from m31 to see if elevation and slope are meaningful (i.e., significant and consistent).
 
-```{r, echo=TRUE}
-final_model <- get.models(model_set, 4)[[1]]
-```
+Look at the model estimates for top 5 models:
 
 ```{r}
-# summary(final_model)
-par(mfrow = c(2,2))
-plot(final_model)
-par(mfrow = c(1,1))
+tab_model(m31, m26, m27, m16, m28, 
+          dv.labels = c("Full model", "No slope", "No elevation", "No elevation or slope", "No year"))
 ```
 
-## Predictions
+1. Consistent Predictors
+  -   temp_90, stream, and year are consistently significant across all top models.
+  -   Their estimates are stable and interpretable.These should be locked in as core covariates.
 
-```{r fig.height=10}
-pred_stream_temp <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream"))
+2. Elevation vs. Slope
+  -   mean_elevation has:
+      -   A modestly sized effect
+      -   Marginal p-values (some < 0.05, some ~0.1)
+  -   SLOPE is more variable:
+      -   Sometimes barely significant
+      -   Sometimes not at all
+  -   removing SLOPE from the top model (m31 → m26) causes only a moderate AIC jump (ΔAIC ~84)
 
-# ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) +
-#   facet_rep_wrap(~group) +
-#   geom_line(size = 1.1) +
-#   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
-#   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) +
-#   labs(title = "",
-#        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") +
-#   theme_bw() +
-#   theme(legend.position = "right") +
-#   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +
-#   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))
+Interpretation: Elevation is probably doing more work than slope, but neither may be critical once stream and year are accounted for.
 
-p20 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) +
-  facet_rep_wrap(~group) +
-  geom_line(size = 1.1) +
-  geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
-  labs(title = "",
-       x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") +
-  theme_bw() +
-  theme(legend.position = "right") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + 
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) 
+3. Watch for redundancy
+  -   In m31, both stream and elevation are included. 
+  -   If elevation is mostly captured by stream identity, it may be redundant.
 
-pred_stream_temp <- ggeffects::ggpredict(final_model, terms = c("temp_90", "year"))
+Recommendations
+-   Retain: temp_90, stream, year
+-   Evaluate:
+    -   Keep mean_elevation if effect size is consistent and interpretable
+    -   Drop SLOPE unless it provides a strong ecological rationale
 
-p21 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) +
-  geom_line(size = 1.1) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
-  geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = year), size = .5) +
-  labs(title = "",
-       x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") +
-  theme_bw() +
-  theme(legend.position = "right") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + 
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) 
+Next:
+-   Try a version of the best model without elevation and slope, or just elevation, to test sensitivity
+-   Proceed to adding the quadratic term (I(temp_90^2))
+-   Then test COMID as a random intercept
+-   test interactions
 
-p20 / p21 + plot_layout(ncol = 1) + plot_annotation(title = "Predicted vs Observed Spawn Timing", theme = theme_bw())
+Compare targeted models first, Why?
+
+-   We've already identified that `temp_90`, `stream`, and `year` are critical
+-   `elevation` and `slope` are questionable in explanatory value
+-   Including interactions too soon could:
+    -   Mask whether those weaker covariates matter
+    -   Inflate model complexity before locking in the core structure
+
+What to do:
+
+-   Compare:
+-   `temp_90` + `stream` + `year` (baseline)
+-   Add `mean_elevation` and/or `SLOPE`
+-   Then add `I(temp_90^2)`
+-   Then add `(1 | COMID)`
+
+This gives you a clean sense of model structure before going into interactions.
+
+### Targeted model comparison
+
+```{r targ-models}
+# Targeted Model Comparisons (pre-interaction)
+# Clean models to confirm key structure and quadratic temp effect
+mod_base <- lm(yday ~ temp_90 + stream + year, data = model_data)
+mod_elev <- lm(yday ~ temp_90 + stream + year + mean_elevation, data = model_data)
+mod_quad <- lm(yday ~ temp_90 + I(temp_90^2) + stream + year, data = model_data)
+mod_quad_elev <- lm(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation, data = model_data)
+mod_quad_re <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1 | COMID),
+                    data = model_data, REML = FALSE)
 ```
 
--   Some stream-specific fits still under perform, especially at extremes
--   Year-specific predictions are systematically low (in both linear and poly models)
--   The orthogonal poly(temp_90, 2) didn't resolve this and may be too constrained
--   Raw quadratic (I(temp_90\^2)) might help fine-tune curvature per stream or year
+```{r aic-targeted-models, caption = "Model selection for targeted models."}
+AIC(mod_base, mod_elev, mod_quad, mod_quad_elev, mod_quad_re) |> 
+  mutate(delta = AIC - min(AIC)) |>
+  arrange(delta) |> 
+  kableExtra::kbl() |>
+  kableExtra::kable_styling("striped", full_width = FALSE)
+```
 
-## Quadratic model
+| Model           | Formula Concept                                        | df       | AIC     | ΔAIC       |
+| --------------- | ----------------------------------------------------   | -------- | ------- | -----------|
+| `mod_quad_re`   | \`temp\_90 + I(temp\_90^2) + stream + year + (1|COMID) | 15       | **13452.2** | 0      |
+| `mod_quad_elev` | `temp_90 + I(temp_90^2) + stream + year + elevation`   | 15       | 15493.0 | 2040.9     |
+| `mod_quad`      | `temp_90 + I(temp_90^2) + stream + year`               | 14       | 15791.1 | 2338.9     |
+| `mod_elev`      | `temp_90 + stream + year + elevation`                  | 14       | 15933.8 | 2481.6     |
+| `mod_base`      | `temp_90 + stream + year`                              | 13       | 16245.2 | 2793.0     |
 
-Next we will fit a new best + quadratic model.
+Interpretation
+-   `mod_quad_re` (winner)
+-   Massive AIC improvement — >2000 points — over any model lacking COMID as a random effect
+-   Also supports the value of the quadratic temperature term
+-   This is clear front-runner
+
+mod_quad_elev vs mod_quad
+-   Elevation does slightly improve fit when random effects are excluded (ΔAIC ≈ 140)
+-   But when `(1 | COMID)` is included, the value of elevation vanishes (i.e., you never tested mod_quad_re + elevation, which is telling)
+-   Suggests elevation is already absorbed by COMID-level differences — consistent with earlier findings
+
+Conclusion
+-   Keep: `temp_90`, `I(temp_90^2)`, `stream`, `year`, and `(1 | COMID)`
+-   Drop: mean_elevation (already accounted for in COMID)
+-   The winning model (`mod_quad_re`) is simple, interpretable, and statistically robust
+
+### interactions
 
 ```{r}
-lm_poly <- lm(yday ~ temp_90 * stream + temp_90 * year + I(temp_90^2) + stream + year, data = model_data_final)
-AIC(final_model, lm_poly) |> arrange(AIC) |> mutate(delta = AIC - min(AIC))
-# summary(lm_poly)
+# ---------------------------------------------
+# 3. Interaction Model Candidates
+# ---------------------------------------------
+mod_interact1 <- lmer(yday ~ temp_90 * stream + year + I(temp_90^2) + (1 | COMID), data = model_data, REML = FALSE)
+mod_interact2 <- lmer(yday ~ temp_90 * year + stream + I(temp_90^2) + (1 | COMID), data = model_data, REML = FALSE)
+mod_interact3 <- lmer(yday ~ temp_90 * stream + temp_90 * year + I(temp_90^2) + (1 | COMID), data = model_data, REML = FALSE)
+
+AIC(mod_quad_re, mod_interact1, mod_interact2, mod_interact3)|> 
+  mutate(delta = AIC - min(AIC)) |>
+  arrange(delta) |> 
+  kableExtra::kbl() |>
+  kableExtra::kable_styling("striped", full_width = FALSE)
 ```
 
-The poly model improves AIC by \~210, major improvement. So the curvature is helping.
-
-```{r fig.height=10}
-pred_stream_temp <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream"))
-
-p22 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) +
-  facet_rep_wrap(~group) +
-  geom_line(size = 1.1) +
-  geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
-  # geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = stream), size = .5) +
-  labs(title = "",
-       x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") +
-  theme_bw() +
-  theme(legend.position = "right") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) 
-
-pred_stream_temp <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "year"))
-
-p23 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) +
-  geom_line(size = 1.1) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
-  geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = year), size = .5) +
-  labs(title = "",
-       x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") +
-  theme_bw() +
-  theme(legend.position = "right") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + 
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) 
-
-p22 / p23 + plot_layout(ncol = 1) + plot_annotation(title = "Predicted vs Observed Spawn Timing", theme = theme_bw())
-```
-
--   The quadratic model fits the data much better, especially at the extremes
--   The stream-specific fits are much better, but the year-specific fits are still systematically low (NOT ANY MORE - removed elevation)
-
-### Compare linear and quadratic model plots
-
-```{r fig.height=10}
-# p20 + p21 + p22 + p23 + plot_layout(ncol = 2) + 
-#   plot_annotation(title = "Predicted vs Observed Spawn Timing", 
-#                   subtitle = "Comparing Linear and Quadratic Models",
-#                   theme = theme_bw())
-```
-
-```{r fig.height=8}
-# Linear model predictions
-pred_linear <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream"))
-
-# Quadratic model predictions
-pred_quad <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream"))
+| Model           | Formula Concept                                              | df       | AIC | ΔAIC        |        |
+| --------------- | ------------------------------------------------------------ | -------- | --- | ----------- | ------ |
+| `mod_interact3` | \`temp\_90 \* stream + temp\_90 \* year + I(temp\_90^2) + (1 | COMID)\` | 25  | **11673.6** | 0.0    |
+| `mod_interact2` | \`temp\_90 \* year + stream + I(temp\_90^2) + (1             | COMID)\` | 18  | 12109.6     | 436.0  |
+| `mod_interact1` | \`temp\_90 \* stream + year + I(temp\_90^2) + (1             | COMID)\` | 22  | 13020.0     | 1346.5 |
+| `mod_quad_re`   | \`temp\_90 + I(temp\_90^2) + stream + year + (1              | COMID)\` | 15  | 13452.2     | 1778.6 |
 
 
-# Combine predictions
-pred_linear$model <- "Linear"
-pred_quad$model <- "Quadratic"
-pred_combined <- rbind(pred_linear, pred_quad)
+Best model: mod_interact3
+-   Including both temp_90 × stream and temp_90 × year yields dramatic AIC improvement (~1779 units better than additive model)
+-   Suggests that both spatial and temporal variation in temperature sensitivity are biologically meaningful
 
-# Merge stream colors from observed data if needed
-ggplot() +
-  geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", alpha = 0.3, size = 0.7) +
-  # geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = stream), alpha = 0.3, size = 0.7) +
-  geom_line(data = pred_combined, aes(x = x, y = predicted, color = group, linetype = model), size = 1.1, alpha = 0.7) +
-  lemon::facet_rep_wrap(~group) +
-  labs(title = "Stream-Specific Predicted vs Observed Spawn Timing",
-       subtitle = "Comparing Linear and Quadratic Models",
-       x = "90-day Mean Temp", y = "Spawn Day of Year",
-       color = "Stream", linetype = "Model") +
-  theme_bw() +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + 
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) 
+Likely reflects differences in:
+-   Local stream-specific phenology (via temp_90 × stream)
+-   Year-to-year climate anomalies and flow/thermal dynamics (via temp_90 × year)
 
-```
+mod_interact2 better than mod_interact1
+-   Interannual variation (year) appears more influential than streamwise variation in temp_90 response
+-   But stream still matters — together, they outperform either alone
 
--   Dashed vs solid lines show differences between models
--   Improved fit near the tails or mid-range = quadratic model success
-
-## Model fit comparison
-
-### Calculate RMSE
-
-```{r rmse, echo=TRUE}
-# get preds for each model
-model_data_final$pred_linear <- predict(final_model, newdata = model_data_final)
-model_data_final$pred_quad   <- predict(lm_poly, newdata = model_data_final)
-
-# compute error metrics by stream and year
-model_error_summary <- model_data_final %>%
-  mutate(error_linear = abs(yday - pred_linear),
-         error_quad   = abs(yday - pred_quad)) %>%
-  group_by(stream, year) %>%
-  summarize(
-    n = n(),
-    MAE_linear = mean(error_linear),
-    MAE_quad   = mean(error_quad),
-    RMSE_linear = sqrt(mean((yday - pred_linear)^2)),
-    RMSE_quad   = sqrt(mean((yday - pred_quad)^2)),
-    .groups = "drop"
+```{r}
+final_models <- list(
+  mod_quad_re = mod_quad_re,
+  mod_interact1 = mod_interact1,
+  mod_interact2 = mod_interact2,
+  mod_interact3 = mod_interact3
+)
+summary_list <- lapply(final_models, function(mod) {
+  data.frame(
+    AIC = AIC(mod),
+    R2 = performance::r2(mod)$R2_marginal,
+    ICC = performance::icc(mod)$ICC_adjusted
   )
+})
 
-# Long format
-model_error_long <- model_error_summary %>%
-  pivot_longer(cols = starts_with("RMSE"), names_to = "model", values_to = "RMSE") %>%
-  mutate(model = ifelse(model == "RMSE_linear", "Linear", "Quadratic"))
+summary_df <- do.call(rbind, summary_list)
+summary_df$model <- rownames(summary_df)
+summary_df <- summary_df[, c("model", "AIC", "R2", "ICC")]
+print(summary_df)
 ```
 
-### Stream level RMSE comparison
+As expected, the interactions are overfitting. 
 
-```{r}
-# Stream level RMSE comparison
-ggplot(model_error_long, aes(x = stream, y = RMSE, fill = model)) +
-  geom_col(position = "dodge") +
-  labs(title = "Model RMSE by Stream",
-       y = "Root Mean Squared Error",
-       x = "Stream") +
+So What’s Going On?
+1. Low AIC but bad predictions = likely overfitting
+-   AIC rewards goodness-of-fit but penalizes complexity — and the interaction model may be “winning” by fitting spurious patterns (e.g. small temp ranges in some groups leading to flipped quads).
+
+2. Nonlinear fits breaking down in interactions
+-   The quadratic term interacts awkwardly with groups having narrow temp ranges (common issue with poly() or I(temp^2) + factor interaction)
+
+3. R² > AIC when interpretability matters
+-   Since we care about understanding spawn timing across space/time, R² + prediction realism > pure AIC win
+
+Recommendation
+-   Stick with mod_quad_re
+-   Excellent fit (highest R²), interpretable, smoother predictions
+-   AIC difference (~1778) is likely an artifact of interaction complexity
+-   Most biologically plausible model
+
+→ Suggest making this your primary model
+
+
+
+```{r diagnostics}
+performance::check_model(mod_quad_re)
+```
+
+
+```{r plot_final, fig.cap= "Final model predictions."}
+
+# ---------------------------------------------
+# Visualizations for Final Model (mod_interact3)
+# ---------------------------------------------
+p3 <- plot(ggpredict(mod_quad_re, terms = c("temp_90 [all]", "stream"))) + ggtitle("Predicted Spawn Timing by Stream")
+p4 <- plot(ggpredict(mod_quad_re, terms = c("temp_90 [all]", "year"))) + ggtitle("Predicted Spawn Timing by Year")
+print(p3 + p4)
+
+# ---------------------------------------------
+# Random Effects and Diagnostics
+# ---------------------------------------------
+re_int3 <- ranef(mod_quad_re)$COMID
+re_int3$COMID <- rownames(re_int3)
+colnames(re_int3)[1] <- "intercept"
+ggplot(re_int3, aes(x = reorder(COMID, intercept), y = intercept)) +
+  geom_point() + coord_flip() +
+  labs(title = "Random Intercepts by COMID", x = "COMID", y = "Random Effect Estimate") +
   theme_minimal()
 ```
 
-### RMSE difference by stream
 
-```{r}
-model_error_summary %>%
-  mutate(delta_RMSE = RMSE_linear - RMSE_quad) %>%
-  ggplot(aes(x = reorder(stream, delta_RMSE), y = delta_RMSE, fill = delta_RMSE > 0)) +
-  geom_col(show.legend = FALSE) +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "ΔRMSE by Stream (Linear - Quadratic)",
-       x = "Stream", y = "RMSE Improvement from Quadratic", 
-       subtitle = "(+) quadratic is better, (-) linear is better") +
-  scale_fill_manual(values = c("firebrick", "steelblue")) +
-  theme_minimal()
-```
 
-### RMSE difference by stream and year
+<!-- ### Full model comparison (Dredge) -->
 
-```{r}
-model_error_summary <- model_data_final %>%
-  mutate(error_linear = abs(yday - pred_linear),
-         error_quad   = abs(yday - pred_quad)) %>%
-  group_by(stream, year) %>%
-  summarize(
-    n = n(),
-    RMSE_linear = sqrt(mean((yday - pred_linear)^2)),
-    RMSE_quad   = sqrt(mean((yday - pred_quad)^2)),
-    .groups = "drop"
-  ) %>%
-  mutate(delta_RMSE = RMSE_linear - RMSE_quad)  # positive = quad is better
+<!-- We will now compare all possible combinations of the interactions, except stream x year. -->
 
-ggplot(model_error_summary, aes(x = year, y = delta_RMSE, fill = delta_RMSE > 0)) +
-  geom_col(aes(alpha = n), position = "dodge") +
-  facet_wrap(~stream) +
-  scale_alpha(range = c(0.4, 1)) +
-  scale_fill_manual(values = c("firebrick", "steelblue")) +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(title = "ΔRMSE by Stream and Year", x = "Year", y = "RMSE: Linear – Quadratic", subtitle = "Alpha scaled to sample size") +
-  theme_minimal() +
-  theme(legend.position = "none")
 
-```
+<!-- ```{r dredge, echo=TRUE, message=FALSE, warning=FALSE, results='hide'} -->
+<!-- global_model <- lm(yday ~ temp_90 * stream + temp_90 * year + stream * year + temp_90 + mean_elevation + stream + year, data = model_data_final) -->
+<!-- # global_model <- lm(yday ~ temp_90 * stream + temp_90 * year + temp_90 + stream + year + mean_elevation, data = model_data_final) -->
 
--   facets show stream-level RMSE differences
--   patterns across years may highlight where curvature helps (e.g., early, warm, or dry years)
+<!-- # Run dredge -->
+<!-- options(na.action = "na.fail")  # Required for dredge -->
+<!-- model_set <- dredge(global_model, trace = 1, rank = "AIC") -->
 
-<!-- ### Final plots -->
+<!-- model_set -->
+<!-- ``` -->
 
-```{r fig.height=12}
-# # Panel A: Predicted Spawn Timing by Stream (Linear vs Quadratic)
-# pred_linear <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream"))
-# pred_quad   <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream"))
-# 
-# pred_linear$model <- "Linear"
-# pred_quad$model   <- "Quadratic"
-# 
-# pred_both <- rbind(pred_linear, pred_quad)
-# 
-# pf1 <- ggplot() +
-#   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", alpha = 0.3, size = 0.7) +
-#   geom_line(data = pred_both, aes(x = x, y = predicted, color = group, linetype = model), size = 1.1) +
-#   facet_wrap(~group) +
-#   labs(title = "A) Predicted Spawn Timing by Stream",
-#        x = "90-day Mean Temp", y = "Spawn Day of Year") +
-#   theme_bw() +
-#   theme(legend.position = "none")
-# 
-# 
-# # Panel B: ΔRMSE by Stream × Year
-# pf2 <- ggplot(model_error_summary, aes(x = year, y = delta_RMSE, fill = delta_RMSE > 0)) +
-#   geom_col(position = "dodge") +
-#   facet_wrap(~stream) +
-#   geom_hline(yintercept = 0, linetype = "dashed") +
-#   scale_fill_manual(values = c("firebrick", "steelblue")) +
-#   labs(title = "B) Improvement from Quadratic Model (ΔRMSE)",
-#        x = "Year", y = "RMSE: Linear – Quadratic") +
-#   theme_bw() +
-#   theme(legend.position = "none")
-# 
-# final_fig <- pf1 / pf2 + plot_layout(heights = c(1, 1))
-# final_fig
-```
+<!-- Model 64 with all 2-way interactions (save stream x year) is the best supported model based on AIC. -->
+
+<!-- **NOTE** ELEVATION IS THE ISSUE CAUSING OFFSETS!!!! The best fitting model without elevation in the full model with all 2-way interactions. When plotting predictions using the model without elevation, the linear offsets are no more. This makes sense because the estimated coefficients for models with elevation are positive, which does not align with the observed data: -->
+
+<!-- ```{r echo=TRUE} -->
+<!-- final_model <- get.models(model_set, 1)[[1]] -->
+<!-- tmp <- ggeffects::ggpredict(final_model, terms = c("mean_elevation")) -->
+
+<!-- ggplot(tmp, aes(x = x, y = predicted)) + -->
+<!--   geom_line(size = 1.1) + -->
+<!--   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.2, color = NA) + -->
+<!--   geom_point(data = model_data_final, aes(x = mean_elevation, y = yday), size = .5) +  -->
+<!--   theme_bw() +  -->
+<!--   labs(title = "Elevation effect on spawn timing", -->
+<!--        subtitle = "Note the strong mismatch between predicted trend and observed data", -->
+<!--        x = "Mean Elevation (m)", y = "Spawn Day of Year")  -->
+<!-- ``` -->
+
+<!-- So we will select the best fitting model without elevation (model 127; AIC rank = 6) -->
+
+<!-- ## Diagnostics -->
+
+<!-- ```{r, echo=TRUE} -->
+<!-- final_model <- get.models(model_set, 4)[[1]] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # summary(final_model) -->
+<!-- par(mfrow = c(2,2)) -->
+<!-- plot(final_model) -->
+<!-- par(mfrow = c(1,1)) -->
+<!-- ``` -->
+
+<!-- ## Predictions -->
+
+<!-- ```{r fig.height=10} -->
+<!-- pred_stream_temp <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream")) -->
+
+<!-- # ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) + -->
+<!-- #   facet_rep_wrap(~group) + -->
+<!-- #   geom_line(size = 1.1) + -->
+<!-- #   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) + -->
+<!-- #   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) + -->
+<!-- #   labs(title = "", -->
+<!-- #        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") + -->
+<!-- #   theme_bw() + -->
+<!-- #   theme(legend.position = "right") + -->
+<!-- #   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + -->
+<!-- #   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) -->
+
+<!-- p20 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) + -->
+<!--   facet_rep_wrap(~group) + -->
+<!--   geom_line(size = 1.1) + -->
+<!--   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) + -->
+<!--   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) + -->
+<!--   labs(title = "", -->
+<!--        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") + -->
+<!--   theme_bw() + -->
+<!--   theme(legend.position = "right") + -->
+<!--   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +  -->
+<!--   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))  -->
+
+<!-- pred_stream_temp <- ggeffects::ggpredict(final_model, terms = c("temp_90", "year")) -->
+
+<!-- p21 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) + -->
+<!--   geom_line(size = 1.1) + -->
+<!--   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) + -->
+<!--   geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = year), size = .5) + -->
+<!--   labs(title = "", -->
+<!--        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") + -->
+<!--   theme_bw() + -->
+<!--   theme(legend.position = "right") + -->
+<!--   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +  -->
+<!--   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))  -->
+
+<!-- p20 / p21 + plot_layout(ncol = 1) + plot_annotation(title = "Predicted vs Observed Spawn Timing", theme = theme_bw()) -->
+<!-- ``` -->
+
+<!-- -   Some stream-specific fits still under perform, especially at extremes -->
+<!-- -   Year-specific predictions are systematically low (in both linear and poly models) -->
+<!-- -   The orthogonal poly(temp_90, 2) didn't resolve this and may be too constrained -->
+<!-- -   Raw quadratic (I(temp_90\^2)) might help fine-tune curvature per stream or year -->
+
+<!-- ## Quadratic model -->
+
+<!-- Next we will fit a new best + quadratic model. -->
+
+<!-- ```{r} -->
+<!-- lm_poly <- lm(yday ~ temp_90 * stream + temp_90 * year + I(temp_90^2) + stream + year, data = model_data_final) -->
+<!-- AIC(final_model, lm_poly) |> arrange(AIC) |> mutate(delta = AIC - min(AIC)) -->
+<!-- # summary(lm_poly) -->
+<!-- ``` -->
+
+<!-- The poly model improves AIC by \~210, major improvement. So the curvature is helping. -->
+
+<!-- ```{r fig.height=10} -->
+<!-- pred_stream_temp <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream")) -->
+
+<!-- p22 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) + -->
+<!--   facet_rep_wrap(~group) + -->
+<!--   geom_line(size = 1.1) + -->
+<!--   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", size = .5) + -->
+<!--   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) + -->
+<!--   # geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = stream), size = .5) + -->
+<!--   labs(title = "", -->
+<!--        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") + -->
+<!--   theme_bw() + -->
+<!--   theme(legend.position = "right") + -->
+<!--   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) + -->
+<!--   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))  -->
+
+<!-- pred_stream_temp <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "year")) -->
+
+<!-- p23 <- ggplot(pred_stream_temp, aes(x = x, y = predicted, color = group)) + -->
+<!--   geom_line(size = 1.1) + -->
+<!--   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) + -->
+<!--   geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = year), size = .5) + -->
+<!--   labs(title = "", -->
+<!--        x = "90-day Mean Temp", y = "Spawn Day of Year", color = "Stream", fill = "Stream") + -->
+<!--   theme_bw() + -->
+<!--   theme(legend.position = "right") + -->
+<!--   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +  -->
+<!--   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))  -->
+
+<!-- p22 / p23 + plot_layout(ncol = 1) + plot_annotation(title = "Predicted vs Observed Spawn Timing", theme = theme_bw()) -->
+<!-- ``` -->
+
+<!-- -   The quadratic model fits the data much better, especially at the extremes -->
+<!-- -   The stream-specific fits are much better, but the year-specific fits are still systematically low (NOT ANY MORE - removed elevation) -->
+
+<!-- ### Compare linear and quadratic model plots -->
+
+<!-- ```{r fig.height=10} -->
+<!-- # p20 + p21 + p22 + p23 + plot_layout(ncol = 2) +  -->
+<!-- #   plot_annotation(title = "Predicted vs Observed Spawn Timing",  -->
+<!-- #                   subtitle = "Comparing Linear and Quadratic Models", -->
+<!-- #                   theme = theme_bw()) -->
+<!-- ``` -->
+
+<!-- ```{r fig.height=8} -->
+<!-- # Linear model predictions -->
+<!-- pred_linear <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream")) -->
+
+<!-- # Quadratic model predictions -->
+<!-- pred_quad <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream")) -->
+
+
+<!-- # Combine predictions -->
+<!-- pred_linear$model <- "Linear" -->
+<!-- pred_quad$model <- "Quadratic" -->
+<!-- pred_combined <- rbind(pred_linear, pred_quad) -->
+
+<!-- # Merge stream colors from observed data if needed -->
+<!-- ggplot() + -->
+<!--   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", alpha = 0.3, size = 0.7) + -->
+<!--   # geom_point(data = model_data_final, aes(x = temp_90, y = yday, color = stream), alpha = 0.3, size = 0.7) + -->
+<!--   geom_line(data = pred_combined, aes(x = x, y = predicted, color = group, linetype = model), size = 1.1, alpha = 0.7) + -->
+<!--   lemon::facet_rep_wrap(~group) + -->
+<!--   labs(title = "Stream-Specific Predicted vs Observed Spawn Timing", -->
+<!--        subtitle = "Comparing Linear and Quadratic Models", -->
+<!--        x = "90-day Mean Temp", y = "Spawn Day of Year", -->
+<!--        color = "Stream", linetype = "Model") + -->
+<!--   theme_bw() + -->
+<!--   scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF")) +  -->
+<!--   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33", "#A65628", "#999999", "#F781BF"))  -->
+
+<!-- ``` -->
+
+<!-- -   Dashed vs solid lines show differences between models -->
+<!-- -   Improved fit near the tails or mid-range = quadratic model success -->
+
+<!-- ## Model fit comparison -->
+
+<!-- ### Calculate RMSE -->
+
+<!-- ```{r rmse, echo=TRUE} -->
+<!-- # get preds for each model -->
+<!-- model_data_final$pred_linear <- predict(final_model, newdata = model_data_final) -->
+<!-- model_data_final$pred_quad   <- predict(lm_poly, newdata = model_data_final) -->
+
+<!-- # compute error metrics by stream and year -->
+<!-- model_error_summary <- model_data_final %>% -->
+<!--   mutate(error_linear = abs(yday - pred_linear), -->
+<!--          error_quad   = abs(yday - pred_quad)) %>% -->
+<!--   group_by(stream, year) %>% -->
+<!--   summarize( -->
+<!--     n = n(), -->
+<!--     MAE_linear = mean(error_linear), -->
+<!--     MAE_quad   = mean(error_quad), -->
+<!--     RMSE_linear = sqrt(mean((yday - pred_linear)^2)), -->
+<!--     RMSE_quad   = sqrt(mean((yday - pred_quad)^2)), -->
+<!--     .groups = "drop" -->
+<!--   ) -->
+
+<!-- # Long format -->
+<!-- model_error_long <- model_error_summary %>% -->
+<!--   pivot_longer(cols = starts_with("RMSE"), names_to = "model", values_to = "RMSE") %>% -->
+<!--   mutate(model = ifelse(model == "RMSE_linear", "Linear", "Quadratic")) -->
+<!-- ``` -->
+
+<!-- ### Stream level RMSE comparison -->
+
+<!-- ```{r} -->
+<!-- # Stream level RMSE comparison -->
+<!-- ggplot(model_error_long, aes(x = stream, y = RMSE, fill = model)) + -->
+<!--   geom_col(position = "dodge") + -->
+<!--   labs(title = "Model RMSE by Stream", -->
+<!--        y = "Root Mean Squared Error", -->
+<!--        x = "Stream") + -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+<!-- ### RMSE difference by stream -->
+
+<!-- ```{r} -->
+<!-- model_error_summary %>% -->
+<!--   mutate(delta_RMSE = RMSE_linear - RMSE_quad) %>% -->
+<!--   ggplot(aes(x = reorder(stream, delta_RMSE), y = delta_RMSE, fill = delta_RMSE > 0)) + -->
+<!--   geom_col(show.legend = FALSE) + -->
+<!--   geom_hline(yintercept = 0, linetype = "dashed") + -->
+<!--   labs(title = "ΔRMSE by Stream (Linear - Quadratic)", -->
+<!--        x = "Stream", y = "RMSE Improvement from Quadratic",  -->
+<!--        subtitle = "(+) quadratic is better, (-) linear is better") + -->
+<!--   scale_fill_manual(values = c("firebrick", "steelblue")) + -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+<!-- ### RMSE difference by stream and year -->
+
+<!-- ```{r} -->
+<!-- model_error_summary <- model_data_final %>% -->
+<!--   mutate(error_linear = abs(yday - pred_linear), -->
+<!--          error_quad   = abs(yday - pred_quad)) %>% -->
+<!--   group_by(stream, year) %>% -->
+<!--   summarize( -->
+<!--     n = n(), -->
+<!--     RMSE_linear = sqrt(mean((yday - pred_linear)^2)), -->
+<!--     RMSE_quad   = sqrt(mean((yday - pred_quad)^2)), -->
+<!--     .groups = "drop" -->
+<!--   ) %>% -->
+<!--   mutate(delta_RMSE = RMSE_linear - RMSE_quad)  # positive = quad is better -->
+
+<!-- ggplot(model_error_summary, aes(x = year, y = delta_RMSE, fill = delta_RMSE > 0)) + -->
+<!--   geom_col(aes(alpha = n), position = "dodge") + -->
+<!--   facet_wrap(~stream) + -->
+<!--   scale_alpha(range = c(0.4, 1)) + -->
+<!--   scale_fill_manual(values = c("firebrick", "steelblue")) + -->
+<!--   geom_hline(yintercept = 0, linetype = "dashed") + -->
+<!--   labs(title = "ΔRMSE by Stream and Year", x = "Year", y = "RMSE: Linear – Quadratic", subtitle = "Alpha scaled to sample size") + -->
+<!--   theme_minimal() + -->
+<!--   theme(legend.position = "none") -->
+
+<!-- ``` -->
+
+<!-- -   facets show stream-level RMSE differences -->
+<!-- -   patterns across years may highlight where curvature helps (e.g., early, warm, or dry years) -->
+
+<!-- <!-- ### Final plots --> -->
+
+<!-- ```{r fig.height=12} -->
+<!-- # # Panel A: Predicted Spawn Timing by Stream (Linear vs Quadratic) -->
+<!-- # pred_linear <- ggeffects::ggpredict(final_model, terms = c("temp_90", "stream")) -->
+<!-- # pred_quad   <- ggeffects::ggpredict(lm_poly, terms = c("temp_90", "stream")) -->
+<!-- #  -->
+<!-- # pred_linear$model <- "Linear" -->
+<!-- # pred_quad$model   <- "Quadratic" -->
+<!-- #  -->
+<!-- # pred_both <- rbind(pred_linear, pred_quad) -->
+<!-- #  -->
+<!-- # pf1 <- ggplot() + -->
+<!-- #   geom_point(data = model_data_final, aes(x = temp_90, y = yday), color = "grey", alpha = 0.3, size = 0.7) + -->
+<!-- #   geom_line(data = pred_both, aes(x = x, y = predicted, color = group, linetype = model), size = 1.1) + -->
+<!-- #   facet_wrap(~group) + -->
+<!-- #   labs(title = "A) Predicted Spawn Timing by Stream", -->
+<!-- #        x = "90-day Mean Temp", y = "Spawn Day of Year") + -->
+<!-- #   theme_bw() + -->
+<!-- #   theme(legend.position = "none") -->
+<!-- #  -->
+<!-- #  -->
+<!-- # # Panel B: ΔRMSE by Stream × Year -->
+<!-- # pf2 <- ggplot(model_error_summary, aes(x = year, y = delta_RMSE, fill = delta_RMSE > 0)) + -->
+<!-- #   geom_col(position = "dodge") + -->
+<!-- #   facet_wrap(~stream) + -->
+<!-- #   geom_hline(yintercept = 0, linetype = "dashed") + -->
+<!-- #   scale_fill_manual(values = c("firebrick", "steelblue")) + -->
+<!-- #   labs(title = "B) Improvement from Quadratic Model (ΔRMSE)", -->
+<!-- #        x = "Year", y = "RMSE: Linear – Quadratic") + -->
+<!-- #   theme_bw() + -->
+<!-- #   theme(legend.position = "none") -->
+<!-- #  -->
+<!-- # final_fig <- pf1 / pf2 + plot_layout(heights = c(1, 1)) -->
+<!-- # final_fig -->
+<!-- ``` -->
+
+
+
+
