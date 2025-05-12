@@ -49,3 +49,10 @@ write_csv(mfsr_spawn_cleaned, "./data/russ_spawn/mfsr_spawn_cleaned.csv")
 
 
 
+# comids x reach ----------------------------------------------------------
+reach_comids <- mfsr_spawn |> 
+  group_by(REACH, COMID) |>
+  summarize(n())
+
+write_csv(reach_comids, "comids_in_reaches.csv")
+
