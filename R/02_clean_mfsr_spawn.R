@@ -54,5 +54,5 @@ reach_comids <- mfsr_spawn |>
   group_by(REACH, COMID) |>
   summarize(n())
 
-write_csv(reach_comids, "comids_in_reaches.csv")
+write_csv(reach_comids, here::here("data/russ_spawn/comids_in_reaches.csv"))
 
