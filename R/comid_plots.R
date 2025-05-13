@@ -26,6 +26,8 @@ p1 <- mfsr_spawn_cleaned |>
   geom_point(alpha = 0.5, shape = 21) +
   lemon::facet_rep_wrap(~year, ncol = 1) +
   scale_fill_manual(values = cols.streams) +
+  labs(y = "Stream",
+       x = "Elevation (m)") +
   theme_classic() +
   theme(legend.position = "none")
 
@@ -35,14 +37,44 @@ p2 <- mfsr_spawn_cleaned |>
   geom_density_ridges( stat = "density", scale =3, rel_min_height = .01, alpha = 0.65) +
   lemon::facet_rep_wrap(~year, ncol=1) +
   scale_fill_manual(values = cols.streams) +
+  lemon::facet_rep_wrap(~year, ncol = 1) +
+  labs(x = "Spawn Day of Year",
+       y = "Stream") +
   theme_classic() +
   theme(legend.position = "none")
 
 # plot two together
-p1 + p2
+p1 + p3+ p2
 
+p2 + p1 + p3
 
+p3 <- mfsr_spawn_cleaned |> 
+  group_by(stream, year, COMID, mean_elevation) |> 
+  summarise(redd_count = n(), mean_temp_90 = mean(temp_90)) |> 
+  ggplot(aes(y = mean_elevation,x = mean_temp_90, fill= stream, group = COMID, size = redd_count)) +
+  geom_point(alpha = 0.5, shape = 21) +
+  scale_fill_manual(values = cols.streams) +
+  lemon::facet_rep_wrap(~year, ncol = 1) +
+  theme_classic() +
+  labs(x = "Average 90-day Preceding Temperature (°C)",
+       y = "Elevation (m)") +
+  theme(legend.position = "none")
 
+#sd of eleveation vs temperature
+mfsr_spawn_cleaned |> 
+  group_by(stream, year ) |>
+  summarise(sd_elevation = sd(mean_elevation),sd_temp_90 = sd(temp_90), sd_yday = sd(yday)) |> 
+  ggplot(aes(x = sd_elevation, sd_temp_90, color = stream)) +
+  geom_point() +
+  theme_classic()
+
+#sd of temperature vs. spawn yday
+mfsr_spawn_cleaned |> 
+  group_by(stream, year ) |>
+  summarise(sd_elevation = sd(mean_elevation),sd_temp_90 = sd(temp_90), sd_yday = sd(yday)) |> 
+  ggplot(aes(x = sd_temp_90, sd_yday, color = stream)) +
+  geom_point() +
+  theme_classic()
 # Bad plots ---------------------------------------------------------------
 
 
