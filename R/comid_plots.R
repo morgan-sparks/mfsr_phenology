@@ -60,6 +60,8 @@ p3 <- mfsr_spawn_cleaned |>
        y = "Elevation (m)") +
   theme(legend.position = "none")
 
+# Bad plots ---------------------------------------------------------------
+
 #sd of eleveation vs temperature
 mfsr_spawn_cleaned |> 
   group_by(stream, year ) |>
@@ -75,9 +77,6 @@ mfsr_spawn_cleaned |>
   ggplot(aes(x = sd_temp_90, sd_yday, color = stream)) +
   geom_point() +
   theme_classic()
-# Bad plots ---------------------------------------------------------------
-
-
 
 mfsr_spawn_cleaned |>
   ggplot(aes(x =yday, y = as.factor(year), color = COMID, fill = COMID, height = after_stat(density)))+
