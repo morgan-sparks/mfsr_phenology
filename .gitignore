@@ -11,4 +11,5 @@ data/siegel_temperature/IsaakSiegelCompare.csv"
 
 # Cache files
 *_cache
+*_workflow_files
 *.knit
