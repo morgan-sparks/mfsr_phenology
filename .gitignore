@@ -7,3 +7,8 @@ data/siegel_temperature/siegel_mfsr.rds
 data/.DS_Store
 *.DS_Store
 data/siegel_temperature/IsaakSiegelCompare.csv"
+
+
+# Cache files
+*_cache
+*.knit
