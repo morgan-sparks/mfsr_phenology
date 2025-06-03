@@ -180,11 +180,11 @@ df_mod <- model_data |>
 
 **Objectives**:
 
-1. compile data on spawn timing, stream temperature, stream flow, elevation, and slope for Chinook Salmon in the Middle Fork Salmon River (MFSR) from 2002 to 2005. 
+1.  compile data on spawn timing, stream temperature, stream flow, elevation, and slope for Chinook Salmon in the Middle Fork Salmon River (MFSR) from 2002 to 2005.
 
-2. compute several summary statistics and data visualizations to examine variation in MFSR Chinook Salmon spawn timing. 
+2.  compute several summary statistics and data visualizations to examine variation in MFSR Chinook Salmon spawn timing.
 
-3. fit a series of linear mixed models (LMMs) to test for relationships between spawn timing (day of year) and environmental covariates. 
+3.  fit a series of linear mixed models (LMMs) to test for relationships between spawn timing (day of year) and environmental covariates.
 
 ### Study Area
 
@@ -217,9 +217,9 @@ skim_without_charts(spawn_data)
 
 #### Descriptive statistics and vizualizations
 
-Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year. 
+Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
 
-Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous. 
+Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous.
 
 There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
 
@@ -454,10 +454,6 @@ props |>
 
 #### Evaluate Grouping structure
 
-Redd observations are nested within `COMID`, which is nested within `stream`. There are repeated measures on `COMID`, so random effects are likely needed to account for pseudoreplication (they are correlated).
-
-Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
-
 ```{r comid-counts}
 # How many COMIDs have <5 observations?
 n_sparse_COMIDS_5 <- spawn_data |> 
@@ -486,6 +482,16 @@ n_perc_5 <- spawn_data |>
   nrow() / length(unique(spawn_data$COMID)) * 100
 ```
 
+The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
+
+-   Redds observed at specific locations, `COMID`
+-   Nested within `stream`
+-   Observed across multiple `years`
+
+Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
+
+Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
+
 ```{r comid-str, caption = "Number of COMIDs per stream."}
 # number of comids per stream
 spawn_data |> 
@@ -511,8 +517,6 @@ spawn_data |>
   theme_bw()
 ```
 
-Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
-
 ### Covariates
 
 To test for environmental factors driving variation in spawn timing, we quantified associations with metrics describing thermal and physical conditions in stream reaches. We selected and interrogated covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
@@ -526,7 +530,8 @@ Our initial, focal independent variables are:
 
 #### Stream temperature
 
-We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries. 
+We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries.
+
 ```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
 # calculate 40 to 60th percentiles and full range for each COMID
 df_temp_stream <- df_temp |> 
@@ -566,7 +571,7 @@ The time invariant and after metrics were omitted from further consideration as 
 
 #### Discharge (streamflow)
 
-Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)). 
+Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)).
 
 ```{r plot-flow, fig.width=8, fig.height=6, fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
 p.flow.1 <- df_flows |> 
@@ -660,7 +665,7 @@ Elevation and stream slope data were available at the COMID (stream reach) scale
 
 We did exploratory data analysis on the compiled dataset to identify candidate covariates for inclusion in model selection.
 
-Bivariate relationships between spawn date (`yday`) and continuous predictors (Figure \@ref(fig:plot-covars)), and pairwise correlations between all continuous covariates (Figure \@ref(fig:colin)), are shown below. 
+Bivariate relationships between spawn date (`yday`) and continuous predictors (Figure \@ref(fig:plot-covars)), and pairwise correlations between all continuous covariates (Figure \@ref(fig:colin)), are shown below.
 
 ```{r dataset, eval=FALSE}
 model_data |>
@@ -691,18 +696,18 @@ model_data |>
   GGally::ggpairs()
 ```
 
-**Takeaways from Figures \@ref(fig:plot-covars) and \@ref(fig:colin)**:
+**Takeaways from Figures** \@ref(fig:plot-covars) **and** \@ref(fig:colin):
 
-Amoung temperature variables, `temp_90` clearly shows the strongest relationship with spawn date (Figure \@ref(fig:plot-covars)), and is highly colinear with `temp_30` and `temp_60` (Figure \@ref(fig:colin)). 
+Amoung temperature variables, `temp_90` clearly shows the strongest relationship with spawn date (Figure \@ref(fig:plot-covars)), and is highly colinear with `temp_30` and `temp_60` (Figure \@ref(fig:colin)).
 
-The is a weak negative relationship between `mean_elevation` and `yday` (Figure \@ref(fig:plot-covars)), and it is weakly correlated with `temp_90` (0.31, Figure \@ref(fig:colin)). 
+The is a weak negative relationship between `mean_elevation` and `yday` (Figure \@ref(fig:plot-covars)), and it is weakly correlated with `temp_90` (0.31, Figure \@ref(fig:colin)).
 
 -   `flow_30` = decaying exponential, obvious year effect
 -   `flow_60` = ditto
 -   `flow_90` = inflections, year effect clear
 -   `slope` = no relationship
 
-We will now explore the individual covariates in more detail, focusing on `temp_90`, `mean_elevation`, `slope`, and `flow_90`. 
+We will now explore the individual covariates in more detail, focusing on `temp_90`, `mean_elevation`, `slope`, and `flow_90`.
 
 ### `temp_90`
 
@@ -735,7 +740,7 @@ model_data |>
 
 ### `mean_elevation`
 
-Figure \@ref(fig:elev-plots) shows the relationship between (A) `mean_elevation` and `temp_90` and (B) `mean_elevation` and `yday`. The relationship is consistent for Big, Camus, and Loon across years, but is broken down or truncated at high elevation streams (Bear, March, Beaver).  
+Figure \@ref(fig:elev-plots) shows the relationship between (A) `mean_elevation` and `temp_90` and (B) `mean_elevation` and `yday`. The relationship is consistent for Big, Camus, and Loon across years, but is broken down or truncated at high elevation streams (Bear, March, Beaver).
 
 ```{r elev-plots, fig.width=8, fig.height=3, fig.cap = "Bivariate relationship between `mean_elevation` and `temp_90` by stream and year. Solid lines are linear fits."}
 p.elev.temp <- model_data |>
@@ -779,10 +784,20 @@ p.elev.temp + p.elev.yday +
 
 m_elev1 <- lm(yday ~ mean_elevation, data = model_data)
 m_elev2 <- lm(yday ~ mean_elevation + stream, data = model_data)
-tab_model(
-  m_elev1, m_elev2, dv.labels = c("Elevation only", "Elevation + stream"),
-  title = "(\\#tab:elev-lm) Parameter estimates for linear model relating spawn date (`yday`) to `mean_elevation`."
-  )
+m_elev3 <- lm(yday ~ mean_elevation * stream, data = model_data)
+m_elev4 <- lmer(yday ~ mean_elevation * stream + (1|COMID), data = model_data)
+compare_aic(m_elev1, m_elev2, m_elev3, m_elev4)
+
+# tab_model(
+#   m_elev1, m_elev2, dv.labels = c("Elevation only", "Elevation + stream"),
+#   title = "(\\#tab:elev-lm) Parameter estimates for linear model relating spawn date (`yday`) to `mean_elevation`."
+#   )
+
+tab_model(m_elev1, m_elev2, m_elev3, m_elev4)
+plot_model(m_elev4, type = "int", 
+           # terms = c("mean_elevation"), 
+           show.data = TRUE) 
+check_model(m_elev4)
 ```
 
 Elevation could be considered a proxy for many site-level gradients (temperature, flow timing, etc.). If we already have direct, mechanistic variables like `temp_90`, elevation may be redundant or confounding. Although the physical factor of elevation could be the underlying driver of spawn timing, it is not a direct measure of the thermal or hydrological conditions that influence spawn timing. If we do end up tossing elevation later, we can use the following text:
@@ -793,7 +808,7 @@ Elevation could be considered a proxy for many site-level gradients (temperature
 
 ### `slope`
 
-`slope` is not related to `yday` (Figure \@ref(fig:plot-slope)A), though there is some association between `slope` and `yday` when considering stream (Figure \@ref(fig:plot-slope)B). We will likely drop slope. 
+`slope` is not related to `yday` (Figure \@ref(fig:plot-slope)A), though there is some association between `slope` and `yday` when considering stream (Figure \@ref(fig:plot-slope)B). We will likely drop slope.
 
 ```{r plot-slope, fig.width=8, fig.height=3, fig.cap = "Bivariate relationship between `slope` and spawn date (A) and by stream (B). Solid lines are linear fits."}
 model_data |> 
@@ -831,7 +846,7 @@ compare_performance(m_slope1, m_slope2, rank = TRUE) |>
 
 ### `flow_90`
 
-Because flow data are not COMID- or stream-specific, it makes sense to think about and represent flow as an out-of-basin year effect that determines when adults make it back to the MFSR and initially onto the spawning grounds. 
+Because flow data are not COMID- or stream-specific, it makes sense to think about and represent flow as an out-of-basin year effect that determines when adults make it back to the MFSR and initially onto the spawning grounds.
 
 The strong correlation between `flow_90` and `year` can be seen clearly in (Figure \@ref(fig:plot-flow-met)A).
 
@@ -908,7 +923,7 @@ Spawn-time aligned flow ≠ experienced flow
 
 **Recommendation**:
 
-Drop `flow_90` from model. 
+Drop `flow_90` from model.
 
 **Although we initially considered including 90-day mean streamflow (`flow_90`) as a predictor of spawn timing, this variable was ultimately excluded due to concerns about ecological validity and model overfitting. Stream flow data were derived from a single downstream USGS gauge and did not capture spatial variation across the study streams or reaches. Moreover, because `flow_90` was closely aligned with year, it introduced strong collinearity with the year effect and risked attributing site-level variation to flow patterns not actually experienced by individual redds. As such, we excluded `flow_90` to avoid misleading inference.**
 
@@ -935,21 +950,15 @@ df_mod |>
 
 ### Model specification
 
-The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
-
--   Redds observed at specific locations, `COMID`
--   Nested within `stream`
--   Observed across multiple `years`
-
 | Variable | Fixed? | Random? | Why |
-|----------|---------|----------|--------------------------------------|
+|-------------|-------------|-------------|----------------------------------|
 | `COMID` | No | Yes | Not estimating COMID effects, just accounting for correlation, repeated measures |
 | `Stream` | Yes | Maybe | 8 streams to compare |
 | `Year` | Yes | Maybe | 4 years to compare |
 
 In this case, we certainly will need at least `COMID` as a random effect to account for the repeated measures. We would like `stream` as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. Though the later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years.
 
-In mixed-effects models, it's generally recommended to determine the fixed effects structure before deciding on the random effects structure. This approach helps ensure that information intended for fixed effects isn't unintentionally absorbed by random effects. 
+In mixed-effects models, it's generally recommended to determine the fixed effects structure before deciding on the random effects structure. This approach helps ensure that information intended for fixed effects isn't unintentionally absorbed by random effects.
 
 ### Simple linear models
 
@@ -1001,9 +1010,9 @@ aic_tab <- compare_aic(
   )
 ```
 
-Overall, the best-fitting model was `m31` (temp_90 + stream + year + mean_elevation + slope), though its improvement in AIC (ΔAIC = `r  round(aic_tab[2,4],1)[[1]]`) and R² (`r round(summary(m31)$r.squared, 3)`) over simpler models was modest (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)). 
+Overall, the best-fitting model was `m31` (temp_90 + stream + year + mean_elevation + slope), though its improvement in AIC (ΔAIC = `r  round(aic_tab[2,4],1)[[1]]`) and R² (`r round(summary(m31)$r.squared, 3)`) over simpler models was modest (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)).
 
-Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) performed nearly as well (R² = `r round(summary(m16)$r.squared, 3)`), indicating that these terms contributed little to model explanatory power. 
+Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) performed nearly as well (R² = `r round(summary(m16)$r.squared, 3)`), indicating that these terms contributed little to model explanatory power.
 
 ```{r aic-tab}
 aic_tab |>
@@ -1038,7 +1047,7 @@ tab_model(
   )
 ```
 
-Although adding elevation (e.g., `m26`) improved AIC compared to the base model (`m16`), the effect estimate for elevation was consistently opposite to ecological expectations—higher elevations predicted later spawn dates (Figure \@ref(fig:lm-plot) B)) despite the observed negative relationship between elevation and both temperature and spawn timing for several streams (Figure \@ref(fig:elev-plots)). This suggests potential collinearity or confounding, likely due to the inverse relationship between temperature and elevation among streams. 
+Although adding elevation (e.g., `m26`) improved AIC compared to the base model (`m16`), the effect estimate for elevation was consistently opposite to ecological expectations—higher elevations predicted later spawn dates (Figure \@ref(fig:lm-plot) B)) despite the observed negative relationship between elevation and both temperature and spawn timing for several streams (Figure \@ref(fig:elev-plots)). This suggests potential collinearity or confounding, likely due to the inverse relationship between temperature and elevation among streams.
 
 ```{r lm-plot, fig.width=8, fig.height=3, fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp_90`, (B) `mean_elevation`, and `slope` for the top additive linear model (`m31`)."}
 a <- plot_model(
@@ -1060,7 +1069,7 @@ a + b + c +
   plot_annotation(tag_levels = "A")
 ```
 
-Finally, slope consistently exhibited minimal impact on model performance, and its effect estimate remained small and sometimes non-significant. Thus, we conclude that `temp_90`, `stream`, and `year` are the most consistent predictors of spawn timing. 
+Finally, slope consistently exhibited minimal impact on model performance, and its effect estimate remained small and sometimes non-significant. Thus, we conclude that `temp_90`, `stream`, and `year` are the most consistent predictors of spawn timing.
 
 #### Summary
 
@@ -1079,7 +1088,7 @@ m16_re <- lmer(yday ~ temp_90 + stream + year + (1 | COMID), data = df_mod, REML
 m26_re <- lmer(yday ~ temp_90 + stream + year + mean_elevation + (1 | COMID), data = df_mod, REML = FALSE)
 ```
 
-Adding a random intercept for COMID significantly improved model performance, reducing AIC by >2,700 points compared to the additive fixed-effect model (`m16` vs. `m16_re`; Table \@ref(tab:ranefs-perf)). This confirms the necessity of accounting for repeated measures and reach-specific baseline differences in spawn timing. 
+Adding a random intercept for COMID significantly improved model performance, reducing AIC by \>2,700 points compared to the additive fixed-effect model (`m16` vs. `m16_re`; Table \@ref(tab:ranefs-perf)). This confirms the necessity of accounting for repeated measures and reach-specific baseline differences in spawn timing.
 
 Adding mean elevation as a fixed effect (`m26_re`) yielded a further AIC improvement of 126 points over `m16_re.` However, this is substantially smaller than the apparent benefit observed in the fixed-effects-only comparison (296 AIC points; `m26` vs. `m16`), suggesting that much of elevation’s explanatory power is absorbed by the random intercepts.
 
@@ -1099,7 +1108,7 @@ aic_tab_re tab |>
   )
 ```
 
-Moreover, the parameter estimate for elevation remained positive (Table \@ref(tab:ranefs-tab)) and counter to biological expectations (i.e., higher elevation reaches spawning later), and the associated prediction plot (Figure \@ref(fig:ranefs-plots)C) showed a weak and potentially misleading relationship. 
+Moreover, the parameter estimate for elevation remained positive (Table \@ref(tab:ranefs-tab)) and counter to biological expectations (i.e., higher elevation reaches spawning later), and the associated prediction plot (Figure \@ref(fig:ranefs-plots)C) showed a weak and potentially misleading relationship.
 
 ```{r ranefs-tab}
 tab_model(m16, m26, m16_re, m26_re, 
@@ -1121,7 +1130,7 @@ This, combined with collinearity concerns and limited interpretability, led us t
 
 #### Quadratic Term for Temperature
 
-We next tested whether a nonlinear temperature response improved model fit by adding a quadratic term for `temp_90` to the random intercept model (`m16_re`). 
+We next tested whether a nonlinear temperature response improved model fit by adding a quadratic term for `temp_90` to the random intercept model (`m16_re`).
 
 ```{r quad, echo=TRUE}
 m16_re_quad <- lmer(
@@ -1130,8 +1139,7 @@ m16_re_quad <- lmer(
   )
 ```
 
-This resulted in a lower AIC (ΔAIC = 91.7; Table \@ref(tab:quad-aic)), indicating substantial support for the quadratic formulation (`m16_re_quad`). The fitted curve reflects biologically plausible curvature — a decelerating response at higher temperatures — consistent with expectations for thermal constraints on salmonid spawning (Figure \@ref(fig:m16-re-quad-plot)C). 
-We therefore retained the quadratic term for temperature in all subsequent models.
+This resulted in a lower AIC (ΔAIC = 91.7; Table \@ref(tab:quad-aic)), indicating substantial support for the quadratic formulation (`m16_re_quad`). The fitted curve reflects biologically plausible curvature — a decelerating response at higher temperatures — consistent with expectations for thermal constraints on salmonid spawning (Figure \@ref(fig:m16-re-quad-plot)C). We therefore retained the quadratic term for temperature in all subsequent models.
 
 ```{r quad-aic}
 compare_aic(m16_re, m16_re_quad) |>
@@ -1149,7 +1157,7 @@ plot_model(m16_re_quad, type = "eff", terms = c("temp_90"), show.data = TRUE, ti
 
 #### Random slopes for `temp_90`
 
-To account for variation in temperature sensitivity across sites, we extended our top random intercept model (`m16_re_quad`) by allowing COMID-specific random slopes for temperature (`m16_re_quad_rs`). This model had the same fixed effects structure but included `(1 + temp_90 | COMID)`. 
+To account for variation in temperature sensitivity across sites, we extended our top random intercept model (`m16_re_quad`) by allowing COMID-specific random slopes for temperature (`m16_re_quad_rs`). This model had the same fixed effects structure but included `(1 + temp_90 | COMID)`.
 
 ```{r slope, echo=TRUE}
 m16_re_quad <- lmer(
@@ -1162,9 +1170,9 @@ m16_re_quad_rs <- lmer(
   )
 ```
 
-The addition of random slopes substantially improved model fit (ΔAIC = 510; Table \@ref(tab:slope-aic)), and diagnostic plots confirmed adequate model behavior. 
+The addition of random slopes substantially improved model fit (ΔAIC = 510; Table \@ref(tab:slope-aic)), and diagnostic plots confirmed adequate model behavior.
 
-Adding random slopes increased model flexibility, which redistributed explained variance from fixed to random effects. As a result, marginal R² (variance explained by fixed effects) decreased from 0.726 to 0.701, while conditional R² (total variance explained) remained high at 0.98 in both models (Table \@ref(tab:slope-tab). This tradeoff reflects a more realistic partitioning of variance, acknowledging that some differences in thermal sensitivity are site-specific and better explained by random effects. 
+Adding random slopes increased model flexibility, which redistributed explained variance from fixed to random effects. As a result, marginal R² (variance explained by fixed effects) decreased from 0.726 to 0.701, while conditional R² (total variance explained) remained high at 0.98 in both models (Table \@ref(tab:slope-tab). This tradeoff reflects a more realistic partitioning of variance, acknowledging that some differences in thermal sensitivity are site-specific and better explained by random effects.
 
 ```{r slope-aic}
 compare_aic(m16_re_quad, m16_re_quad_rs) |>
@@ -1191,8 +1199,7 @@ plot_model(m16_re_quad_rs, type = "eff", terms = c("temp_90 [all]"), title = "`m
   plot_annotation(tag_levels = "A")
 ```
 
-
-#### Partitioning Variation Between Nonlinearity and Heterogeneity 
+#### Partitioning Variation Between Nonlinearity and Heterogeneity
 
 Here, we compare best random slope model with and without a quadratic effect. This tests: does random slope replace the need for quadratic, or do both help? We must refit with ML to compare models with different fixed effects.
 
@@ -1253,9 +1260,9 @@ m201 <- lmer(yday ~ temp_90 * stream + I(temp_90^2) + year + (1 + temp_90 | COMI
 m202 <- lmer(yday ~ temp_90 * year + I(temp_90^2) + stream + (1 + temp_90 | COMID), data = df_mod, REML = FALSE)
 ```
 
-Table \@ref(tab:interact-aic) shows that `m201` lowers AIC by 18, while `m202` lowers AIC by 1397, a massive improvement. 
+Table \@ref(tab:interact-aic) shows that `m201` lowers AIC by 18, while `m202` lowers AIC by 1397, a massive improvement.
 
-Table \@ref(tab:interact-tab) shows that the interaction terms in `m201` are mostly non-significant, and the model R² values are nearly identical to `m16_re_quad_rs`. 
+Table \@ref(tab:interact-tab) shows that the interaction terms in `m201` are mostly non-significant, and the model R² values are nearly identical to `m16_re_quad_rs`.
 
 ```{r interact-aic}
 compare_aic(m16_re_quad_rs, m201, m202) |>
@@ -1276,7 +1283,7 @@ tab_model(
   )
 ```
 
-For `m202`, while the interactions terms are significant, the Marginal R² value drop by ~10%. 
+For `m202`, while the interactions terms are significant, the Marginal R² value drop by \~10%.
 
 Figure \@ref(fig:interact-plots) shows that the predicted effects of temperature are implausible, with a positive quadratic effect of temperature. This suggests that the model is overfitting or confounding the interaction structure.
 
@@ -1291,11 +1298,11 @@ plot_model(m202, type = "int", terms = c("temp_90 [all]"), show.data = TRUE, tit
 
 #### Summary of interactions
 
-To evaluate whether fixed-effect interactions improve model performance beyond what is captured by random slopes, we tested two candidate models: one with a `temp_90 × stream` interaction (`m201`) and one with a `temp_90 × year` interaction (`m202`), comparing them against our baseline random slope model with a quadratic temperature effect (`m16_re_quad_rs`). 
+To evaluate whether fixed-effect interactions improve model performance beyond what is captured by random slopes, we tested two candidate models: one with a `temp_90 × stream` interaction (`m201`) and one with a `temp_90 × year` interaction (`m202`), comparing them against our baseline random slope model with a quadratic temperature effect (`m16_re_quad_rs`).
 
-Model `m202` showed a large AIC improvement (ΔAIC = -1397), but inspection of its predicted effects revealed implausible curvature—specifically, a biologically unlikely inverted quadratic effect of temperature. This suggests overfitting or confounding in the interaction structure. 
+Model `m202` showed a large AIC improvement (ΔAIC = -1397), but inspection of its predicted effects revealed implausible curvature—specifically, a biologically unlikely inverted quadratic effect of temperature. This suggests overfitting or confounding in the interaction structure.
 
-In contrast, `m201` showed moderate AIC improvement over the baseline model (ΔAIC = 18), with predictions that remained biologically realistic. However, nearly all interaction terms in `m201` were non-significant except one, and model R² values and parameter estimates remained essentially unchanged. 
+In contrast, `m201` showed moderate AIC improvement over the baseline model (ΔAIC = 18), with predictions that remained biologically realistic. However, nearly all interaction terms in `m201` were non-significant except one, and model R² values and parameter estimates remained essentially unchanged.
 
 These results indicate that most stream-specific variation in temperature responses is already accounted for by random slopes. Thus, the added complexity of fixed-effect interactions does not yield substantial inferential gains and is not justified. We therefore retained `m16_re_quad_rs` as our final model.
 
@@ -1338,11 +1345,11 @@ This model balances explanatory power, biological realism, and parsimony. It cap
 
 ### Model summary and fit
 
-Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing, with the quadratic term (–0.85) confirming a concave-down relationship—i.e., spawn timing advances with increasing temperature, but levels off at high temperatures. 
+Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing, with the quadratic term (–0.85) confirming a concave-down relationship—i.e., spawn timing advances with increasing temperature, but levels off at high temperatures.
 
-Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley). 
+Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley).
 
-The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = 7.05) and random slopes for `temp_90` (√τ₁₁ = 3.55) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)).  The intraclass correlation (ICC) was high (0.95), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
+The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = 7.05) and random slopes for `temp_90` (√τ₁₁ = 3.55) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)). The intraclass correlation (ICC) was high (0.95), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
 
 Model fit was excellent: the marginal R² (variance explained by fixed effects) was 0.698, and the conditional R² (fixed + random effects) was 0.985 (Table \@ref(tab:fin-perf)). This suggests that the majority of explanatory power is derived from spatially varying thermal responses captured by the random slopes, with additional structure provided by the fixed effects.
 
@@ -1380,7 +1387,7 @@ Model diagnostics for the final model were generally strong (Figure \@ref(fig:di
 
 Plots of linearity and homoscedasticity indicate acceptable model performance. While the residual vs. fitted plot shows a slight trend, it does not appear strong enough to invalidate model assumptions. The spread of residuals is approximately constant across fitted values, though there is minor funneling at the lower end, likely reflecting skew in early spawn dates.
 
-Influential observations are limited. A few data points exceed standard influence thresholds (|standardized residual| > 2 and high leverage), but none are extreme enough to warrant removal, and their leverage is modest. The model appears robust to outliers.
+Influential observations are limited. A few data points exceed standard influence thresholds (\|standardized residual\| \> 2 and high leverage), but none are extreme enough to warrant removal, and their leverage is modest. The model appears robust to outliers.
 
 Collinearity is low: variance inflation factors (VIFs) for all fixed effects are well below the conservative threshold of 5, suggesting little concern about multicollinearity.
 
@@ -1496,7 +1503,6 @@ pred_data |>
     title = "Predicted vs. Observed Spawn Timing"
   ) 
 ```
-
 
 #### Marginal means and contrasts of `yday` at each factor level
 
@@ -1690,7 +1696,7 @@ random_wide <- random |>
   left_join(df_elev_slope |> mutate(COMID=as.character(COMID)), by = "COMID") 
 ```
 
-Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)A). We found considerable spread in intercepts, reflecting differences in average spawn timing between reaches. The random slopes for `temp_90` likewise varied meaningfully across COMIDs, indicating that temperature–spawn timing relationships are not constant across space. 
+Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)A). We found considerable spread in intercepts, reflecting differences in average spawn timing between reaches. The random slopes for `temp_90` likewise varied meaningfully across COMIDs, indicating that temperature–spawn timing relationships are not constant across space.
 
 Sites with earlier average spawn timing (lower intercepts) generally exhibited stronger positive responses to temperature (higher slopes), while later-spawning sites tended to show weaker temperature effects, a pattern also evident in the weak negative correlation between intercepts and slopes (r = -0.2; Figure \@ref(fig:ranefs-plot)B). This indicates that reaches with earlier average spawn timing (i.e., negative intercepts) tend to exhibit stronger temperature sensitivity (i.e., steeper positive slopes), whereas later-spawning reaches show weaker responses to temperature. Biologically, this suggests that early-spawning populations are more phenologically plastic and adjust their timing more closely to thermal cues, while late-spawning populations may be constrained by other factors—such as photoperiod, migration fatigue, or compressed spawning windows—resulting in diminished thermal responsiveness. These findings highlight spatial heterogeneity in phenological flexibility, with potential implications for how different populations may respond to climate change.
 
@@ -1729,7 +1735,7 @@ p.re.forest / p.re.cor +
 
 ```
 
-When grouped by stream, Bear Valley and Big Creek exhibited early average spawn timing and high thermal sensitivity, while Sulphur and Marsh Creeks had later average timing with flatter temperature responses (Figure \@ref(fig:ranefs-box)). 
+When grouped by stream, Bear Valley and Big Creek exhibited early average spawn timing and high thermal sensitivity, while Sulphur and Marsh Creeks had later average timing with flatter temperature responses (Figure \@ref(fig:ranefs-box)).
 
 ```{r ranefs-box, fig.width=8, fig.height=3, fig.cap = "Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
 p.re.int.box <- random_wide |> 
@@ -1795,7 +1801,7 @@ p.re.int.bar + p.re.slp.bar +
   )
 ```
 
-Variation in temperature–spawn timing relationships across stream reaches (COMIDs) as estimated from the final mixed-effects model is shown in  Figure \@ref(fig:ranefs-comid)). While the overall relationship is positive and nonlinear, individual COMID slopes and intercepts vary considerably. Some reaches show steeper increases in spawn timing with temperature (i.e., stronger thermal sensitivity), while others are relatively flat, indicating a weaker or more buffered response. Grouping by stream shows that some streams (e.g., Bear Valley, Marsh) exhibit tightly clustered trajectories, while others (e.g., Camas, Big) show more divergence. This variation likely reflects fine-scale differences in local hydrology, geomorphology, or biological factors that influence how fish respond to thermal cues within stream systems. The consistency of the overall trend, despite local heterogeneity, supports the biological relevance of temperature in structuring spawn timing.
+Variation in temperature–spawn timing relationships across stream reaches (COMIDs) as estimated from the final mixed-effects model is shown in Figure \@ref(fig:ranefs-comid)). While the overall relationship is positive and nonlinear, individual COMID slopes and intercepts vary considerably. Some reaches show steeper increases in spawn timing with temperature (i.e., stronger thermal sensitivity), while others are relatively flat, indicating a weaker or more buffered response. Grouping by stream shows that some streams (e.g., Bear Valley, Marsh) exhibit tightly clustered trajectories, while others (e.g., Camas, Big) show more divergence. This variation likely reflects fine-scale differences in local hydrology, geomorphology, or biological factors that influence how fish respond to thermal cues within stream systems. The consistency of the overall trend, despite local heterogeneity, supports the biological relevance of temperature in structuring spawn timing.
 
 ```{r ranefs-comid, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
 me <- predict_response(mod_final, terms = c("temp_90 [all]", "COMID"), type = "random")
@@ -1843,17 +1849,15 @@ me |>
 #   guides(fill = "none", color = "none")
 ```
 
-
 #### Elevation effects embedded in random structure
 
 **TO DISCUSS**
 
+Although mean elevation was excluded as a fixed effect due to collinearity and inconsistent directionality, plots of random effects against elevation reveal underlying spatial structure that elevation helps to explain (Figure \@ref(fig:ranefs-elev)).
 
-Although mean elevation was excluded as a fixed effect due to collinearity and inconsistent directionality, plots of random effects against elevation reveal underlying spatial structure that elevation helps to explain (Figure \@ref(fig:ranefs-elev)). 
+In panel A, there is a clear positive relationship between elevation and the random intercepts for some streams (e.g., Big), indicating that higher elevation sites within Big Creek tend to have later average spawn timing compared to the global (population) average.
 
-In panel A, there is a clear positive relationship between elevation and the random intercepts for some streams (e.g., Big), indicating that higher elevation sites within Big Creek tend to have later average spawn timing compared to the global (population) average. 
-
-In panel B, random slopes (i.e., thermal sensitivity) show more idiosyncratic patterns: for some streams (e.g., Camas, Marsh), thermal sensitivity appears to decrease with elevation, suggesting fish at higher elevations may respond less strongly to temperature variability. 
+In panel B, random slopes (i.e., thermal sensitivity) show more idiosyncratic patterns: for some streams (e.g., Camas, Marsh), thermal sensitivity appears to decrease with elevation, suggesting fish at higher elevations may respond less strongly to temperature variability.
 
 However, these relationships are inconsistent across streams, supporting the decision to capture this spatial heterogeneity via COMID-level random effects rather than forcing a global fixed elevation term.
 
@@ -1891,60 +1895,93 @@ p.re.int.elev + p.re.slp.elev +
 <!-- ## A Predictive Model -->
 
 <!-- | Goal | Model Type | Handles new streams/years? | -->
+
 <!-- |------------------------|------------------------|------------------------| -->
+
 <!-- | Describe patterns in data | Include stream, year as fixed effects | ❌ | -->
+
 <!-- | Predict for unmeasured sites/years | Use continuous predictors + random effects | ✅ with assumptions | -->
+
 <!-- | Predict new COMIDs in known streams | Use `(1 + temp_90 | COMID)` | ✅ partial pooling helps | -->
+
 <!-- | Predict basin-wide phenology | Avoid fixed stream/year, model gradients | ✅ if predictors available | -->
 
 <!-- If out goal is to predict spawn timing across the entire basin, including unobserved COMIDs or future years: -->
 
 <!-- -   Drop fixed effects that are categorical and not generalizable, like `stream` and `year`. -->
+
 <!-- -   Replace them with continuous predictors that scale across space and time, like: -->
+
 <!--     -   `temp_90` (already in model) -->
+
 <!--     -   `mean_elevation`, `slope`, or modeled flow regime (if available) -->
 
 <!-- Then predictions could be made for new COMIDs as BLUPs (best linear unbiased predictions) or using conditional estimates if partial info is known. -->
 
 <!-- ```{r, echo=TRUE} -->
+
 <!-- m101 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | COMID), data = df_mod) -->
+
 <!-- m102 <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + slope + (1 + temp_90 | COMID), data = df_mod) -->
+
 <!-- compare_aic(m101, m102) -->
+
 <!-- tab_model(m101, m102) -->
+
 <!-- ``` -->
 
 <!-- ```{r, echo=TRUE} -->
+
 <!-- # descriptive, best fit to data -->
+
 <!-- mod_desc <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID), data = df_mod) -->
 
 <!-- # locally predictive, new COMIDs within known stream -->
+
 <!-- mod_local <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1 + temp_90 | COMID), data = df_mod) -->
 
 <!-- # generalizable predictive model (new COMIDs and future years) -->
+
 <!-- mod_pred <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | COMID), data = df_mod) -->
 
 <!-- # AIC -->
+
 <!-- compare_aic(mod_desc, mod_local, mod_pred)  -->
 
 <!-- model_data$pred_desc <- predict(mod_desc) -->
+
 <!-- model_data$pred_local <- predict(mod_local) -->
+
 <!-- model_data$pred_pred <- predict(mod_pred) -->
 
 <!-- ggplot(model_data, aes(x = yday)) + -->
+
 <!--   geom_point(aes(y = pred_desc), color = "blue", alpha = 0.4) + -->
+
 <!--   geom_point(aes(y = pred_local), color = "orange", alpha = 0.4) + -->
+
 <!--   geom_point(aes(y = pred_pred), color = "green", alpha = 0.4) + -->
+
 <!--   geom_abline(slope = 1, intercept = 0, linetype = "dashed") + -->
+
 <!--   labs(title = "Predicted vs Observed Spawn Timing", -->
+
 <!--        subtitle = "Blue = Descriptive, Orange = Local, Green = Generalizable") -->
 
 <!-- ``` -->
 
 <!-- ```{r echo=TRUE} -->
+
 <!-- # Full crossed and nested; -->
+
 <!-- m110 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | stream/COMID) + (1|year), data = df_mod) -->
+
 <!-- compare_aic(m101, m110) -->
+
 <!-- tab_model(m110) -->
+
 <!-- plot_model(m110, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE) -->
+
 <!-- check_model(m110) -->
+
 <!-- ``` -->
