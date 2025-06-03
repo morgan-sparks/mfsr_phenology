@@ -707,25 +707,131 @@ The is a weak negative relationship between `mean_elevation` and `yday` (Figure 
 -   `flow_90` = inflections, year effect clear
 -   `slope` = no relationship
 
-We will now explore the individual covariates in more detail, focusing on `temp_90`, `mean_elevation`, `slope`, and `flow_90`.
-
 ### `temp_90`
 
 Figure \@ref(fig:plot-temp-90) shows the relationship between `temp_90` and spawn date by stream and year. 
 
 ```{r plot-temp-90, fig.width=8, fig.height=5, fig.cap = "Relationship between `temp_90` and `yday` (spawn date) by stream and year. Solid lines are linear fits."}
-model_data |> 
+
+p.t90.1 <- model_data |> 
+  ggplot(aes(temp_90, fixed_date + yday, color = stream)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  scale_color_manual(values = cols.streams) 
+
+p.t90.2 <- model_data |> 
+  ggplot(aes(temp_90, fixed_date + yday, color = year)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  scale_color_manual(values = cols.years) 
+
+p.t90.3 <- model_data |> 
   ggplot(aes(temp_90, fixed_date + yday, color = stream)) + 
   geom_point() + 
   geom_smooth(method = "lm", se = FALSE) + 
   facet_rep_wrap(~year, scales = "free") +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-  scale_color_manual(values = cols.streams) +
+  scale_color_manual(values = cols.streams) + 
   labs(
-    x = "90-day mean temperature (°C) pre spawn",
-    y = "Spawn Date"
-    )
+    x = "90-day mean temperature (°C)", 
+    y = "Spawn Date",
+    color = "Stream"
+  )
+
+# (p.t90.1 | p.t90.2) / p.t90.3 + 
+#   plot_layout(guides = "collect") +
+#   plot_annotation(tag_levels = "A")
+p.t90.3
 ```
+
+We evaluated the role of `temp_90` in explaining variation in Chinook salmon spawn timing: 
+
+```{r t90-lm, echo=TRUE}
+m.t90.1 <- lmer(yday ~ (1|COMID), data = df_mod, REML = FALSE)
+m.t90.2 <- lmer(yday ~ temp_90 + (1|COMID), data = df_mod, REML = FALSE)
+m.t90.3 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1|COMID), data = df_mod, REML = FALSE)
+```
+
+The model with a quadratic effect of `temp_90` (`m.t90.3`) improved dramatically over the null (intercept-only) model and linear effect (Table \@ref(tab:t90-aic)), and boosting both conditional and marginal R² (Table \@ref(tab:t90-perf)). This confirms a strong, nonlinear effect of pre-spawn temperature on spawn timing (Figure \@ref(fig:t90-relate)).
+
+```{r t90-aic}
+compare_aic(m.t90.1, m.t90.2, m.t90.3) |> 
+  kable(caption = "AIC comparison of linear mixed models relating spawn date (`yday`) to `temp_90`.")
+```
+
+```{r t90-perf}
+compare_performance(m.t90.1, m.t90.2, m.t90.3, rank = TRUE, metrics = "common") |> 
+  kable(caption = "Model performance of linear mixed models relating spawn date (`yday`) to `temp_90`.")
+```
+
+```{r t90-relate, fig.width=8, fig.height=3, fig.cap="Predicted marginal effect of `temp_90` on `yday` (spawn date) for (A) `m.t90.2` and (B) `m.t90.3`."}
+estimate_relation(m.t90.2) |> 
+  plot(show_data = TRUE) | 
+estimate_relation(m.t90.3) |> 
+  plot(show_data = TRUE) + 
+  plot_annotation(tag_levels = "A")
+```
+
+Next, we add in stream and year as main effects, and then interactions between `temp_90` and stream and year:
+
+```{r t90-lm2, echo=TRUE}
+m.t90.4 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + (1|COMID), data = df_mod, REML = FALSE)
+m.t90.5 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1|COMID), data = df_mod, REML = FALSE)
+m.t90.6 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m.t90.7 <- lmer(yday ~ temp_90 * stream + I(temp_90^2) + year + (1|COMID), data = df_mod, REML = FALSE)
+m.t90.8 <- lmer(yday ~ temp_90 * year + I(temp_90^2) + stream + (1|COMID), data = df_mod, REML = FALSE)
+```
+
+Table \@ref(tab:t90-aic2) shows that adding stream (`m.t90.4`) or year (`m.t90.5`) individually improved model fit relative to `m.t90.3`, but year alone (`m.t90.5`) performed better than stream alone (`m.t90.4`).
+
+Combining stream and year additively (`m.t90.6`) provided further improvement in AIC, along with the best marginal R2 and RMSE (Table \@ref(tab:t90-perf2)). This suggests that both stream and year provide meaningful structure in explaining variation in spawn timing.
+
+Adding the interaction between temperature and stream (`m.t90.7`) increased complexity, slightly lowered the marginal R2, and has high multicollinearity (VIF ~15).
+
+```{r t90-aic2}
+compare_aic(m.t90.3, m.t90.4, m.t90.5, m.t90.6, m.t90.7, m.t90.8) |> 
+  kable(caption = "AIC comparison of linear mixed models relating spawn date (`yday`) to `temp_90`.")
+```
+
+```{r t90-perf2}
+compare_performance(m.t90.3, m.t90.4, m.t90.5, m.t90.6, m.t90.7, m.t90.8, rank = TRUE, 
+                    metrics = "common") |> 
+  kable(caption = "Model performance of linear mixed models relating spawn date (`yday`) to `temp_90`.")
+```
+
+Adding the interaction between temperature and year (`m.t90.8`) gave the lowest AIC overall but had the lowest marginal R² of all models tested. This means that while the model “fit” the data better on paper (AIC), it did so by overfitting or by capturing year-to-year idiosyncrasies that may not generalize well to new data (suspicious marginal effect, Figure \@ref(fig:t90-relate2)).
+
+```{r t90-relate2, fig.width=5, fig.height=3, fig.cap="Predicted marginal effect (`m.t90.8`) of `temp_90` on `yday` (accounting for the effects of stream and year)."}
+
+# car::vif(m.t90.8)
+# car::vif(m.t90.7)
+# car::vif(m.t90.6)
+# car::vif(m.t90.5)
+# check_model(m.t90.8)
+# check_model(m.t90.7, check = "vif")
+
+# vizdata <- get_datagrid(df_mod, by = c("temp_90", "stream"), length = 100, preserve_range = TRUE)
+# vizdata$Predicted <- get_predicted(m.t90.7, vizdata)
+# vizdata
+# ggplot(df_mod, aes(x = temp_90, y = yday, color = stream)) +
+#   geom_point() +
+#   geom_line(data = vizdata, aes(y = Predicted), linewidth = 1)
+# 
+tmp <- estimate_relation(m.t90.8, by = c("temp_90"), length = 100, preserve_range = TRUE)
+# tmp
+plot(tmp, show_data = TRUE)
+```
+
+The suspicious curvature in the marginal effect plot of `m.t90.8` (showing an unrealistic predicted relationship between `temp_90` and `yday`) confirms the risk of confounding or overfitting with interaction terms—particularly given that the random intercepts already capture substantial site-level variation.
+
+Given the trade-offs, model `m.t90.6` emerged as the best compromise: it retained additive main effects of temperature, stream, and year, had high conditional and marginal R², moderate AIC, low RMSE, and avoided high multicollinearity.
+
+#### Summary
+
+The exploratory analysis of temperature effects on spawn timing revealed a clear, nonlinear relationship between pre-spawn temperature and the day of year when spawning occurs. A quadratic term for temperature consistently improved model fit over linear-only specifications. When adding stream and year as main effects, model performance improved substantially, with both factors accounting for additional variation in spawn timing. However, introducing interaction terms between temperature and either stream or year led to either inflated multicollinearity (VIFs > 10) or implausible model predictions, indicating potential overfitting. Although the temperature-by-year interaction model (`m.t90.8`) had the lowest AIC, it yielded a counterintuitive relationship between temperature and spawn timing. Therefore, the additive model with quadratic temperature and main effects of stream and year (`m.t90.6`) was selected as the preferred model, balancing goodness-of-fit with interpretability and biological realism.
+
 
 ### `mean_elevation`
 
@@ -762,13 +868,13 @@ p.elev.temp / p.elev.yday +
 We evaluated the role of mean elevation in explaining variation in Chinook salmon spawn timing: 
 
 ```{r elev-lm, echo=TRUE}
-m.ele.1 <- lmer(yday ~ (1|COMID), data = model_data, REML = FALSE)
-m.ele.2 <- lmer(yday ~ mean_elevation + (1|COMID), data = model_data, REML = FALSE)
-m.ele.3 <- lmer(yday ~ mean_elevation + stream + (1|COMID), data = model_data, REML = FALSE)
-m.ele.4 <- lmer(yday ~ mean_elevation + year + (1|COMID), data = model_data, REML = FALSE)
-m.ele.5 <- lmer(yday ~ mean_elevation + stream + year + (1|COMID), data = model_data, REML = FALSE)
-m.ele.6 <- lmer(yday ~ mean_elevation * stream + (1|COMID), data = model_data, REML = FALSE)
-m.ele.7 <- lmer(yday ~ mean_elevation * year + (1|COMID), data = model_data, REML = FALSE)
+m.ele.1 <- lmer(yday ~ (1|COMID), data = df_mod, REML = FALSE)
+m.ele.2 <- lmer(yday ~ mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m.ele.3 <- lmer(yday ~ mean_elevation + stream + (1|COMID), data = df_mod, REML = FALSE)
+m.ele.4 <- lmer(yday ~ mean_elevation + year + (1|COMID), data = df_mod, REML = FALSE)
+m.ele.5 <- lmer(yday ~ mean_elevation + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m.ele.6 <- lmer(yday ~ mean_elevation * stream + (1|COMID), data = df_mod, REML = FALSE)
+m.ele.7 <- lmer(yday ~ mean_elevation * year + (1|COMID), data = df_mod, REML = FALSE)
 ```
 
 Including mean elevation as a main effect improved model fit (ΔAIC = 19 between `m.ele.1` and `m.ele.2`). The best-supported model (`m.ele.5`) included mean elevation alongside stream and year (ΔAIC = 281 between `m.ele.2` and `m.ele.5`), with moderate collinearity (VIFs ~6), suggesting that mean elevation can contribute to explaining spawn timing when controlling for stream and year (\@ref(fig:elev-pred)). 
