@@ -1094,9 +1094,7 @@ df_mod |>
 | `Stream` | Yes | Maybe | 8 streams to compare |
 | `Year` | Yes | Maybe | 4 years to compare |
 
-In this case, we certainly will need at least `COMID` as a random effect to account for the repeated measures. We would like `stream` as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. Though the later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years.
-
-In mixed-effects models, it's generally recommended to determine the fixed effects structure before deciding on the random effects structure. This approach helps ensure that information intended for fixed effects isn't unintentionally absorbed by random effects.
+Here, `COMID` will be included in all modelas as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. The later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years, but we only have 4 years of data, so we will treat it as a fixed effect for now.
 
 ### Simple linear models
 
@@ -1104,42 +1102,81 @@ We conducted a comprehensive brute-force model selection exercise, fitting 31 ad
 
 ```{r lm, echo=TRUE}
 # All combinations of 1–5 fixed effects: 31 total
-m1 <- lm(yday ~ temp_90, data = df_mod)
-m2 <- lm(yday ~ stream, data = df_mod)
-m3 <- lm(yday ~ year, data = df_mod)
-m4 <- lm(yday ~ mean_elevation, data = df_mod)
-m5 <- lm(yday ~ slope, data = df_mod)
+m1 <- lmer(yday ~ temp_90 + (1|COMID), data = df_mod, REML = FALSE)
+m2 <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
+m3 <- lmer(yday ~ year + (1|COMID), data = df_mod, REML = FALSE)
+m4 <- lmer(yday ~ mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m5 <- lmer(yday ~ slope + (1|COMID), data = df_mod, REML = FALSE)
 
-m6  <- lm(yday ~ temp_90 + stream, data = df_mod)
-m7  <- lm(yday ~ temp_90 + year, data = df_mod)
-m8  <- lm(yday ~ temp_90 + mean_elevation, data = df_mod)
-m9  <- lm(yday ~ temp_90 + slope, data = df_mod)
-m10 <- lm(yday ~ stream + year, data = df_mod)
-m11 <- lm(yday ~ stream + mean_elevation, data = df_mod)
-m12 <- lm(yday ~ stream + slope, data = df_mod)
-m13 <- lm(yday ~ year + mean_elevation, data = df_mod)
-m14 <- lm(yday ~ year + slope, data = df_mod)
-m15 <- lm(yday ~ mean_elevation + slope, data = df_mod)
+m6  <- lmer(yday ~ temp_90 + stream + (1|COMID), data = df_mod, REML = FALSE)
+m7  <- lmer(yday ~ temp_90 + year + (1|COMID), data = df_mod, REML = FALSE)
+m8  <- lmer(yday ~ temp_90 + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m9  <- lmer(yday ~ temp_90 + slope + (1|COMID), data = df_mod, REML = FALSE)
+m10 <- lmer(yday ~ stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m11 <- lmer(yday ~ stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m12 <- lmer(yday ~ stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+m13 <- lmer(yday ~ year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m14 <- lmer(yday ~ year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m15 <- lmer(yday ~ mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 
-m16 <- lm(yday ~ temp_90 + stream + year, data = df_mod)
-m17 <- lm(yday ~ temp_90 + stream + mean_elevation, data = df_mod)
-m18 <- lm(yday ~ temp_90 + stream + slope, data = df_mod)
-m19 <- lm(yday ~ temp_90 + year + mean_elevation, data = df_mod)
-m20 <- lm(yday ~ temp_90 + year + slope, data = df_mod)
-m21 <- lm(yday ~ temp_90 + mean_elevation + slope, data = df_mod)
-m22 <- lm(yday ~ stream + year + mean_elevation, data = df_mod)
-m23 <- lm(yday ~ stream + year + slope, data = df_mod)
-m24 <- lm(yday ~ stream + mean_elevation + slope, data = df_mod)
-m25 <- lm(yday ~ year + mean_elevation + slope, data = df_mod)
+m16 <- lmer(yday ~ temp_90 + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m17 <- lmer(yday ~ temp_90 + stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m18 <- lmer(yday ~ temp_90 + stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+m19 <- lmer(yday ~ temp_90 + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m20 <- lmer(yday ~ temp_90 + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m21 <- lmer(yday ~ temp_90 + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m22 <- lmer(yday ~ stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m23 <- lmer(yday ~ stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m24 <- lmer(yday ~ stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m25 <- lmer(yday ~ year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 
-m26 <- lm(yday ~ temp_90 + stream + year + mean_elevation, data = df_mod)
-m27 <- lm(yday ~ temp_90 + stream + year + slope, data = df_mod)
-m28 <- lm(yday ~ temp_90 + stream + mean_elevation + slope, data = df_mod)
-m29 <- lm(yday ~ temp_90 + year + mean_elevation + slope, data = df_mod)
-m30 <- lm(yday ~ stream + year + mean_elevation + slope, data = df_mod)
+m26 <- lmer(yday ~ temp_90 + stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m27 <- lmer(yday ~ temp_90 + stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m28 <- lmer(yday ~ temp_90 + stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m29 <- lmer(yday ~ temp_90 + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m30 <- lmer(yday ~ stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 
-m31 <- lm(yday ~ temp_90 + stream + year + mean_elevation + slope, data = df_mod)
+m31 <- lmer(yday ~ temp_90 + stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 ```
+
+```{r eval=FALSE}
+m1 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1|COMID), data = df_mod, REML = FALSE)
+m2 <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
+m3 <- lmer(yday ~ year + (1|COMID), data = df_mod, REML = FALSE)
+m4 <- lmer(yday ~ mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m5 <- lmer(yday ~ slope + (1|COMID), data = df_mod, REML = FALSE)
+
+m6  <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + (1|COMID), data = df_mod, REML = FALSE)
+m7  <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1|COMID), data = df_mod, REML = FALSE)
+m8  <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m9  <- lmer(yday ~ temp_90 + I(temp_90^2) + slope + (1|COMID), data = df_mod, REML = FALSE)
+m10 <- lmer(yday ~ stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m11 <- lmer(yday ~ stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m12 <- lmer(yday ~ stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+m13 <- lmer(yday ~ year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m14 <- lmer(yday ~ year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m15 <- lmer(yday ~ mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+m16 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+m17 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m18 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+m19 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m20 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m21 <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m22 <- lmer(yday ~ stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m23 <- lmer(yday ~ stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m24 <- lmer(yday ~ stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m25 <- lmer(yday ~ year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+m26 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+m27 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+m28 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m29 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+m30 <- lmer(yday ~ stream + I(temp_90^2) + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+m31 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+```
+
 
 ```{r aic-lm}
 aic_tab <- compare_aic(
@@ -1154,19 +1191,21 @@ Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) p
 
 ```{r aic-tab}
 aic_tab |>
-  slice_head(n = 5) |>
+  slice_head(n = 7) |>
   kable(
     caption = "AIC selection for additive linear models; top 5 of 31 shown."
   )
 ```
 
 ```{r perf-lm}
-compare_performance(
+perf_tab <- compare_performance(
   m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
   m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,
   rank = TRUE, metrics = "common"
-  ) |>
-  slice_head(n = 5) |>
+  ) 
+
+perf_tab |>
+  slice_head(n = 7) |>
   kable(
     caption = "Model performance for additive linear models."
   )
