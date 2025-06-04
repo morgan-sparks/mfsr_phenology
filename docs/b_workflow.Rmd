@@ -155,14 +155,20 @@ model_data <- model_data |>
   mutate(slope = ifelse(slope > 0.2, 0.002, slope))
 
 # Finalize data ----------------------------------------------------------------
+# df_mod <- model_data |>
+#   select(yday, COMID, stream, year, 
+#          temp_90_raw = temp_90, 
+#          mean_elevation_raw = mean_elevation, 
+#          slope_raw = slope) |>
+#   mutate(temp_90 = scale2(temp_90_raw), 
+#          mean_elevation = scale2(mean_elevation_raw), 
+#          slope = scale2(slope_raw))
+
 df_mod <- model_data |>
-  select(yday, COMID, stream, year, 
-         temp_90_raw = temp_90, 
-         mean_elevation_raw = mean_elevation, 
-         slope_raw = slope) |>
-  mutate(temp_90 = scale2(temp_90_raw), 
-         mean_elevation = scale2(mean_elevation_raw), 
-         slope = scale2(slope_raw))
+  select(yday, COMID, stream, year, temp_90, mean_elevation, slope) |> 
+  mutate(temp_90 = scale2(temp_90), 
+         mean_elevation = scale2(mean_elevation), 
+         slope = scale2(slope))
 ```
 
 ```{r lgd-data}
@@ -902,8 +908,40 @@ car::vif(m.ele.6) |>
 ```
 
 ```{r elev-pred, fig.width=7, fig.height=4, fig.cap = "Estimated relationship between spawn date and mean elevation (m.ele.5)."}
-estimate_relation(m.ele.5, preserve_range = TRUE, length = 200) |> 
-  plot(show_data = TRUE) 
+vizdata <- get_datagrid(df_mod,
+  by = c("mean_elevation", "stream", "year"), range = "grid",
+  length = 100,
+  preserve_range = TRUE
+)
+
+# drop sulfr and big from 2005
+vizdata <- vizdata |>
+  filter(!(stream == "Sulphur" & year == 2005)) |>
+  filter(!(stream == "Big" & year == 2005))
+
+# get min and max elevations for other 2005 stream
+mins <- df_mod |> 
+  group_by(year, stream) |> 
+  summarise(min = min(mean_elevation), max = max(mean_elevation))
+
+# filter out elevations outside of range for each stream in 2005
+vizdata <- vizdata |>
+  left_join(mins, by = c("stream", "year")) |>
+  filter(mean_elevation >= min & mean_elevation <= max) |>
+  select(-min, -max)
+
+vizdata$Predicted_yday <- get_predicted(m.ele.5, vizdata)
+
+ggplot(df_mod, aes(x = mean_elevation, y = yday, color = stream)) +
+  geom_point(size = 0.2) +
+  facet_rep_wrap(~year) + 
+  geom_line(data = vizdata, aes(y = Predicted_yday), linewidth = 1) +
+  theme_minimal()
+
+
+# tmp <- estimate_relation(m.ele.5, preserve_range = TRUE, length = 500)
+# tmp
+# plot(tmp, show_data = TRUE)
 ```
 
 ### `slope`
@@ -1573,8 +1611,8 @@ df_mod2 <- df_mod2 %>%
 ### Population-level effects
 
 ```{r get-temp-mean}
-mean_temp <- mean(df_mod$temp_90_raw, na.rm = TRUE)
-sd_temp <- sd(df_mod$temp_90_raw, na.rm = TRUE)
+mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
+sd_temp <- sd(model_data$temp_90, na.rm = TRUE)
 ```
 
 #### Predictions against original data
