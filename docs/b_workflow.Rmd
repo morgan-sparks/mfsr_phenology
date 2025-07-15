@@ -196,7 +196,7 @@ df_mod <- model_data |>
 
 This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. \@ref(fig:map)). The MFSR is a tributary of the Salmon River and is part of the larger Columbia River Basin. The MFSR is home to several species of salmon, including Chinook salmon (*Oncorhynchus tshawytscha*).
 
-```{r map, out.width = "75%", fig.cap = "Map of the Middle Fork Salmon River watershed showing major tributaries and surveyed Chinoon Salmon redd locations from 2002 to 2005."}
+```{r map, out.width = "75%", fig.cap = "Map of the Middle Fork Salmon River watershed showing major tributaries and surveyed Chinook Salmon redd locations from 2002 to 2005."}
 include_graphics(here("plots", "MFsalmonRedds_May14.jpg"))
 ```
 
@@ -858,7 +858,7 @@ p.elev.yday <- model_data |>
   ggplot(aes(mean_elevation, fixed_date + yday, color = stream)) + 
   geom_point() + 
   geom_smooth(method = "lm", se = FALSE) + 
-  facet_rep_wrap(~year, scales = "free") +
+  # facet_rep_wrap(~year, scales = "free") +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   scale_color_manual(values = cols.streams) +
   labs(
@@ -1185,9 +1185,9 @@ aic_tab <- compare_aic(
   )
 ```
 
-Overall, the best-fitting model was `m31` (temp_90 + stream + year + mean_elevation + slope), though its improvement in AIC (ΔAIC = `r  round(aic_tab[2,4],1)[[1]]`) and R² (`r round(summary(m31)$r.squared, 3)`) over simpler models was modest (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)).
+Overall, the best-fitting model was `r aic_tab[1,]$Model`, though its improvement in AIC and performance over `r aic_tab[2,]$Model` was modest  (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)).
 
-Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) performed nearly as well (R² = `r round(summary(m16)$r.squared, 3)`), indicating that these terms contributed little to model explanatory power.
+<!-- Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) performed nearly as well (R² = `r round(summary(m16)$r.squared, 3)`), indicating that these terms contributed little to model explanatory power. -->
 
 ```{r aic-tab}
 aic_tab |>
@@ -1201,7 +1201,7 @@ aic_tab |>
 perf_tab <- compare_performance(
   m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
   m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,
-  rank = TRUE, metrics = "common"
+  estimator = "ML", rank = TRUE, metrics = "common"
   ) 
 
 perf_tab |>
