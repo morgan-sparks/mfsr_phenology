@@ -221,7 +221,151 @@ We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Sys
 skim_without_charts(spawn_data)
 ```
 
-#### Descriptive statistics and vizualizations
+### Covariates
+
+To test for environmental factors driving variation in spawn timing, we quantified associations with metrics describing thermal and physical conditions in stream reaches. We selected and interrogated covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
+
+Our initial, focal independent variables are:
+
+-   stream temperature (°C)
+-   stream discharge (cms)
+-   elevation (m above sea level)
+-   stream gradient (slope)
+
+#### Stream temperature
+
+We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries.
+
+```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
+# calculate 40 to 60th percentiles and full range for each COMID
+df_temp_stream <- df_temp |> 
+  group_by(stream, yday) |> 
+  summarise(
+    mean = mean(temp),
+    temp_40 = quantile(temp, probs = 0.4),
+    temp_60 = quantile(temp, probs = 0.6),
+    temp_min = min(temp),
+    temp_max = max(temp), 
+    .groups = "drop"
+  )
+
+# plot ribbom of 40-60th percentiles and range over yday
+df_temp_stream |> 
+  ggplot(aes(x = fixed_date + yday)) +
+  facet_rep_wrap(~stream, ncol = 2) +
+  geom_ribbon(data = df_temp_stream, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
+  geom_ribbon(data = df_temp_stream, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
+  geom_line(aes(y = mean), color = "black") + 
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_color_brewer(palette = "Accent") +
+  labs(
+    title = "Modeled thermal regimes (2001-2005) for MFSR tributaries",
+    subtitle = "Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range",
+    x = "", 
+    y = "Daily water temperature (\u00b0C)",
+    color = "Year"
+  ) + 
+  theme_bw() +
+  theme(axis.title.y = ggtext::element_markdown())
+```
+
+We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1.
+
+The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+#### Discharge (streamflow)
+
+Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)).
+
+```{r plot-flow, fig.width=8, fig.height=6, fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
+p.flow.1 <- df_flows |> 
+  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
+  geom_line() +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_color_manual(values = cols.years, name = "Year") +
+  labs(
+    title = "Linear scale",
+    x = "", 
+    y = "Mean daily discharge (ft<sup>3</sup> s<sup>-1</sup>)"
+  ) + 
+  theme_bw() + 
+  theme(axis.title.y = ggtext::element_markdown()) + 
+  theme(
+    legend.position = "inside",
+    legend.position.inside =  c(.8, .65), 
+    legend.title = element_blank(),
+    legend.text = element_text(size = 8),
+    legend.box.background = element_rect(colour = "black")
+    )
+
+p.flow.2 <- df_flows |> 
+  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
+  geom_line() +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_log10() +
+  scale_color_manual(values = cols.years, name = "Year") +
+  labs(
+    title = "Log scale",
+    x = "", 
+    y = "",
+    # y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)"
+  ) + 
+  theme_bw() + 
+  theme(axis.title.y = ggtext::element_markdown())  + 
+  guides(color = "none")
+
+# p.flow.1 + p.flow.2 + 
+#   plot_layout(guides = "collect") + 
+#   plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220")
+
+# calculate 40 to 60th percentiles and full range for each COMID
+tmp <- df_flows |> 
+  group_by(yday) |>
+  summarise(
+    mean = mean(flow_cfs),
+    flow_40 = quantile(flow_cfs, probs = 0.4),
+    flow_60 = quantile(flow_cfs, probs = 0.6),
+    flow_10 = quantile(flow_cfs, probs = 0.1),
+    flow_90 = quantile(flow_cfs, probs = 0.9), 
+    .groups = "drop"
+  )
+
+# plot ribbom of 40-60th percentiles and range over yday
+p.flow.3 <- tmp |> 
+  ggplot(aes(x = fixed_date + yday)) +
+  geom_ribbon(data = tmp, aes(ymin = flow_10, ymax = flow_90), fill = "grey") +
+  geom_ribbon(data = tmp, aes(ymin = flow_40, ymax = flow_60), fill = "blue") +
+  geom_line(aes(y = mean), color = "black") + 
+  scale_color_brewer(palette = "Accent") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_log10() +
+  labs(
+    # title = "Measured discharge at MF Lodge, USGS Gage 13309220",
+    subtitle = "Black line = mean, blue ribbon = 40 - 60th percentiles, Grey ribbon = full range",
+    x = "", 
+    y = "Log Daily discharge (ft<sup>3</sup> s<sup>-1</sup>)",
+    color = "Year"
+  ) + 
+  theme_bw() +
+  theme(axis.title.y = ggtext::element_markdown())
+
+
+(p.flow.1 + p.flow.2 ) / p.flow.3 + 
+  plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220") + 
+  plot_annotation(tag_levels = "A")
+```
+
+We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date.For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days.
+
+The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
+#### Elevation and stream gradient (slope)
+
+Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
+
+## Exploratory Data Analysis
+
+### Spawn data descriptive statistics and vizualizations
 
 Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
 
@@ -458,7 +602,7 @@ props |>
   ) 
 ```
 
-#### Evaluate Grouping structure
+### Evaluate Grouping structure
 
 ```{r comid-counts}
 # How many COMIDs have <5 observations?
@@ -523,149 +667,6 @@ spawn_data |>
   theme_bw()
 ```
 
-### Covariates
-
-To test for environmental factors driving variation in spawn timing, we quantified associations with metrics describing thermal and physical conditions in stream reaches. We selected and interrogated covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
-
-Our initial, focal independent variables are:
-
--   stream temperature (°C)
--   stream discharge (cms)
--   elevation (m above sea level)
--   stream gradient (slope)
-
-#### Stream temperature
-
-We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries.
-
-```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
-# calculate 40 to 60th percentiles and full range for each COMID
-df_temp_stream <- df_temp |> 
-  group_by(stream, yday) |> 
-  summarise(
-    mean = mean(temp),
-    temp_40 = quantile(temp, probs = 0.4),
-    temp_60 = quantile(temp, probs = 0.6),
-    temp_min = min(temp),
-    temp_max = max(temp), 
-    .groups = "drop"
-  )
-
-# plot ribbom of 40-60th percentiles and range over yday
-df_temp_stream |> 
-  ggplot(aes(x = fixed_date + yday)) +
-  facet_rep_wrap(~stream, ncol = 2) +
-  geom_ribbon(data = df_temp_stream, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
-  geom_ribbon(data = df_temp_stream, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
-  geom_line(aes(y = mean), color = "black") + 
-  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  scale_color_brewer(palette = "Accent") +
-  labs(
-    title = "Modeled thermal regimes (2001-2005) for MFSR tributaries",
-    subtitle = "Black line = mean, Red ribbon = 40 - 60th percentiles, Grey ribbon = full range",
-    x = "", 
-    y = "Daily water temperature (\u00b0C)",
-    color = "Year"
-  ) + 
-  theme_bw() +
-  theme(axis.title.y = ggtext::element_markdown())
-```
-
-We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1.
-
-The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
-
-#### Discharge (streamflow)
-
-Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)).
-
-```{r plot-flow, fig.width=8, fig.height=6, fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
-p.flow.1 <- df_flows |> 
-  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
-  geom_line() +
-  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  scale_color_manual(values = cols.years, name = "Year") +
-  labs(
-    title = "Linear scale",
-    x = "", 
-    y = "Mean daily discharge (ft<sup>3</sup> s<sup>-1</sup>)"
-  ) + 
-  theme_bw() + 
-  theme(axis.title.y = ggtext::element_markdown()) + 
-  theme(
-    legend.position = "inside",
-    legend.position.inside =  c(.8, .65), 
-    legend.title = element_blank(),
-    legend.text = element_text(size = 8),
-    legend.box.background = element_rect(colour = "black")
-    )
-
-p.flow.2 <- df_flows |> 
-  ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
-  geom_line() +
-  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  scale_y_log10() +
-  scale_color_manual(values = cols.years, name = "Year") +
-  labs(
-    title = "Log scale",
-    x = "", 
-    y = "",
-    # y = "Mean daily discharge (m<sup>3</sup> s<sup>-1</sup>)"
-  ) + 
-  theme_bw() + 
-  theme(axis.title.y = ggtext::element_markdown())  + 
-  guides(color = "none")
-
-# p.flow.1 + p.flow.2 + 
-#   plot_layout(guides = "collect") + 
-#   plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220")
-
-# calculate 40 to 60th percentiles and full range for each COMID
-tmp <- df_flows |> 
-  group_by(yday) |>
-  summarise(
-    mean = mean(flow_cfs),
-    flow_40 = quantile(flow_cfs, probs = 0.4),
-    flow_60 = quantile(flow_cfs, probs = 0.6),
-    flow_10 = quantile(flow_cfs, probs = 0.1),
-    flow_90 = quantile(flow_cfs, probs = 0.9), 
-    .groups = "drop"
-  )
-
-# plot ribbom of 40-60th percentiles and range over yday
-p.flow.3 <- tmp |> 
-  ggplot(aes(x = fixed_date + yday)) +
-  geom_ribbon(data = tmp, aes(ymin = flow_10, ymax = flow_90), fill = "grey") +
-  geom_ribbon(data = tmp, aes(ymin = flow_40, ymax = flow_60), fill = "blue") +
-  geom_line(aes(y = mean), color = "black") + 
-  scale_color_brewer(palette = "Accent") +
-  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  scale_y_log10() +
-  labs(
-    # title = "Measured discharge at MF Lodge, USGS Gage 13309220",
-    subtitle = "Black line = mean, blue ribbon = 40 - 60th percentiles, Grey ribbon = full range",
-    x = "", 
-    y = "Log Daily discharge (ft<sup>3</sup> s<sup>-1</sup>)",
-    color = "Year"
-  ) + 
-  theme_bw() +
-  theme(axis.title.y = ggtext::element_markdown())
-
-
-(p.flow.1 + p.flow.2 ) / p.flow.3 + 
-  plot_annotation(title = "Measured discharge at MF Lodge, USGS Gage 13309220") + 
-  plot_annotation(tag_levels = "A")
-```
-
-We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date.For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days.
-
-The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
-
-#### Elevation and stream gradient (slope)
-
-Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
-
-## Exploratory Data Analysis
 
 ### Bivariate relationships
 
