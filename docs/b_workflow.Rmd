@@ -223,14 +223,25 @@ skim_without_charts(spawn_data)
 
 ### Covariates
 
-To test for environmental factors driving variation in spawn timing, we quantified associations with metrics describing thermal and physical conditions in stream reaches. We selected and interrogated covariates based on the following criteria: (1) they are known to influence spawn timing, (2) they are available for all streams, and (3) they are not highly correlated with each other.
+**Covariate Derivation and Screening**
 
-Our initial, focal independent variables are:
+To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
 
--   stream temperature (°C)
--   stream discharge (cms)
--   elevation (m above sea level)
--   stream gradient (slope)
+The initial focal covariates included stream temperature (°C), stream discharge (cms), elevation (m), and stream slope (unitless). Elevation and slope were extracted from NHDPlus (Moore et al. 2019).
+
+For thermal metrics, we used modeled daily mean stream temperatures from Siegel et al. (2023), downscaled to the COMID level. These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² > 0.9).
+
+For each redd, we computed several time-windowed summaries of temperature and flow relative to the inferred spawn date:
+
+* **Antecedent metrics**: average conditions over 30, 60, and 90 days preceding the spawn date (e.g., `temp_90_before`, `flow_60_before`),
+* **Spanning metrics**: averages over time windows centered on the spawn date,
+* **Post-spawn metrics**: 30-, 60-, and 90-day averages following the spawn date,
+* **Time-invariant metrics**: summaries calculated relative to a fixed calendar date (e.g., August 1) representing an approximate onset of the spawning window.
+
+Stream discharge data were obtained from a single gage low in the watershed (USGS Gage 13309220, Middle Fork at Middle Fork Lodge). As with temperature, discharge metrics were linked to individual redd records based on COMID and spawn date.
+
+During exploratory analysis, we found that spawn timing was most strongly associated with temperature metrics—particularly 90-day antecedent temperature (`temp_90_before`)—while flow, post-spawn, and fixed-date metrics exhibited weak or inconsistent relationships. These latter covariates were excluded from further analysis.
+
 
 #### Stream temperature
 
@@ -365,6 +376,71 @@ Elevation and stream slope data were available at the COMID (stream reach) scale
 
 ## Exploratory Data Analysis
 
+### Evaluate Grouping structure
+
+```{r comid-counts}
+# How many COMIDs have <5 observations?
+n_sparse_COMIDS_5 <- spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  filter(n_redds < 5) |> 
+  nrow()
+n_sparse_COMIDS_2 <- spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  filter(n_redds <= 2) |> 
+  nrow()
+
+# what percent of comids have <= 1 obervation?
+n_perc_1 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 1) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+
+n_perc_2 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 2) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+
+n_perc_5 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 5) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+```
+
+The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
+
+-   Redds observed at specific locations, `COMID`
+-   Nested within `stream`
+-   Observed across multiple `years`
+
+Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
+
+Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
+
+```{r comid-str, caption = "Number of COMIDs per stream."}
+# number of comids per stream
+spawn_data |> 
+  distinct(stream, COMID) |> 
+  count(stream, name = "n_COMIDs") |> 
+  arrange(desc(n_COMIDs)) |> 
+  kable(
+    caption = "Number of COMIDs per stream (major tributaries)."
+  )
+```
+
+```{r comid-str-plot, fig.width=5, fig.height=3, fig.cap = "Number of observations (redds) per COMID."}
+# number of observations per COMID
+spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  arrange(n_redds) |> 
+  ggplot(aes(n_redds)) +
+  geom_bar() + 
+  scale_y_continuous(breaks = seq(0,10,1)) + 
+  labs(title = "Number of obervations (redds) per COMID", 
+       x = "Number of redds", 
+       y = "Count") + 
+  theme_bw()
+```
+
 ### Spawn data descriptive statistics and vizualizations
 
 Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
@@ -384,10 +460,10 @@ yr_means <- spawn_data |>
 p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
   geom_histogram(
     aes(y = after_stat(density)),
-    bins = 15, fill = "gray70", color = "black"
+    bins = 25, fill = "gray80", color = "black"
   ) +
   geom_density(color = "black", size = 1.2, adjust = 1.5) +
-  geom_vline(aes(xintercept = mean(yday)),
+  geom_vline(aes(xintercept = fixed_date + mean(yday)),
     color = "black", linetype = "dashed", linewidth = 1.2
   ) +
   geom_vline(
@@ -415,6 +491,7 @@ p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
     y = "Density function\n of spawn dates",
     color = "Year"
   ) +
+  theme_bw(base_size = 12) + 
   theme(
     legend.position = "inside",
     legend.position.inside = c(.1, .65),
@@ -602,72 +679,6 @@ props |>
   ) 
 ```
 
-### Evaluate Grouping structure
-
-```{r comid-counts}
-# How many COMIDs have <5 observations?
-n_sparse_COMIDS_5 <- spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  filter(n_redds < 5) |> 
-  nrow()
-n_sparse_COMIDS_2 <- spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  filter(n_redds <= 2) |> 
-  nrow()
-
-# what percent of comids have <= 1 obervation?
-n_perc_1 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 1) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-
-n_perc_2 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 2) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-
-n_perc_5 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 5) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-```
-
-The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
-
--   Redds observed at specific locations, `COMID`
--   Nested within `stream`
--   Observed across multiple `years`
-
-Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
-
-Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
-
-```{r comid-str, caption = "Number of COMIDs per stream."}
-# number of comids per stream
-spawn_data |> 
-  distinct(stream, COMID) |> 
-  count(stream, name = "n_COMIDs") |> 
-  arrange(desc(n_COMIDs)) |> 
-  kable(
-    caption = "Number of COMIDs per stream (major tributaries)."
-  )
-```
-
-```{r comid-str-plot, fig.width=5, fig.height=3, fig.cap = "Number of observations (redds) per COMID."}
-# number of observations per COMID
-spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  arrange(n_redds) |> 
-  ggplot(aes(n_redds)) +
-  geom_bar() + 
-  scale_y_continuous(breaks = seq(0,10,1)) + 
-  labs(title = "Number of obervations (redds) per COMID", 
-       x = "Number of redds", 
-       y = "Count") + 
-  theme_bw()
-```
-
-
 ### Bivariate relationships
 
 We did exploratory data analysis on the compiled dataset to identify candidate covariates for inclusion in model selection.
@@ -716,7 +727,7 @@ The is a weak negative relationship between `mean_elevation` and `yday` (Figure 
 
 ### `temp_90`
 
-Figure \@ref(fig:plot-temp-90) shows the relationship between `temp_90` and spawn date by stream and year. 
+Figure \@ref(fig:plot-temp-90) shows the relationship between `temp_90` and spawn date by stream and year.
 
 ```{r plot-temp-90, fig.width=8, fig.height=5, fig.cap = "Relationship between `temp_90` and `yday` (spawn date) by stream and year. Solid lines are linear fits."}
 
@@ -753,7 +764,7 @@ p.t90.3 <- model_data |>
 p.t90.3
 ```
 
-We evaluated the role of `temp_90` in explaining variation in Chinook salmon spawn timing: 
+We evaluated the role of `temp_90` in explaining variation in Chinook salmon spawn timing:
 
 ```{r t90-lm, echo=TRUE}
 m.t90.1 <- lmer(yday ~ (1|COMID), data = df_mod, REML = FALSE)
@@ -795,7 +806,7 @@ Table \@ref(tab:t90-aic2) shows that adding stream (`m.t90.4`) or year (`m.t90.5
 
 Combining stream and year additively (`m.t90.6`) provided further improvement in AIC, along with the best marginal R2 and RMSE (Table \@ref(tab:t90-perf2)). This suggests that both stream and year provide meaningful structure in explaining variation in spawn timing.
 
-Adding the interaction between temperature and stream (`m.t90.7`) increased complexity, slightly lowered the marginal R2, and has high multicollinearity (VIF ~15).
+Adding the interaction between temperature and stream (`m.t90.7`) increased complexity, slightly lowered the marginal R2, and has high multicollinearity (VIF \~15).
 
 ```{r t90-aic2}
 compare_aic(m.t90.3, m.t90.4, m.t90.5, m.t90.6, m.t90.7, m.t90.8) |> 
@@ -837,12 +848,11 @@ Given the trade-offs, model `m.t90.6` emerged as the best compromise: it retaine
 
 #### Summary
 
-The exploratory analysis of temperature effects on spawn timing revealed a clear, nonlinear relationship between pre-spawn temperature and the day of year when spawning occurs. A quadratic term for temperature consistently improved model fit over linear-only specifications. When adding stream and year as main effects, model performance improved substantially, with both factors accounting for additional variation in spawn timing. However, introducing interaction terms between temperature and either stream or year led to either inflated multicollinearity (VIFs > 10) or implausible model predictions, indicating potential overfitting. Although the temperature-by-year interaction model (`m.t90.8`) had the lowest AIC, it yielded a counterintuitive relationship between temperature and spawn timing. Therefore, the additive model with quadratic temperature and main effects of stream and year (`m.t90.6`) was selected as the preferred model, balancing goodness-of-fit with interpretability and biological realism.
-
+The exploratory analysis of temperature effects on spawn timing revealed a clear, nonlinear relationship between pre-spawn temperature and the day of year when spawning occurs. A quadratic term for temperature consistently improved model fit over linear-only specifications. When adding stream and year as main effects, model performance improved substantially, with both factors accounting for additional variation in spawn timing. However, introducing interaction terms between temperature and either stream or year led to either inflated multicollinearity (VIFs \> 10) or implausible model predictions, indicating potential overfitting. Although the temperature-by-year interaction model (`m.t90.8`) had the lowest AIC, it yielded a counterintuitive relationship between temperature and spawn timing. Therefore, the additive model with quadratic temperature and main effects of stream and year (`m.t90.6`) was selected as the preferred model, balancing goodness-of-fit with interpretability and biological realism.
 
 ### `mean_elevation`
 
-Figure \@ref(fig:elev-plots) shows the relationship between between (A) `mean_elevation` and `temp_90` by stream and (B) `mean_elevation` and `yday` (spawn date) by stream and year. 
+Figure \@ref(fig:elev-plots) shows the relationship between between (A) `mean_elevation` and `temp_90` by stream and (B) `mean_elevation` and `yday` (spawn date) by stream and year.
 
 ```{r elev-plots, fig.width=8, fig.height=6, fig.cap = "Relationship between (A) `mean_elevation` and `temp_90` by stream and (B) `mean_elevation` and `yday` (spawn date) by stream and year. Solid lines are linear fits."}
 p.elev.temp <- model_data |>
@@ -872,7 +882,7 @@ p.elev.temp / p.elev.yday +
   plot_annotation(tag_levels = "A")
 ```
 
-We evaluated the role of mean elevation in explaining variation in Chinook salmon spawn timing: 
+We evaluated the role of mean elevation in explaining variation in Chinook salmon spawn timing:
 
 ```{r elev-lm, echo=TRUE}
 m.ele.1 <- lmer(yday ~ (1|COMID), data = df_mod, REML = FALSE)
@@ -884,9 +894,9 @@ m.ele.6 <- lmer(yday ~ mean_elevation * stream + (1|COMID), data = df_mod, REML 
 m.ele.7 <- lmer(yday ~ mean_elevation * year + (1|COMID), data = df_mod, REML = FALSE)
 ```
 
-Including mean elevation as a main effect improved model fit (ΔAIC = 19 between `m.ele.1` and `m.ele.2`). The best-supported model (`m.ele.5`) included mean elevation alongside stream and year (ΔAIC = 281 between `m.ele.2` and `m.ele.5`), with moderate collinearity (VIFs ~6), suggesting that mean elevation can contribute to explaining spawn timing when controlling for stream and year (\@ref(fig:elev-pred)). 
+Including mean elevation as a main effect improved model fit (ΔAIC = 19 between `m.ele.1` and `m.ele.2`). The best-supported model (`m.ele.5`) included mean elevation alongside stream and year (ΔAIC = 281 between `m.ele.2` and `m.ele.5`), with moderate collinearity (VIFs \~6), suggesting that mean elevation can contribute to explaining spawn timing when controlling for stream and year (\@ref(fig:elev-pred)).
 
-However, adding interactions with stream or year substantially increased model complexity and collinearity, as evidenced by extremely high VIFs (>45). Given the known inverse relationship between elevation and temperature across streams (Figure \@ref(fig:elev-plots)A), caution is warranted when later incorporating both elevation and temperature in the same model.
+However, adding interactions with stream or year substantially increased model complexity and collinearity, as evidenced by extremely high VIFs (\>45). Given the known inverse relationship between elevation and temperature across streams (Figure \@ref(fig:elev-plots)A), caution is warranted when later incorporating both elevation and temperature in the same model.
 
 ```{r elev-aic}
 compare_aic(m.ele.1, m.ele.2, m.ele.3, m.ele.4, m.ele.5, m.ele.6, m.ele.7) |> 
@@ -1090,18 +1100,18 @@ df_mod |>
 ### Model specification
 
 | Variable | Fixed? | Random? | Why |
-|-------------|-------------|-------------|----------------------------------|
+|----------------|----------------|----------------|-------------------------|
 | `COMID` | No | Yes | Not estimating COMID effects, just accounting for correlation, repeated measures |
 | `Stream` | Yes | Maybe | 8 streams to compare |
 | `Year` | Yes | Maybe | 4 years to compare |
 
 Here, `COMID` will be included in all modelas as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. The later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years, but we only have 4 years of data, so we will treat it as a fixed effect for now.
 
-### Simple linear models
+### Model comparison
 
-We conducted a comprehensive brute-force model selection exercise, fitting 31 additive linear models that combined various combinations of predictors: `temp_90`, `stream`, `year`, `mean_elevation`, and `slope`:
+We used linear mixed-effects models to evaluate environmental predictors of Chinook salmon spawn timing, with redd observation day-of-year (`yday`) as the response variable. Each model included a random intercept for `COMID` to account for repeated measures across stream reaches. Based on exploratory analysis and biological expectations of nonlinear thermal responses, all models containing temperature included both linear and quadratic terms for the 90-day average temperature prior to spawning (`temp_90`). We fit 31 additive models representing all combinations of four fixed effects: `stream`, `year`, `slope`, and `mean_elevation`, with temperature (including its quadratic form) included in a subset of models. Model comparison was performed using AIC, and model fit was evaluated using marginal and conditional R², RMSE, and intraclass correlation coefficients (ICC). All models were fit using maximum likelihood (REML = FALSE) for consistent comparison of fixed effects.
 
-```{r lm, echo=TRUE}
+```{r lm, echo=FALSE, eval=FALSE}
 # All combinations of 1–5 fixed effects: 31 total
 m1 <- lmer(yday ~ temp_90 + (1|COMID), data = df_mod, REML = FALSE)
 m2 <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
@@ -1140,7 +1150,7 @@ m30 <- lmer(yday ~ stream + year + mean_elevation + slope + (1|COMID), data = df
 m31 <- lmer(yday ~ temp_90 + stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 ```
 
-```{r eval=FALSE}
+```{r lm-quad, echo=TRUE, eval=TRUE}
 m1 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1|COMID), data = df_mod, REML = FALSE)
 m2 <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
 m3 <- lmer(yday ~ year + (1|COMID), data = df_mod, REML = FALSE)
@@ -1178,17 +1188,21 @@ m30 <- lmer(yday ~ stream + I(temp_90^2) + year + mean_elevation + slope + (1|CO
 m31 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
 ```
 
-
 ```{r aic-lm}
 aic_tab <- compare_aic(
   m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
     m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31
   )
+perf_tab <- compare_performance(
+  m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
+  m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,
+  estimator = "ML", rank = TRUE, metrics = "common"
+  ) 
 ```
 
-Overall, the best-fitting model was `r aic_tab[1,]$Model`, though its improvement in AIC and performance over `r aic_tab[2,]$Model` was modest  (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)).
+Overall, the best-fitting model was `r aic_tab[1,]$Model`, though its improvement in AIC and performance over `r aic_tab[2,]$Model` was modest (Table \@ref(tab:aic-tab) and \@ref(tab:perf-lm)). 
 
-<!-- Models excluding elevation and/or slope (e.g., `m16`: temp_90 + stream + year) performed nearly as well (R² = `r round(summary(m16)$r.squared, 3)`), indicating that these terms contributed little to model explanatory power. -->
+Model m16 had nearly identical predictive accuracy (RMSE = 2.02) and conditional R² (0.980) compared to m26, despite a slightly lower marginal R² (0.729 vs. 0.785). The 117-point AIC difference between m16 and m26 likely reflects subtle improvements in likelihood fit due to topographic covariates.
 
 ```{r aic-tab}
 aic_tab |>
@@ -1199,12 +1213,6 @@ aic_tab |>
 ```
 
 ```{r perf-lm}
-perf_tab <- compare_performance(
-  m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
-  m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,
-  estimator = "ML", rank = TRUE, metrics = "common"
-  ) 
-
 perf_tab |>
   slice_head(n = 7) |>
   kable(
@@ -1225,33 +1233,45 @@ tab_model(
   )
 ```
 
+However, visual inspection of predicted vs. observed effects (Figure \@ref(fig:lm-plot) B)) revealed that the modeled elevation effect was inconsistent with ecological expectations. Specifically, m26 predicted later spawning at higher elevations, contrary to the observed negative relationships between elevation, temperature, and spawn timing in several streams (Figure \@ref(fig:elev-plots)).
+
 Although adding elevation (e.g., `m26`) improved AIC compared to the base model (`m16`), the effect estimate for elevation was consistently opposite to ecological expectations—higher elevations predicted later spawn dates (Figure \@ref(fig:lm-plot) B)) despite the observed negative relationship between elevation and both temperature and spawn timing for several streams (Figure \@ref(fig:elev-plots)). This suggests potential collinearity or confounding, likely due to the inverse relationship between temperature and elevation among streams.
 
-```{r lm-plot, fig.width=8, fig.height=3, fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp_90`, (B) `mean_elevation`, and `slope` for the top additive linear model (`m31`)."}
+```{r lm-plot, fig.width=8, fig.height=3, fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp_90`, (B) `mean_elevation`."}
 a <- plot_model(
-  m31, type = "eff", terms = c("temp_90"), show.data = TRUE,
-  title = "`m31`, `temp_90`"
+  m26, type = "eff", terms = c("temp_90"), show.data = TRUE,
+  title = "`m26`, `temp_90`"
   ) + labs(y = "Predicted\nspawn date")
 
 b <- plot_model(
-  m31, type = "eff", terms = c("mean_elevation"), show.data = TRUE,
-  title = "`m31`, `mean_elevation`"
+  m26, type = "eff", terms = c("mean_elevation"), show.data = TRUE,
+  title = "`m26`, `mean_elevation`"
   ) + labs(y = "")
 
-c <- plot_model(
-  m31, type = "eff", terms = c("slope"), show.data = TRUE,
-  title = "`m31`, `slope`"
-  ) + labs(y = "")
-
-a + b + c + 
+a + b +
   plot_annotation(tag_levels = "A")
 ```
 
-Finally, slope consistently exhibited minimal impact on model performance, and its effect estimate remained small and sometimes non-significant. Thus, we conclude that `temp_90`, `stream`, and `year` are the most consistent predictors of spawn timing.
+This apparent discrepancy is likely due to collinearity between elevation and stream identity. Variance inflation factors (VIFs) from m26 indicated moderate collinearity between elevation and stream (VIF = 6.50 and 6.48, respectively). Elevation was strongly confounded with stream identity in our dataset (Figure \@ref(fig:elev-plots)), with high-elevation streams showing considerable overlap in spawn timing and temperature.
+
+```{r m26-vif}
+car::vif(m26)
+check_model(m26, check = c("vif"))
+```
+
 
 #### Summary
 
-Based on model parsimony, interpretability, and consistency with ecological understanding, we selected `m16` (`temp_90 + stream + year`) as the best baseline model to advance into mixed-effects modeling, acknowledging that elevation might be considered cautiously in future hierarchical models if appropriate.
+**For Methods**
+
+We evaluated models both with and without topographic predictors (elevation and slope). While models including these variables had stronger likelihood-based support (ΔAIC > 100), they produced counterintuitive effect estimates likely driven by spatial confounding with stream identity (see Results). We therefore focused interpretation on the top-performing model excluding topography (m16), which balanced predictive accuracy and parsimony.
+
+**For Resutls**
+
+While model m26 received the strongest AIC support among the candidate set, we ultimately selected model m16, which excluded elevation and slope, as the most interpretable and parsimonious model. Model m16 had nearly identical predictive accuracy (RMSE = 2.02) and conditional R² (0.980) compared to m26, despite a slightly lower marginal R² (0.729 vs. 0.785). The 117-point AIC difference between m16 and m26 likely reflects subtle improvements in likelihood fit due to topographic covariates. However, visual inspection of predicted vs. observed effects (Fig. X) revealed that the modeled elevation effect was inconsistent with ecological expectations. Specifically, m26 predicted later spawning at higher elevations, contrary to the observed negative relationships between elevation, temperature, and spawn timing in several streams (Fig. Y).
+
+This apparent discrepancy is likely due to collinearity between elevation and stream identity. Variance inflation factors (VIFs) from m26 indicated moderate collinearity between elevation and stream (GVIF^(1/(2×Df)) = 2.54 and 1.14, respectively). Elevation was strongly confounded with stream identity in our dataset (Fig. Y), with high-elevation streams showing considerable overlap in spawn timing and temperature. As a result, the elevation effect in m26 may reflect stream-level differences rather than a general topographic control. Although it's possible that the modeled effect reflects a multivariate interaction (e.g., where temperature, elevation, and stream identity are partially redundant), we chose m16 for its more direct and interpretable structure, especially given the conceptual and empirical clarity of the relationships among temperature, stream, and year.
+
 
 ### Targeted model comparison
 
