@@ -1,0 +1,29 @@
+---
+title: "To Do List"
+format: html
+---
+
+Comments from Dan 6/2/25
+
+1. It’s worth remembering that the 8 streams differ substantially in the amount of physical variation they encompass & a big system like Big Creek spans many times the variability that Elk Creek or some of the other upper MFK systems do.
+
+Russ: Yes- variation in spawn timing is influenced by context. Diverse habitats in the Middle Fork provide the template for expression of life history diversity (an example of the portfolio effect). Hence our draft Title:  Habitat Heterogeneity and Phenotypic Diversity: The Influence of  Stream Attributes on Timing of Chinook Salmon Spawning
+
+2. I agree that the year effect accounts in large part for the flow effect (given the way it’s measured) & therefore excluding it may make sense. But the year effect may also contain an adult escapement effect, which varied 6X among years (n = 208-1,217) and that could affect redd completion dates based on the time it takes to find a mate for spawning (perhaps relevant in a low escapement year) or the time it takes to find an unoccupied site for building a redd (perhaps relevant in a high escapement year). Therefore, a year effect becomes something of a black box & it might be interesting to play with models that use flow and escapement effects rather than year to see if either is significant and how that type of model performs relative to the year models.
+
+Russ: Adult escapement might be an important contributor to spawn timing. As we have discussed in the past, during the largest escapement years (esp. 2003, the dates of spawning expanded (both earlier and later). Historically, with those huge adult returns, these populations likely had an even broader spawn timing. Recall the SF Salmon anecdotes from Dave Burns about summer Chinook stocks spawning there into December.
+
+3. Figure 8 suggests 2003 was a much higher flow year than the others. Usually that means stream temps will also be coldest that year, was that the case here?
+
+4. The correlation between temp_90 and elevation was only -0.309 (Figure 10) which suggests collinearity between the two in the same model might not be problematic. Later in Table 6, model 26 which included elevation was almost 300 AIC points better than the one that didn’t (model 16), yet elevation was discounted thereafter based on the direction of the functional relationship and by invoking collinearity concerns. Two things here: first, did you look at VIFs at this stage and were those problematic? Second, a priori I would have expected the relationship between elevation and spawn date to be a positive one as the response curve here suggests. I think elevation in this modeling context may be providing a measure of physical distance rather than stream temperature (which is already being accounted for by temp_90). That is, fish which are spawning in the highest reaches of the MFK have to physically haul themselves up an additional 2,000 feet in elevation compared to those spawning in the lowest reaches. That would take some time, hence the expectation for the positive effect of elevation on spawn date. Lastly, the B plot after Tables 6&7 comparing the observations to a response curve describing the marginal effect of elevation can be misleading in a multivariate model where underlying effects are sometimes discernable only after accounting for other effects.  
+
+Russ: The earliest returning salmon do climb the highest and migrate the farthest; plus if they returned later, some of these reaches might not be accessible (low flows). However, they also begin to spawn earliest. Under current escapements, the earliest fish begin to spawn ~24th of July (upper Camas for example), the fish lower down in Camas don’t begin until later in Aug, some fish in the lowermost reaches of the larger tribs and in the mainstem spawn into Sept. There is a gradation of spawn timing as you move lower in elevation.
+
+5. In terms of how the analysis is presented efficiently within a paper, consider starting the analysis at the outset with the default being that all models including a random effect for comID (because everything’s repeat measures) & possibly also a nonlinear effect for temperature (assuming others have also seen this in the literature). Locking those in from the beginning could greatly simplify the remainder of the analysis.
+
+6. Section 4.5.1 on interactions. Difficult to know exactly what’s going on with M202 having the inverted curves, but maybe confounding is the explanation with an interaction term between year & temp_90 (the latter of which probably systematically varies among years). Also curious in this section, does it make sense to you in the plot for m201 that the response curves seem to over (under-) estimate spawning dates relative to the observations in warmer (colder) streams, despite the model’s high predictive accuracy?
+
+7. Figure 24, panel C suggests spawning occurred earliest, on average, in the high flow year of 2003. That was a little surprising, I would have expected the opposite. Looking at Figure 2, panel A, the predicted averages also seemed a bit different from the observed mean responses among years. In the observations, the years 2002 through 2004 had similar means and 2005 seemed to be later than the rest.
+
+Russ: 2003 was also the year with the largest escapement. As a result, this may be an example of more phenotypic diversity being expressed during years of larger returns (see #2 comment above).
+
