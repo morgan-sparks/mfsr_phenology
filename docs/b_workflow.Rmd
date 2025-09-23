@@ -1502,7 +1502,8 @@ tab_model(
   CSS = list(
     css.table = "+font-size: 0.8em; +font-family: Arial;",
     css.footnote = "font-size: 0.8em;"
-    )
+    ), 
+  file = "tables/results.xls"
   )
 ```
 
@@ -1727,6 +1728,8 @@ Significant differences in spawn timing were observed between many stream pairs 
 ```{r contrasts-stream}
 contrasts_stream <- estimate_contrasts(mod_final, contrast = "stream", estimate = "average")
 contrasts_stream |> 
+  write_csv(here::here("tables","contrasts-stream.csv"))
+contrasts_stream |> 
   kable(
     caption = "Pairwise contrasts among stream effects on predicted spawn timing. Contrasts represent estimated differences in predicted spawn day of year between streams from the final model. Positive values indicate later predicted spawn timing in the first stream compared to the second. P-values are uncorrected.", 
     digits = 2
@@ -1737,6 +1740,8 @@ There was a clear trend toward later spawning over the four-year period (Table \
 
 ```{r contrasts-year}
 contrasts_year <- estimate_contrasts(mod_final, contrast = "year", estimate = "average")
+contrasts_year |> 
+  write_csv(here::here("tables","contrasts-year.csv"))
 contrasts_year |> 
   kable(
     caption = "Pairwise contrasts among year effects on predicted spawn timing. Contrasts represent estimated differences in predicted spawn day of year between years from the final model. Positive values indicate later spawning in the first year compared to the second. P-values are uncorrected.", 
@@ -1761,7 +1766,7 @@ When stratified by stream and year, predictions captured both the nonlinear temp
 ```{r preds-by, fig.width=8, fig.height=6, fig.cap = "Predicted relationship between spawn timing and 90-day pre-spawn mean temperature by stream and year. Lines represent model predictions from the final mixed-effects model. Colored points show observed redd timing, shaded ribbons represent 95% confidence intervals for predictions."}
 
 plot(estimate_relation(mod_final, by = "temp_90"))
-plot(estimate_relation(mod_final, by = c("mean_elevation")))
+# plot(estimate_relation(mod_final, by = c("mean_elevation")))
 
 # 1. Create a base grid for prediction (one line per stream–year combo)
 grid_base <- df_mod %>%
@@ -1996,19 +2001,38 @@ p.re.preds
 
 ### Elevation effects embedded in random structure
 
-**TO DISCUSS**
+Although mean elevation was excluded as a fixed effect due to collinearity with temperature and inconsistent global directionality, examination of random effects against elevation reveals spatial structure that elevation helps explain (Figure X). Random intercepts (average spawn timing) showed positive relationships with elevation in some streams (e.g., Big Creek), where higher-elevation sites tended to have later average spawning relative to the population mean. In contrast, other streams (e.g., Bear Valley, Beaver) showed little or no elevation pattern.
 
-Although mean elevation was excluded as a fixed effect due to collinearity and inconsistent directionality, plots of random effects against elevation reveal underlying spatial structure that elevation helps to explain (Figure \@ref(fig:ranefs-elev)).
+Random slopes (thermal sensitivity to temperature) exhibited similarly idiosyncratic patterns. In some cases (e.g., Camas, Marsh), thermal sensitivity declined with elevation, suggesting that fish at higher elevations may respond less strongly to interannual temperature variability. In others, relationships were weak or even opposite in direction.
 
-In panel A, there is a clear positive relationship between elevation and the random intercepts for some streams (e.g., Big), indicating that higher elevation sites within Big Creek tend to have later average spawn timing compared to the global (population) average.
-
-In panel B, random slopes (i.e., thermal sensitivity) show more idiosyncratic patterns: for some streams (e.g., Camas, Marsh), thermal sensitivity appears to decrease with elevation, suggesting fish at higher elevations may respond less strongly to temperature variability.
-
-However, these relationships are inconsistent across streams, supporting the decision to capture this spatial heterogeneity via COMID-level random effects rather than forcing a global fixed elevation term.
+Taken together, these patterns indicate that elevation influences both average spawn timing and thermal sensitivity, but in ways that differ across streams. This heterogeneity justifies our decision to capture elevation-linked variation through COMID-level random effects rather than imposing a single fixed elevation term.
 
 ```{r ranefs-elev, fig.width=8, fig.height=6, fig.cap = "Relationship between `mean_elevation` and (A) random intercepts and (B) slopes for 90-day pre-spawn temperature, as well as `mean_elevation` and (C) spawn date (`yday`) and (D) `temp_90` . Points and lines are colored by stream, and solid lines represent linear fits."}
 
 p.re.int.elev <- random_wide |> 
+  ggplot(aes(x = mean_elevation, y = Intercept, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = cols.streams) +
+  labs(
+    x = "Mean Elevation (m)",
+    y = "Random Intercept\n(Average Spawn Timing)",
+    color = "Stream"
+  )
+
+p.re.int.elev_high <- random_wide |> 
+  filter(stream %in% c("Bear Valley","Marsh","Elk","Beaver")) |>
+  ggplot(aes(x = mean_elevation, y = Intercept, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = cols.streams) +
+  labs(
+    x = "Mean Elevation (m)",
+    y = "Random Intercept\n(Average Spawn Timing)",
+    color = "Stream"
+  )
+p.re.int.elev_low <- random_wide |> 
+  filter(!stream %in% c("Bear Valley","Marsh","Elk","Beaver")) |>
   ggplot(aes(x = mean_elevation, y = Intercept, color = stream)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
@@ -2030,14 +2054,44 @@ p.re.slp.elev <- random_wide |>
     color = "Stream"
   )
 
-p.re.int.elev + p.re.slp.elev +
-  p.elev.yday + p.elev.temp + 
+p.re.slp.elev_high <- random_wide |> 
+  filter(stream %in% c("Bear Valley","Marsh","Elk","Beaver")) |>
+  ggplot(aes(x = mean_elevation, y = Slope, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = cols.streams) +
+  labs(
+    x = "Mean Elevation (m)",
+    y = "Random Slope\n(Thermal Sensitivity)",
+    color = "Stream"
+  )
+
+p.re.slp.elev_low <- random_wide |> 
+  filter(!stream %in% c("Bear Valley","Marsh","Elk","Beaver")) |>
+  ggplot(aes(x = mean_elevation, y = Slope, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = cols.streams) +
+  labs(
+    x = "Mean Elevation (m)",
+    y = "Random Slope\n(Thermal Sensitivity)",
+    color = "Stream"
+  )
+
+# p.re.int.elev + p.re.slp.elev +
+#   # p.elev.yday + p.elev.temp + 
+#   plot_layout(guides = "collect") + 
+#   plot_annotation(
+#     tag_levels = "A"
+#   )
+
+p.re.int.elev_high + p.re.slp.elev_high +
+  p.re.int.elev_low + p.re.slp.elev_low +
   plot_layout(guides = "collect") + 
   plot_annotation(
     tag_levels = "A"
   )
 
-  
 ```
 
 <!-- ## A Predictive Model -->
