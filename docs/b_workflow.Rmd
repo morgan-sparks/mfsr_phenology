@@ -1311,20 +1311,19 @@ aic_tab <- compare_aic(
 perf_tab <- compare_performance(
   m16, m16_rs,
   rank = TRUE, metrics = "common"
-  ) 
+  )
+
+lm_tab <- aic_tab |> 
+  left_join(perf_tab, by = c("Model"="Name")) |> 
+  select(Model, df, AIC, delta_AIC=delta, R2_marginal, R2_conditional, RMSE, ICC) |> 
+  mutate(across(where(is.numeric), ~ round(., 3))) |>
+  write_csv(here::here("tables","lm-model-comparison-ran-slopes.csv"))
 ```
 
 ```{r m16-rs-aic}
-aic_tab |>
+lm_tab |>
   kable(
     caption = "Model selection for `m16` vs. `m16_rs`."
-  )
-```
-
-```{r m16-rs-perf}
-perf_tab |>
-  kable(
-    caption = "Model performance for for `m16` vs. `m16_rs`."
   )
 ```
 
@@ -1375,19 +1374,18 @@ perf_tab <- compare_performance(
   m16_rs, m16_rs_noquad,
   estimator = "ML", rank = TRUE, metrics = "common"
   ) 
+
+lm_tab <- aic_tab |> 
+  left_join(perf_tab, by = c("Model"="Name")) |> 
+  select(Model, df, AIC, delta_AIC=delta, R2_marginal, R2_conditional, RMSE, ICC) |> 
+  mutate(across(where(is.numeric), ~ round(., 3))) |>
+  write_csv(here::here("tables","lm-model-comparison-ran-slopes-noquad.csv"))
 ```
 
 ```{r m16-rs-noquad-aic}
-aic_tab |>
+lm_tab |>
   kable(
     caption = "Model selection for `m16_rs` vs. `m16_rs_noquad`."
-  )
-```
-
-```{r m16-rs-noquad-perf}
-perf_tab |>
-  kable(
-    caption = "Model performance for for `m16_rs` vs. `m16_rs_noquad`."
   )
 ```
 
@@ -1422,19 +1420,18 @@ perf_tab <- compare_performance(
   m16_rs, m201, m202,
   estimator = "ML", rank = TRUE, metrics = "common"
   ) 
+
+lm_tab <- aic_tab |> 
+  left_join(perf_tab, by = c("Model"="Name")) |> 
+  select(Model, df, AIC, delta_AIC=delta, R2_marginal, R2_conditional, RMSE, ICC) |> 
+  mutate(across(where(is.numeric), ~ round(., 3))) |>
+  write_csv(here::here("tables","lm-model-comparison-ran-slopes-interact.csv"))
 ```
 
 ```{r}
-aic_tab |>
+lm_tab |>
   kable(
     caption = "Model selection for `m201` vs. `m202`."
-  )
-```
-
-```{r}
-perf_tab |>
-  kable(
-    caption = "Model performance for `m201` vs. `m202`."
   )
 ```
 
@@ -1474,9 +1471,9 @@ The final model included a linear and quadratic effect of temperature (`temp_90`
 ```{r fin-mod, echo=TRUE}
 mod_final <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID), 
   data = df_mod, REML = TRUE)
-mod_final <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + (1 + temp_90 | COMID), 
-  data = df_mod, REML = TRUE)
-mod_final <- lmer(yday ~ temp_90 + I(temp_90^2) + year  + stream * mean_elevation + (1 + temp_90|COMID), data = df_mod, REML = FALSE)
+# mod_final <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + (1 + temp_90 | COMID), 
+#   data = df_mod, REML = TRUE)
+# mod_final <- lmer(yday ~ temp_90 + I(temp_90^2) + year  + stream * mean_elevation + (1 + temp_90|COMID), data = df_mod, REML = FALSE)
 ```
 
 ```{r get-temp-mean}
