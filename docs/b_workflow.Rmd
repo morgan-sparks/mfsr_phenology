@@ -1195,27 +1195,18 @@ perf_tab <- compare_performance(
   estimator = "ML", rank = TRUE, metrics = "common"
   ) 
 
-aic_tab |> 
+lm_tab <- aic_tab |> 
   left_join(perf_tab, by = c("Model"="Name")) |> 
-  select(Model, df, AIC, delta, R2_marginal, R2_conditional, RMSE, ICC) |> 
-  # rounds all numeric columns to 2 decimal places
-  mutate(across(where(is.numeric), ~ round(., 2))) |>
+  select(Model, df, AIC, delta_AIC=delta, R2_marginal, R2_conditional, RMSE, ICC) |> 
+  mutate(across(where(is.numeric), ~ round(., 3))) |>
   write_csv(here::here("tables","lm-model-comparison.csv"))
 ```
 
 ```{r aic-tab}
-aic_tab |>
-  slice_head(n = 7) |>
+lm_tab |>
+  slice_head(n = 10) |>
   kable(
-    caption = "AIC selection for additive linear models; top 5 of 31 shown."
-  )
-```
-
-```{r perf-tab}
-perf_tab |>
-  slice_head(n = 7) |>
-  kable(
-    caption = "Model performance for additive linear models."
+    caption = "AIC selection performance metrics for additive linear models; top 10 of 31 shown."
   )
 ```
 
