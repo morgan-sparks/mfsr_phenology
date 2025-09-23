@@ -1537,7 +1537,7 @@ The normal Q-Q plot of residuals shows slight right-skew and some heavy tails, b
 
 Overall, the model shows no violations of key assumptions and is suitable for inference and prediction.
 
-```{r diagnostics, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for `mod_final`."}
+```{r diagnostics, cache=FALSE, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for `mod_final`."}
 check_model(
   mod_final,
   base_size = 8, size_title = 10)
