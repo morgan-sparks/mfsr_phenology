@@ -411,18 +411,6 @@ pdftools::pdf_convert(
   )
 ```
 
-```{r spawn-yr-strm, eval=FALSE, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by year and stream."}
-spawn_data |> 
-  ggplot(aes(y = year, x = fixed_date + yday, fill = year)) +
-  lemon::facet_rep_wrap(~stream) + 
-  ggridges::geom_density_ridges(bandwidth = 2) +
-  scale_fill_manual(values = cols.years) +
-  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-  expand_limits(y = c(1, 6)) + 
-  labs(x = "") + 
-  guides(color = "none")
-```
-
 ```{r temp-dist-spawn, fig.width=8, fig.height = 8, fig.cap= "Spawning phenology of adult Chinook Salmon. In all panels, the black density function represented stream-level spawn timing, while the colored density functions represent the spawn timing of individual years. The dashed vertical purple lines represent the 5th and 95th percentiles of the basin-wide spawn timing."}
 mfsr_by_site <- spawn_data |>
   group_by(stream, yday)
@@ -503,6 +491,24 @@ props |>
     y = "Proportion of ccumulative redds",
     color = ""
   ) 
+
+# save plot
+path <- here::here("plots", "Figure_03")
+ggsave(
+  glue::glue("{path}.pdf"), 
+  plot = last_plot(), 
+  device = cairo_pdf,
+  scale = 2, 
+  width = 8.8, 
+  height = 8,
+  units = "cm" 
+  )
+pdftools::pdf_convert(
+  pdf = glue::glue("{path}.pdf"),
+  filenames = glue::glue("{path}.png"),
+  format = "png", 
+  dpi = 300
+  )
 ```
 
 
@@ -663,14 +669,6 @@ The time invariant and after metrics were omitted from further consideration as 
 We did exploratory data analysis on the compiled dataset to identify candidate covariates for inclusion in model selection.
 
 Bivariate relationships between spawn date (`yday`) and continuous predictors (Figure \@ref(fig:plot-covars)), and pairwise correlations between all continuous covariates (Figure \@ref(fig:colin)), are shown below.
-
-```{r dataset, eval=FALSE}
-model_data |>
-  slice_head(n = 5) |> 
-  kable(
-    caption = "First 5 rows of the combined dataset (`model_data`) for exploratory data analysis."
-  )
-```
 
 ```{r plot-covars, fig.width=8,  fig.height=7, fig.cap = "Bivariate relationships between spawn date (`yday`) and continuous covariates. Solid lines are linear fits."}
 covariates <- c(
@@ -1114,7 +1112,7 @@ df_mod |>
 | `Stream` | Yes | Maybe | 8 streams to compare |
 | `Year` | Yes | Maybe | 4 years to compare |
 
-Here, `COMID` will be included in all modelas as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. The later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years, but we only have 4 years of data, so we will treat it as a fixed effect for now.
+Here, `COMID` will be included in all models as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. The later maybe be better included as a random effect, as it is not a treatment effect, but rather a random sample of years, but we only have 4 years of data, so we will treat it as a fixed effect for now.
 
 ### Model comparison
 
