@@ -336,7 +336,7 @@ p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
   scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") + 
   annotate(
     "text",
-    x = fixed_date + 260, y = .06, hjust = 1, vjust = 1, size = 4.5,
+    x = fixed_date + 270, y = .06, hjust = 1, vjust = 1, size = 4.5,
     label = paste0
     (
       "mean = ", round(mean(spawn_data$yday), 2), "\n",
@@ -363,18 +363,6 @@ p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
   )
 # p1
 
-# plot spawn date by stream
-# p2 <- spawn_data |> 
-#   ggplot(aes(x = stream, y = fixed_date + yday)) +
-#   geom_boxplot() +
-#   geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.streams) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(title = "Spawn Date by Stream", x = "", y = "Spawn Date") +
-#   theme_bw() +
-#   guides(color = "none")
-
 p2 <- spawn_data |> 
   ggplot(aes(x = fixed_date + yday, y = stream, fill = stream)) + 
   ggridges::geom_density_ridges() + 
@@ -385,38 +373,40 @@ p2 <- spawn_data |>
   guides(fill = "none")
 
 
-# Plot spawn date by year
-# p3 <- spawn_data |> 
-#   ggplot(aes(x = year, y = fixed_date + yday)) +
-#   geom_boxplot() +
-#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.years) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(
-#     title = "Spawn Date by Year",
-#     x = "",
-#     y = "Spawn Date"
-#   ) +
-#   theme_bw() +
-#   guides(color = "none")
-
 p3 <- spawn_data |> 
   ggplot(aes(x = fixed_date + yday, y = year, fill = year)) + 
   ggridges::geom_density_ridges() + 
   scale_fill_manual(values = cols.years) + 
-  expand_limits(y = c(1, 6)) + 
+  expand_limits(y = c(1, 6)) +
   labs(title = "Spawn Date by Year", y = "", x = "") +
   theme_bw() +
   guides(fill = "none")
 
 # panel
-p1 / ((p2 + p3) + 
-  plot_layout(widths = c(1.5,1))) + 
+# p1 / ((p2 + p3) + 
+#   plot_layout(widths = c(1.5,1))) + 
+#   plot_annotation(tag_levels = "A")
+
+p1 / (p2 + p3) + 
   plot_annotation(tag_levels = "A")
 
 # save plot
-# ggsave(here("plots", "fig01_spawn_distribution.png"), width = 8, height = 10)
+path <- here::here("plots", "Figure_01")
+ggsave(
+  glue::glue("{path}.pdf"), 
+  plot = last_plot(), 
+  device = cairo_pdf,
+  scale = 1.2, 
+  width = 18, 
+  height = 15,
+  units = "cm" 
+  )
+pdftools::pdf_convert(
+  pdf = glue::glue("{path}.pdf"),
+  filenames = glue::glue("{path}.png"),
+  format = "png", 
+  dpi = 300
+  )
 ```
 
 ```{r spawn-yr-strm, eval=FALSE, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by year and stream."}
