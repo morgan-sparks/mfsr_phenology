@@ -303,6 +303,248 @@ spawn_data |>
 ```
 
 
+#### Spawn data descriptive statistics and vizualizations
+
+Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
+
+Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous.
+
+There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
+
+```{r spawn-dist, fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
+
+# calculate mean yday for each year
+yr_means <- spawn_data |> 
+  group_by(year) |> 
+  summarise(mean = mean(yday))
+
+# historgram and density of spawn timing
+p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    bins = 25, fill = "gray80", color = "black"
+  ) +
+  geom_density(color = "black", size = 1.2, adjust = 1.5) +
+  geom_vline(aes(xintercept = fixed_date + mean(yday)),
+    color = "black", linetype = "dashed", linewidth = 1.2
+  ) +
+  geom_vline(
+    data = yr_means,
+    aes(xintercept = fixed_date + mean, color = year), linewidth = 1.2
+  ) +
+  scale_color_manual(values = cols.years) +
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") + 
+  annotate(
+    "text",
+    x = fixed_date + 260, y = .06, hjust = 1, vjust = 1, size = 4.5,
+    label = paste0
+    (
+      "mean = ", round(mean(spawn_data$yday), 2), "\n",
+      "median = ", round(median(spawn_data$yday), 2), "\n",
+      "min = ", round(min(spawn_data$yday), 2), "\n",
+      "max = ", round(max(spawn_data$yday), 2), "\n",
+      "var = ", round(var(spawn_data$yday), 2), "\n",
+      "SD = ", round(sd(spawn_data$yday), 2)
+    )
+  ) +
+  labs(
+    title = "Histogram and Density of Spawn Dates",
+    x = "",
+    y = "Density function\n of spawn dates",
+    color = "Year"
+  ) +
+  theme_bw(base_size = 12) + 
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(.1, .65),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 8),
+    legend.box.background = element_rect(colour = "black")
+  )
+# p1
+
+# plot spawn date by stream
+# p2 <- spawn_data |> 
+#   ggplot(aes(x = stream, y = fixed_date + yday)) +
+#   geom_boxplot() +
+#   geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
+#   scale_color_manual(values = cols.streams) +
+#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+#   coord_flip() +
+#   labs(title = "Spawn Date by Stream", x = "", y = "Spawn Date") +
+#   theme_bw() +
+#   guides(color = "none")
+
+p2 <- spawn_data |> 
+  ggplot(aes(x = fixed_date + yday, y = stream, fill = stream)) + 
+  ggridges::geom_density_ridges() + 
+  scale_fill_manual(values = cols.streams) + 
+  expand_limits(y = c(1, 9)) + 
+  labs(title = "Spawn Date by Stream", y = "", x = "") +
+  theme_bw() +
+  guides(fill = "none")
+
+
+# Plot spawn date by year
+# p3 <- spawn_data |> 
+#   ggplot(aes(x = year, y = fixed_date + yday)) +
+#   geom_boxplot() +
+#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
+#   scale_color_manual(values = cols.years) +
+#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+#   coord_flip() +
+#   labs(
+#     title = "Spawn Date by Year",
+#     x = "",
+#     y = "Spawn Date"
+#   ) +
+#   theme_bw() +
+#   guides(color = "none")
+
+p3 <- spawn_data |> 
+  ggplot(aes(x = fixed_date + yday, y = year, fill = year)) + 
+  ggridges::geom_density_ridges() + 
+  scale_fill_manual(values = cols.years) + 
+  expand_limits(y = c(1, 6)) + 
+  labs(title = "Spawn Date by Year", y = "", x = "") +
+  theme_bw() +
+  guides(fill = "none")
+
+# panel
+p1 / ((p2 + p3) + 
+  plot_layout(widths = c(1.5,1))) + 
+  plot_annotation(tag_levels = "A")
+
+# save plot
+# ggsave(here("plots", "fig01_spawn_distribution.png"), width = 8, height = 10)
+```
+
+```{r spawn-yr-strm, eval=FALSE, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by year and stream."}
+# spawn_data |>
+#   ggplot(aes(x = year, y = fixed_date + yday, color = year)) +
+#   lemon::facet_rep_wrap(~stream) + 
+#   geom_boxplot() + 
+#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
+#   scale_color_manual(values = cols.years) +
+#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+#   coord_flip() +
+#   labs(x = "", y = "Spawn Date") + 
+#   theme(axis.text.x = element_text(angle = 90)) +
+#   guides(color = "none")
+
+spawn_data |> 
+  ggplot(aes(y = year, x = fixed_date + yday, fill = year)) +
+  lemon::facet_rep_wrap(~stream) + 
+  ggridges::geom_density_ridges(bandwidth = 2) +
+  scale_fill_manual(values = cols.years) +
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  expand_limits(y = c(1, 6)) + 
+  labs(x = "") + 
+  guides(color = "none")
+```
+
+```{r temp-dist-spawn, fig.width=8, fig.height = 8, fig.cap= "Spawning phenology of adult Chinook Salmon. In all panels, the black density function represented stream-level spawn timing, while the colored density functions represent the spawn timing of individual years. The dashed vertical purple lines represent the 5th and 95th percentiles of the basin-wide spawn timing."}
+mfsr_by_site <- spawn_data |>
+  group_by(stream, yday)
+
+mfsr_all <- spawn_data |>
+  summarise(
+    median = median(yday),
+    percentile_95 = fixed_date + quantile(yday, probs = 0.95),
+    percentile_5 = fixed_date + quantile(yday, probs = 0.05)
+  )
+
+spawn_data |>
+  mutate(across(year, as.character)) |>
+  group_by(stream, year) |>
+  ggplot(aes(x = fixed_date + yday)) +
+  facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
+  geom_density(
+    aes(fill = year),
+    alpha = 0.5) +
+  geom_density(
+    data = mfsr_by_site, alpha = 0, linetype = "dashed", color = "black") +
+  geom_vline(
+    xintercept = mfsr_all$median, 
+    color = "blue", 
+    linetype = "dashed") +
+  geom_vline(
+    xintercept = c(mfsr_all$percentile_95, mfsr_all$percentile_5), 
+    color = "red", 
+    linetype = "dashed") +
+  scale_fill_brewer(palette = "Dark2", name = "Year") +
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  labs(x = "", 
+       y = "Density function of spawn dates")
+```
+
+```{r spawn-comid, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by COMID and stream."}
+spawn_data |>
+  ggplot(aes(x = COMID, y = fixed_date + yday)) +
+  facet_wrap(~stream, scales = "free_y") +
+  geom_boxplot() +
+  geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
+  scale_color_manual(values = cols.streams) +
+  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+  coord_flip() +
+  labs(x = "", y = "Spawn Date") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  guides(color = "none")
+
+# spawn_data |> 
+#   ggplot(aes(y = COMID, x = fixed_date + yday)) +
+#   lemon::facet_rep_wrap(~stream, scales = "free_y") + 
+#   ggridges::geom_density_ridges(bandwidth = 2) +
+#   scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
+#   scale_fill_manual(values = cols.years) +
+#   labs(x = "") + 
+#   guides(color = "none")
+```
+
+The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
+
+```{r spawn-cum, fig.width=8, fig.height = 8, fig.cap= "Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
+# Proportional cumulative redds ------------------------------------------------
+# spawn_data %>%
+#   group_by(stream, yday) %>%
+#   tally() %>%
+#   group_by(stream) %>%
+#   arrange(yday) %>%
+#   mutate(cumulative = cumsum(n)) %>%
+#   ggplot(aes(x = yday, y = cumulative, color = stream)) +
+#   geom_line() +
+#   labs(title = "Cumulative Redd Counts", y = "Cumulative Redds") +
+#   theme_bw()
+
+
+# Proportional cumulative redds by stream --------------------------------------
+# For each year and stream, calculate the prop. cumulative number of redds
+props <- spawn_data |> 
+  select(year, stream, yday) |>
+  group_by(year, stream, yday) |>
+  add_count() |> 
+  distinct() |> 
+  group_by(year, stream) |>
+  arrange(year, stream, yday) |>
+  mutate(cum_redds = cumsum(n)) |> 
+  mutate(cum_redds_p = cum_redds / max(cum_redds))
+
+# Plot pro. cumsums
+props |> 
+  ggplot(aes(x = fixed_date + yday, y = cum_redds_p, color = as.factor(year))) +
+  lemon::facet_rep_wrap(~stream, ncol = 2, scales = "free_y") +
+  geom_line(linewidth = 1) + 
+  geom_point(size = 1) + 
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.5)) + 
+  scale_color_manual(values = cols.years, name = "Year") +
+  labs(
+    x = "Day of Year",
+    y = "Proportion of ccumulative redds",
+    color = ""
+  ) 
+```
+
+
 ### Covariate Derivation and Screening
 
 To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
@@ -454,244 +696,6 @@ The time invariant and after metrics were omitted from further consideration as 
 
 
 ## Exploratory Data Analysis
-
-### Spawn data descriptive statistics and vizualizations
-
-Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
-
-Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous.
-
-There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
-
-```{r spawn-dist, fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
-
-# calculate mean yday for each year
-yr_means <- spawn_data |> 
-  group_by(year) |> 
-  summarise(mean = mean(yday))
-
-# historgram and density of spawn timing
-p1 <- ggplot(spawn_data, aes(x = fixed_date + yday)) +
-  geom_histogram(
-    aes(y = after_stat(density)),
-    bins = 25, fill = "gray80", color = "black"
-  ) +
-  geom_density(color = "black", size = 1.2, adjust = 1.5) +
-  geom_vline(aes(xintercept = fixed_date + mean(yday)),
-    color = "black", linetype = "dashed", linewidth = 1.2
-  ) +
-  geom_vline(
-    data = yr_means,
-    aes(xintercept = fixed_date + mean, color = year), linewidth = 1.2
-  ) +
-  scale_color_manual(values = cols.years) +
-  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") + 
-  annotate(
-    "text",
-    x = fixed_date + 260, y = .06, hjust = 1, vjust = 1, size = 4.5,
-    label = paste0
-    (
-      "mean = ", round(mean(spawn_data$yday), 2), "\n",
-      "median = ", round(median(spawn_data$yday), 2), "\n",
-      "min = ", round(min(spawn_data$yday), 2), "\n",
-      "max = ", round(max(spawn_data$yday), 2), "\n",
-      "var = ", round(var(spawn_data$yday), 2), "\n",
-      "SD = ", round(sd(spawn_data$yday), 2)
-    )
-  ) +
-  labs(
-    title = "Histogram and Density of Spawn Dates",
-    x = "",
-    y = "Density function\n of spawn dates",
-    color = "Year"
-  ) +
-  theme_bw(base_size = 12) + 
-  theme(
-    legend.position = "inside",
-    legend.position.inside = c(.1, .65),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 8),
-    legend.box.background = element_rect(colour = "black")
-  )
-# p1
-
-# plot spawn date by stream
-# p2 <- spawn_data |> 
-#   ggplot(aes(x = stream, y = fixed_date + yday)) +
-#   geom_boxplot() +
-#   geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.streams) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(title = "Spawn Date by Stream", x = "", y = "Spawn Date") +
-#   theme_bw() +
-#   guides(color = "none")
-
-p2 <- spawn_data |> 
-  ggplot(aes(x = fixed_date + yday, y = stream, fill = stream)) + 
-  ggridges::geom_density_ridges() + 
-  scale_fill_manual(values = cols.streams) + 
-  expand_limits(y = c(1, 9)) + 
-  labs(title = "Spawn Date by Stream", y = "", x = "") +
-  theme_bw() +
-  guides(fill = "none")
-
-
-# Plot spawn date by year
-# p3 <- spawn_data |> 
-#   ggplot(aes(x = year, y = fixed_date + yday)) +
-#   geom_boxplot() +
-#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.years) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(
-#     title = "Spawn Date by Year",
-#     x = "",
-#     y = "Spawn Date"
-#   ) +
-#   theme_bw() +
-#   guides(color = "none")
-
-p3 <- spawn_data |> 
-  ggplot(aes(x = fixed_date + yday, y = year, fill = year)) + 
-  ggridges::geom_density_ridges() + 
-  scale_fill_manual(values = cols.years) + 
-  expand_limits(y = c(1, 6)) + 
-  labs(title = "Spawn Date by Year", y = "", x = "") +
-  theme_bw() +
-  guides(fill = "none")
-
-# panel
-p1 / ((p2 + p3) + 
-  plot_layout(widths = c(1.5,1))) + 
-  plot_annotation(tag_levels = "A")
-```
-
-```{r spawn-yr-strm, eval=FALSE, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by year and stream."}
-# spawn_data |>
-#   ggplot(aes(x = year, y = fixed_date + yday, color = year)) +
-#   lemon::facet_rep_wrap(~stream) + 
-#   geom_boxplot() + 
-#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.years) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(x = "", y = "Spawn Date") + 
-#   theme(axis.text.x = element_text(angle = 90)) +
-#   guides(color = "none")
-
-spawn_data |> 
-  ggplot(aes(y = year, x = fixed_date + yday, fill = year)) +
-  lemon::facet_rep_wrap(~stream) + 
-  ggridges::geom_density_ridges(bandwidth = 2) +
-  scale_fill_manual(values = cols.years) +
-  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-  expand_limits(y = c(1, 6)) + 
-  labs(x = "") + 
-  guides(color = "none")
-```
-
-```{r temp-dist-spawn, fig.width=8, fig.height = 8, fig.cap= "Spawning phenology of adult Chinook Salmon. In all panels, the black density function represented stream-level spawn timing, while the colored density functions represent the spawn timing of individual years. The dashed vertical purple lines represent the 5th and 95th percentiles of the basin-wide spawn timing."}
-mfsr_by_site <- spawn_data |>
-  group_by(stream, yday)
-
-mfsr_all <- spawn_data |>
-  summarise(
-    median = median(yday),
-    percentile_95 = fixed_date + quantile(yday, probs = 0.95),
-    percentile_5 = fixed_date + quantile(yday, probs = 0.05)
-  )
-
-spawn_data |>
-  mutate(across(year, as.character)) |>
-  group_by(stream, year) |>
-  ggplot(aes(x = fixed_date + yday)) +
-  facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
-  geom_density(
-    aes(fill = year),
-    alpha = 0.5) +
-  geom_density(
-    data = mfsr_by_site, alpha = 0, linetype = "dashed", color = "black") +
-  geom_vline(
-    xintercept = mfsr_all$median, 
-    color = "blue", 
-    linetype = "dashed") +
-  geom_vline(
-    xintercept = c(mfsr_all$percentile_95, mfsr_all$percentile_5), 
-    color = "red", 
-    linetype = "dashed") +
-  scale_fill_brewer(palette = "Dark2", name = "Year") +
-  scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-  labs(x = "", 
-       y = "Density function of spawn dates")
-```
-
-```{r spawn-comid, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by COMID and stream."}
-spawn_data |>
-  ggplot(aes(x = COMID, y = fixed_date + yday)) +
-  facet_wrap(~stream, scales = "free_y") +
-  geom_boxplot() +
-  geom_jitter(aes(color = stream), size = 1.5, alpha = 0.1) +
-  scale_color_manual(values = cols.streams) +
-  scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-  coord_flip() +
-  labs(x = "", y = "Spawn Date") +
-  theme(axis.text.x = element_text(angle = 90)) +
-  guides(color = "none")
-
-# spawn_data |> 
-#   ggplot(aes(y = COMID, x = fixed_date + yday)) +
-#   lemon::facet_rep_wrap(~stream, scales = "free_y") + 
-#   ggridges::geom_density_ridges(bandwidth = 2) +
-#   scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   scale_fill_manual(values = cols.years) +
-#   labs(x = "") + 
-#   guides(color = "none")
-```
-
-The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
-
-```{r spawn-cum, fig.width=8, fig.height = 8, fig.cap= "Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
-# Proportional cumulative redds ------------------------------------------------
-# spawn_data %>%
-#   group_by(stream, yday) %>%
-#   tally() %>%
-#   group_by(stream) %>%
-#   arrange(yday) %>%
-#   mutate(cumulative = cumsum(n)) %>%
-#   ggplot(aes(x = yday, y = cumulative, color = stream)) +
-#   geom_line() +
-#   labs(title = "Cumulative Redd Counts", y = "Cumulative Redds") +
-#   theme_bw()
-
-
-# Proportional cumulative redds by stream --------------------------------------
-# For each year and stream, calculate the prop. cumulative number of redds
-props <- spawn_data |> 
-  select(year, stream, yday) |>
-  group_by(year, stream, yday) |>
-  add_count() |> 
-  distinct() |> 
-  group_by(year, stream) |>
-  arrange(year, stream, yday) |>
-  mutate(cum_redds = cumsum(n)) |> 
-  mutate(cum_redds_p = cum_redds / max(cum_redds))
-
-# Plot pro. cumsums
-props |> 
-  ggplot(aes(x = fixed_date + yday, y = cum_redds_p, color = as.factor(year))) +
-  lemon::facet_rep_wrap(~stream, ncol = 2, scales = "free_y") +
-  geom_line(linewidth = 1) + 
-  geom_point(size = 1) + 
-  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.5)) + 
-  scale_color_manual(values = cols.years, name = "Year") +
-  labs(
-    x = "Day of Year",
-    y = "Proportion of ccumulative redds",
-    color = ""
-  ) 
-```
 
 ### Bivariate relationships
 
