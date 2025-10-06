@@ -204,7 +204,9 @@ include_graphics(here("plots", "MFsalmonRedds_May14.jpg"))
 
 ### Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled. Because redds were not observed daily, we inferred spawn dates as the initial date (day of year) a completed redd was observed.
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. Because redds were not observed daily, we inferred spawn dates as the initial date (day of year) a completed redd was observed.
+
+We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled. 
 
 We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Systems, 2018) to assign stream reaches based on a common identifier (COMID). The COMID is used to link redd data with covariate data associated with the stream reach on which it is located. A summary of the dataset is shown in Table \@ref(tab:spawn-summary).
 
@@ -221,41 +223,29 @@ We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Sys
 skim_without_charts(spawn_data)
 
 # count of observations by stream
-spawn_data_cleaned |> 
-  count(stream, name = "n_redds") |> 
-  arrange(desc(n_redds)) |> 
-  knitr::kable(
-    caption = "Count of Chinook salmon redds by stream (unfiltered data)."
-  )
-spawn_data |> 
-  count(stream, name = "n_redds") |> 
-  arrange(desc(n_redds)) |> 
-  knitr::kable(
-    caption = "Count of Chinook salmon redds by stream (filtered data)."
-  )
+# spawn_data_cleaned |> 
+#   count(stream, name = "n_redds") |> 
+#   arrange(desc(n_redds)) |> 
+#   knitr::kable(
+#     caption = "Count of Chinook salmon redds by stream (unfiltered data)."
+#   )
+# spawn_data |> 
+#   count(stream, name = "n_redds") |> 
+#   arrange(desc(n_redds)) |> 
+#   knitr::kable(
+#     caption = "Count of Chinook salmon redds by stream (filtered data)."
+#   )
 ```
 
-### Covariates
-
-**Covariate Derivation and Screening**
+### Covariate Derivation and Screening
 
 To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
 
 The initial focal covariates included stream temperature (°C), stream discharge (cms), elevation (m), and stream slope (unitless). Elevation and slope were extracted from NHDPlus (Moore et al. 2019).
 
-For thermal metrics, we used modeled daily mean stream temperatures from Siegel et al. (2023), downscaled to the COMID level. These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² > 0.9).
+#### Elevation and slope
 
-For each redd, we computed several time-windowed summaries of temperature and flow relative to the inferred spawn date:
-
-* **Antecedent metrics**: average conditions over 30, 60, and 90 days preceding the spawn date (e.g., `temp_90_before`, `flow_60_before`),
-* **Spanning metrics**: averages over time windows centered on the spawn date,
-* **Post-spawn metrics**: 30-, 60-, and 90-day averages following the spawn date,
-* **Time-invariant metrics**: summaries calculated relative to a fixed calendar date (e.g., August 1) representing an approximate onset of the spawning window.
-
-Stream discharge data were obtained from a single gage low in the watershed (USGS Gage 13309220, Middle Fork at Middle Fork Lodge). As with temperature, discharge metrics were linked to individual redd records based on COMID and spawn date.
-
-During exploratory analysis, we found that spawn timing was most strongly associated with temperature metrics—particularly 90-day antecedent temperature (`temp_90_before`)—while flow, post-spawn, and fixed-date metrics exhibited weak or inconsistent relationships. These latter covariates were excluded from further analysis.
-
+Elevation and stream slope data were available at the COMID (stream reach) scale from the NHDPlus Version 2 (Horizon Systems, 2018).
 
 #### Stream temperature
 
@@ -294,9 +284,14 @@ df_temp_stream |>
   theme(axis.title.y = ggtext::element_markdown())
 ```
 
-We calculated metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date. For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days. We also calculated a time invariant metric relative to a fixed date across all years that was chosen to represent an initial spawning window, e.g., August 1.
+These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² > 0.9).
 
-The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+**ADD PLOT OF COMPARISON BETWEEN EMPIRICAL AND MODELED TEMPPS**
+
+```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
+iris |> 
+  ggplot(aes(sep))
+```
 
 #### Discharge (streamflow)
 
@@ -380,13 +375,17 @@ p.flow.3 <- tmp |>
   plot_annotation(tag_levels = "A")
 ```
 
-We calculated flow metrics relative to a COMID a redd was constructed on and a redd completion date; before, after, and spanning the date.For example, temp_30_before is the average temperature for a COMID where a redd was constructed calculated over the previous 30 days. We did this for 30, 60, and 90 days.
+#### Time-windowed temp and flow metrics
 
-The spanning and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+For each redd, we computed several time-windowed summaries of temperature and flow relative to the inferred spawn date:
 
-#### Elevation and stream gradient (slope)
+* **Antecedent metrics**: average conditions over 30, 60, and 90 days preceding the spawn date (e.g., `temp_90_before`, `flow_60_before`),
+* **Spanning metrics**: averages over time windows centered on the spawn date,
+* **Post-spawn metrics**: 30-, 60-, and 90-day averages following the spawn date,
+* **Time-invariant metrics**: summaries calculated relative to a fixed calendar date (e.g., August 1) representing an approximate onset of the spawning window.
 
-Elevation and stream slope data were available at the COMID (stream reach) scale from the NHD.
+The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
+
 
 ## Exploratory Data Analysis
 
