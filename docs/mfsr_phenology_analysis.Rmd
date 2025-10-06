@@ -75,10 +75,10 @@ source(here("R/helper_fxs.R"))
 ```{r load-data, cache=FALSE}
 # Spawn data -------------------------------------------------------------------
 # data were compiled and clean in compile_mfsr_spawn.R and clean_mfsr_spawn.R
-spawn_data <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
+spawn_data_cleaned <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
 
 # remove bad data
-spawn_data <- spawn_data |>
+spawn_data <- spawn_data_cleaned |>
   filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) |> 
   mutate(
     UNIQUE_ID = as.factor(UNIQUE_ID), 
@@ -219,6 +219,20 @@ We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Sys
 # vis_dat(spawn_data)
 # vis_miss(spawn_data)
 skim_without_charts(spawn_data)
+
+# count of observations by stream
+spawn_data_cleaned |> 
+  count(stream, name = "n_redds") |> 
+  arrange(desc(n_redds)) |> 
+  knitr::kable(
+    caption = "Count of Chinook salmon redds by stream (unfiltered data)."
+  )
+spawn_data |> 
+  count(stream, name = "n_redds") |> 
+  arrange(desc(n_redds)) |> 
+  knitr::kable(
+    caption = "Count of Chinook salmon redds by stream (filtered data)."
+  )
 ```
 
 ### Covariates
