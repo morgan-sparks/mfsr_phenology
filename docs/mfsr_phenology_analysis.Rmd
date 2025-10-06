@@ -410,18 +410,6 @@ pdftools::pdf_convert(
 ```
 
 ```{r spawn-yr-strm, eval=FALSE, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by year and stream."}
-# spawn_data |>
-#   ggplot(aes(x = year, y = fixed_date + yday, color = year)) +
-#   lemon::facet_rep_wrap(~stream) + 
-#   geom_boxplot() + 
-#   geom_jitter(aes(color = year), size = 1.5, alpha = 0.1) +
-#   scale_color_manual(values = cols.years) +
-#   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   coord_flip() +
-#   labs(x = "", y = "Spawn Date") + 
-#   theme(axis.text.x = element_text(angle = 90)) +
-#   guides(color = "none")
-
 spawn_data |> 
   ggplot(aes(y = year, x = fixed_date + yday, fill = year)) +
   lemon::facet_rep_wrap(~stream) + 
@@ -480,32 +468,11 @@ spawn_data |>
   labs(x = "", y = "Spawn Date") +
   theme(axis.text.x = element_text(angle = 90)) +
   guides(color = "none")
-
-# spawn_data |> 
-#   ggplot(aes(y = COMID, x = fixed_date + yday)) +
-#   lemon::facet_rep_wrap(~stream, scales = "free_y") + 
-#   ggridges::geom_density_ridges(bandwidth = 2) +
-#   scale_x_date(date_breaks = "2 weeks", date_labels = "%d %b") +
-#   scale_fill_manual(values = cols.years) +
-#   labs(x = "") + 
-#   guides(color = "none")
 ```
 
 The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
 
 ```{r spawn-cum, fig.width=8, fig.height = 8, fig.cap= "Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
-# Proportional cumulative redds ------------------------------------------------
-# spawn_data %>%
-#   group_by(stream, yday) %>%
-#   tally() %>%
-#   group_by(stream) %>%
-#   arrange(yday) %>%
-#   mutate(cumulative = cumsum(n)) %>%
-#   ggplot(aes(x = yday, y = cumulative, color = stream)) +
-#   geom_line() +
-#   labs(title = "Cumulative Redd Counts", y = "Cumulative Redds") +
-#   theme_bw()
-
 
 # Proportional cumulative redds by stream --------------------------------------
 # For each year and stream, calculate the prop. cumulative number of redds
