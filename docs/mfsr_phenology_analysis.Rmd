@@ -237,6 +237,72 @@ skim_without_charts(spawn_data)
 #   )
 ```
 
+#### Evaluate Grouping structure
+
+```{r comid-counts}
+# How many COMIDs have <5 observations?
+n_sparse_COMIDS_5 <- spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  filter(n_redds < 5) |> 
+  nrow()
+n_sparse_COMIDS_2 <- spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  filter(n_redds <= 2) |> 
+  nrow()
+
+# what percent of comids have <= 1 obervation?
+n_perc_1 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 1) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+
+n_perc_2 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 2) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+
+n_perc_5 <- spawn_data |>
+  count(COMID, name = "n_redds") |>
+  filter(n_redds <= 5) |>
+  nrow() / length(unique(spawn_data$COMID)) * 100
+```
+
+The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
+
+-   Redds observed at specific locations, `COMID`
+-   Nested within `stream`
+-   Observed across multiple `years`
+
+Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
+
+Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
+
+```{r comid-str, caption = "Number of COMIDs per stream."}
+# number of comids per stream
+spawn_data |> 
+  distinct(stream, COMID) |> 
+  count(stream, name = "n_COMIDs") |> 
+  arrange(desc(n_COMIDs)) |> 
+  kable(
+    caption = "Number of COMIDs per stream (major tributaries)."
+  )
+```
+
+```{r comid-str-plot, fig.width=5, fig.height=3, fig.cap = "Number of observations (redds) per COMID."}
+# number of observations per COMID
+spawn_data |> 
+  count(COMID, name = "n_redds") |> 
+  arrange(n_redds) |> 
+  ggplot(aes(n_redds)) +
+  geom_bar() + 
+  scale_y_continuous(breaks = seq(0,10,1)) + 
+  labs(title = "Number of obervations (redds) per COMID", 
+       x = "Number of redds", 
+       y = "Count") + 
+  theme_bw()
+```
+
+
 ### Covariate Derivation and Screening
 
 To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
@@ -388,71 +454,6 @@ The time invariant and after metrics were omitted from further consideration as 
 
 
 ## Exploratory Data Analysis
-
-### Evaluate Grouping structure
-
-```{r comid-counts}
-# How many COMIDs have <5 observations?
-n_sparse_COMIDS_5 <- spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  filter(n_redds < 5) |> 
-  nrow()
-n_sparse_COMIDS_2 <- spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  filter(n_redds <= 2) |> 
-  nrow()
-
-# what percent of comids have <= 1 obervation?
-n_perc_1 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 1) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-
-n_perc_2 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 2) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-
-n_perc_5 <- spawn_data |>
-  count(COMID, name = "n_redds") |>
-  filter(n_redds <= 5) |>
-  nrow() / length(unique(spawn_data$COMID)) * 100
-```
-
-The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
-
--   Redds observed at specific locations, `COMID`
--   Nested within `stream`
--   Observed across multiple `years`
-
-Table \@ref(tab:comid-str) shows the number of COMIDs per stream, and Figure \@ref(fig:comid-str-plot) shows the number of observations (unique redds) per COMID.
-
-Many `COMIDs` only have 1-2 observation, so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. Something to keep in mind during model fitting.
-
-```{r comid-str, caption = "Number of COMIDs per stream."}
-# number of comids per stream
-spawn_data |> 
-  distinct(stream, COMID) |> 
-  count(stream, name = "n_COMIDs") |> 
-  arrange(desc(n_COMIDs)) |> 
-  kable(
-    caption = "Number of COMIDs per stream (major tributaries)."
-  )
-```
-
-```{r comid-str-plot, fig.width=5, fig.height=3, fig.cap = "Number of observations (redds) per COMID."}
-# number of observations per COMID
-spawn_data |> 
-  count(COMID, name = "n_redds") |> 
-  arrange(n_redds) |> 
-  ggplot(aes(n_redds)) +
-  geom_bar() + 
-  scale_y_continuous(breaks = seq(0,10,1)) + 
-  labs(title = "Number of obervations (redds) per COMID", 
-       x = "Number of redds", 
-       y = "Count") + 
-  theme_bw()
-```
 
 ### Spawn data descriptive statistics and vizualizations
 
