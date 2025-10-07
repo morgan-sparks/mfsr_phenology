@@ -55,11 +55,24 @@ sjPlot::tab_model(mod)
 
 isaak_siegel <- readRDS("./data/siegel_temperature/Isaak_Siegel_Compare.rds")
 isaak_siegel <- isaak_siegel |> 
-  drop_na(DailyMean, Stream_Temp)
+  drop_na(DailyMean, Stream_Temp) # remove NAs
 
+### basic mod and correlation
 is_mod <- lm(DailyMean~Stream_Temp, data = isaak_siegel)
 sjPlot::tab_model(is_mod)
 
+cor(isaak_siegel$DailyMean, isaak_siegel$Stream_Temp)
+
+### plot
+isaak_siegel |> 
+  ggplot(aes(x= DailyMean , y = Stream_Temp)) +
+  geom_point(size = 0.001) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  labs(x = "Empirical Temperature", y ="Predicted Temperature") +
+  lims(x = c(-2,27), y = c(-2,27)) +
+  theme_bw()
+
+### plot by month
 isaak_siegel |> 
   mutate(date = mdy(SampleDate),
          month = as.factor(month(date))) |> 
@@ -71,6 +84,7 @@ isaak_siegel |>
   labs(x = "Empirical Temp", y ="Predicted Temp") +
   theme_bw()
 
+### look at summer only
 is_summer <- isaak_siegel |> 
   mutate(date = mdy(SampleDate),
          month = month(date)) |>
