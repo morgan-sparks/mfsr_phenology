@@ -12,6 +12,8 @@ output:
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 editor_options: 
   chunk_output_type: console
+bibliography: references.bib
+csl: cjfas.csl
 ---
 
 ```{r setup, include=FALSE, cache=FALSE}
@@ -69,7 +71,6 @@ fixed_date <- as.Date("2000-12-31")
 
 # functions
 source(here("R/helper_fxs.R"))
-
 ```
 
 ```{r load-data, cache=FALSE}
@@ -186,15 +187,15 @@ df_mod <- model_data |>
 
 **Objectives**:
 
-1.  compile data on spawn timing, stream temperature, stream flow, elevation, and slope for Chinook Salmon in the Middle Fork Salmon River (MFSR) from 2002 to 2005.
+1.  compile stream reach-scale physical attributes and Chinook salmon spawning phenology from 2002 to 2005.
 
-2.  compute several summary statistics and data visualizations to examine variation in MFSR Chinook Salmon spawn timing.
+2.  summarize variation in spawn timing across four years in eight streams.
 
-3.  fit a series of linear mixed models (LMMs) to test for relationships between spawn timing (day of year) and environmental covariates.
+3.  fit a series of linear mixed-effects models to identify associations among environmental covariates and spawn timing.
 
 ### Study Area
 
-This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. \@ref(fig:map)). The MFSR is a tributary of the Salmon River and is part of the larger Columbia River Basin. The MFSR is home to several species of salmon, including Chinook salmon (*Oncorhynchus tshawytscha*).
+This study was conducted in the Middle Fork of the Salmon River (MFSR) in central Idaho (Fig. \@ref(fig:map)). The MFSR is a tributary of the Salmon River and is part of the larger Columbia River Basin. The MFSR is home to several species of salmon, including Chinook salmon (*Oncorhynchus tshawytscha*). Detailed study area information can be found in @thurow2000, @minshall1981, @servheen2001, and @thurow2020.
 
 ```{r map, out.width = "75%", fig.cap = "Map of the Middle Fork Salmon River watershed showing major tributaries and surveyed Chinook Salmon redd locations from 2002 to 2005."}
 include_graphics(here("plots", "MFsalmonRedds_May14.jpg"))
@@ -206,7 +207,7 @@ include_graphics(here("plots", "MFsalmonRedds_May14.jpg"))
 
 Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. Because redds were not observed daily, we inferred spawn dates as the initial date (day of year) a completed redd was observed.
 
-We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled. 
+We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
 
 We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Systems, 2018) to assign stream reaches based on a common identifier (COMID). The COMID is used to link redd data with covariate data associated with the stream reach on which it is located. A summary of the dataset is shown in Table \@ref(tab:spawn-summary).
 
@@ -302,18 +303,17 @@ spawn_data |>
   theme_bw()
 ```
 
-
-#### Spawn data descriptive statistics and vizualizations
+#### Spawn data descriptive statistics and visualizations
 
 Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
 
 Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous.
 
-##### Variation by stream, year, and COMID (stream reach)
+**Variation by stream, year, and COMID (stream reach)**
 
 There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
 
-```{r spawn-dist, fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
+```{r spawn-dist, message=FALSE, warning=FALSE, fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
 
 # calculate mean yday for each year
 yr_means <- spawn_data |> 
@@ -446,7 +446,7 @@ spawn_data |>
        y = "Density function of spawn dates")
 ```
 
-```{r spawn-comid, fig.width=8, fig.height=6, fig.cap= "Distribution of spawn time variation by COMID and stream."}
+```{r spawn-comid, message=FALSE, warning=FALSE, fig.width=8, fig.height=6, fig.cap= "Spawn time variation by COMID and stream."}
 spawn_data |>
   ggplot(aes(x = COMID, y = fixed_date + yday)) +
   facet_wrap(~stream, scales = "free_y") +
@@ -460,7 +460,7 @@ spawn_data |>
   guides(color = "none")
 ```
 
-##### Cumulative proportion of redds over time
+**Cumulative proportion of redds over time**
 
 The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
 
@@ -511,7 +511,6 @@ pdftools::pdf_convert(
   )
 ```
 
-
 ### Covariate Derivation and Screening
 
 To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
@@ -559,7 +558,7 @@ df_temp_stream |>
   theme(axis.title.y = ggtext::element_markdown())
 ```
 
-These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² > 0.9).
+These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² \> 0.9).
 
 **ADD PLOT OF COMPARISON BETWEEN EMPIRICAL AND MODELED TEMPPS**
 
@@ -649,13 +648,12 @@ p.flow.3 <- tmp |>
 
 For each redd, we computed several time-windowed summaries of temperature and flow relative to the inferred spawn date:
 
-* **Antecedent metrics**: average conditions over 30, 60, and 90 days preceding the spawn date (e.g., `temp_90_before`, `flow_60_before`),
-* **Spanning metrics**: averages over time windows centered on the spawn date,
-* **Post-spawn metrics**: 30-, 60-, and 90-day averages following the spawn date,
-* **Time-invariant metrics**: summaries calculated relative to a fixed calendar date (e.g., August 1) representing an approximate onset of the spawning window.
+-   **Antecedent metrics**: average conditions over 30, 60, and 90 days preceding the spawn date (e.g., `temp_90_before`, `flow_60_before`),
+-   **Spanning metrics**: averages over time windows centered on the spawn date,
+-   **Post-spawn metrics**: 30-, 60-, and 90-day averages following the spawn date,
+-   **Time-invariant metrics**: summaries calculated relative to a fixed calendar date (e.g., August 1) representing an approximate onset of the spawning window.
 
 The time invariant and after metrics were omitted from further consideration as preliminary data exploration showed weak if any relationship with spawn timing.
-
 
 ## Exploratory Data Analysis
 
@@ -1102,7 +1100,7 @@ df_mod |>
 ### Model specification
 
 | Variable | Fixed? | Random? | Why |
-|----------------|----------------|----------------|-------------------------|
+|-----------------|-----------------|-----------------|-----------------------|
 | `COMID` | No | Yes | Not estimating COMID effects, just accounting for correlation, repeated measures |
 | `Stream` | Yes | Maybe | 8 streams to compare |
 | `Year` | Yes | Maybe | 4 years to compare |
@@ -1111,7 +1109,7 @@ Here, `COMID` will be included in all models as a random (intercept) effect to a
 
 ### Model comparison
 
-We used linear mixed-effects models to evaluate environmental predictors of Chinook salmon spawn timing, with redd observation day-of-year (`yday`) as the response variable. First, we scaled the continuous covariates to have a mean of 0 and standard deviation of 1 to assist convergence and interpretation. 
+We used linear mixed-effects models to evaluate environmental predictors of Chinook salmon spawn timing, with redd observation day-of-year (`yday`) as the response variable. First, we scaled the continuous covariates to have a mean of 0 and standard deviation of 1 to assist convergence and interpretation.
 
 We fit 31 additive models representing all combinations of fixed effects: `temp_90`, `stream`, `year`, `slope`, and `mean_elevation`. All models included a random intercept for `COMID` to account for repeated measures across stream reaches. Further, based on exploratory analysis and biological expectations of nonlinear thermal responses, temperature effects were modeled using both linear and quadratic terms for the 90-day average stream temperature prior to spawning (`temp_90` and `I(temp_90^2)`). Model comparison was performed using AIC, and model fit was evaluated using marginal and conditional R², RMSE, and intraclass correlation coefficients (ICC). All models were fit using maximum likelihood (REML = FALSE) to enable consistent comparison of differing fixed effects.
 
@@ -1203,7 +1201,7 @@ Model `m16`, which excludes both `mean_elevation` and `slope`, had nearly identi
 
 Visual inspection of partial (model-based) relationships (Figure \@ref(fig:lm-plot) B)) revealed that the modeled elevation effect was inconsistent with ecological expectations.
 
-In this case, `m26` is picking up a positive association: after controlling for temperature and stream identity, higher-elevation reaches are predicted to spawn later. This is contrary to the observed negative relationships between elevation, temperature, and spawn timing in several streams (Figure \@ref(fig:elev-plots)). 
+In this case, `m26` is picking up a positive association: after controlling for temperature and stream identity, higher-elevation reaches are predicted to spawn later. This is contrary to the observed negative relationships between elevation, temperature, and spawn timing in several streams (Figure \@ref(fig:elev-plots)).
 
 ```{r lm-plot, fig.width=8, fig.height=3, fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp_90`, (B) `mean_elevation`."}
 a <- plot_model(
@@ -1222,21 +1220,21 @@ a + b +
 
 This could reflect either (a) a real but subtle ecological effect, or (b) statistical artifact from collinearity/confounding.
 
-a) There are some reasons a residual positive elevation effect might make sense:
+a)  There are some reasons a residual positive elevation effect might make sense:
 
-* Hydrology and snowmelt: At higher elevations, cooler conditions might delay snowmelt-driven flow cues, potentially pushing back spawning independent of temperature.
+-   Hydrology and snowmelt: At higher elevations, cooler conditions might delay snowmelt-driven flow cues, potentially pushing back spawning independent of temperature.
 
-* Population differences: If higher-elevation reaches host subpopulations adapted to shorter growing seasons, they might time spawning later to avoid fry emerging into very harsh winter conditions.
+-   Population differences: If higher-elevation reaches host subpopulations adapted to shorter growing seasons, they might time spawning later to avoid fry emerging into very harsh winter conditions.
 
-* Migration lags: Reaches further upstream (which often correspond to higher elevations) could simply take longer for fish to reach, even if temperatures are similar.
+-   Migration lags: Reaches further upstream (which often correspond to higher elevations) could simply take longer for fish to reach, even if temperatures are similar.
 
 But these are second-order hypotheses—we’d need strong ecological justification to lean on them.
 
-b) Statistical red flags
+b)  Statistical red flags
 
-* The positive effect could just as easily be an artifact of collinearity. Elevation and temperature are tightly coupled in your dataset. Once you partial out temperature, the remaining variation in elevation is limited and unstable.
+-   The positive effect could just as easily be an artifact of collinearity. Elevation and temperature are tightly coupled in your dataset. Once you partial out temperature, the remaining variation in elevation is limited and unstable.
 
-* The fact that predicted vs. observed plots showed inconsistent elevation effects across streams (your Figure elev-plots) suggests this may not be a robust, generalizable signal.
+-   The fact that predicted vs. observed plots showed inconsistent elevation effects across streams (your Figure elev-plots) suggests this may not be a robust, generalizable signal.
 
 Variance inflation factors (VIFs) from m26 indicated moderate collinearity between elevation and stream (VIF = 6.50 and 6.48, respectively). Elevation was strongly confounded with stream identity in our dataset (Figure \@ref(fig:elev-plots)), with high-elevation streams showing considerable overlap in spawn timing and temperature.
 
@@ -1247,11 +1245,11 @@ check_model(m26, check = c("vif"))
 
 I suggest we acknowledge both interpretations:
 
-* Statistically: The positive elevation effect emerges after controlling for temperature, but it is likely confounded by collinearity.
+-   Statistically: The positive elevation effect emerges after controlling for temperature, but it is likely confounded by collinearity.
 
-* Ecologically: A true positive effect could be consistent with delayed migration, snowmelt-driven cues, or subpopulation adaptations, but our dataset can’t fully disentangle these mechanisms.
+-   Ecologically: A true positive effect could be consistent with delayed migration, snowmelt-driven cues, or subpopulation adaptations, but our dataset can’t fully disentangle these mechanisms.
 
-* Conclusion: Because the elevation effect runs counter to raw data patterns and shows signs of confounding, we made the conservative decision to omit it from the final model set.
+-   Conclusion: Because the elevation effect runs counter to raw data patterns and shows signs of confounding, we made the conservative decision to omit it from the final model set.
 
 ### Targeted model comparison
 
@@ -1259,7 +1257,7 @@ We compared our top additive model (`m16`; fixed effects: `temp_90`, `I(temp_90^
 
 #### Random slopes for `temp_90`
 
-We then tested whether model performance improved by allowing the effect of temperature to vary across stream reaches by adding a random slope for `temp_90` to the `COMID` grouping factor. This model was fit using restricted maximum likelihood (REML), and its fit was compared to the simpler random intercept model. 
+We then tested whether model performance improved by allowing the effect of temperature to vary across stream reaches by adding a random slope for `temp_90` to the `COMID` grouping factor. This model was fit using restricted maximum likelihood (REML), and its fit was compared to the simpler random intercept model.
 
 To account for potential variation in temperature sensitivity across sites, we extended `m16` to include **COMID-specific random slopes for `temp_90`**, yielding a model with the same fixed effects but with the random structure `(1 + temp_90 | COMID)`. Because the random effects structure differed, we fit both models using restricted maximum likelihood (REML).
 
@@ -1371,7 +1369,7 @@ plot_model(m16_rs_noquad, type = "eff", terms = c("temp_90 [all]"), show.data = 
 
 **For results**
 
-To account for site-level variation in thermal sensitivity, we extended this model by allowing COMID-specific random slopes for temperature. This significantly improved model fit (ΔAIC = 510), reduced prediction error (RMSE = 1.78 days), and increased conditional R², indicating that variation in temperature response among stream reaches was substantial and better captured as a random effect. 
+To account for site-level variation in thermal sensitivity, we extended this model by allowing COMID-specific random slopes for temperature. This significantly improved model fit (ΔAIC = 510), reduced prediction error (RMSE = 1.78 days), and increased conditional R², indicating that variation in temperature response among stream reaches was substantial and better captured as a random effect.
 
 We then tested whether the quadratic temperature term remained necessary when random slopes were included. The full model with both random slopes and a quadratic temperature effect provided better support (ΔAIC = 20.4) than the linear version, suggesting that each component contributed complementary information. We retained this final model (`m16_rs`) as it provided strong predictive performance while acknowledging both general and site-specific patterns in temperature–spawn timing relationships.
 
@@ -1614,7 +1612,6 @@ pred_data |>
     title = "Predicted vs. Observed Spawn Timing"
   ) 
 ```
-
 
 ### Population-level effects
 
@@ -1908,7 +1905,7 @@ p.re.int.box + p.re.slp.box +
   )
 ```
 
-However, when examining  individual random effects for each COMID and stream, we observed considerable variation in both intercepts and slopes within streams (Figure \@ref(fig:ranefs-bar)). For example, Bear Valley and Big Creek had some of the earliest average spawn timings, but also exhibited a wide range of thermal sensitivities. In contrast, Sulphur Creek had later average spawn timing but also showed considerable variability in its response to temperature.
+However, when examining individual random effects for each COMID and stream, we observed considerable variation in both intercepts and slopes within streams (Figure \@ref(fig:ranefs-bar)). For example, Bear Valley and Big Creek had some of the earliest average spawn timings, but also exhibited a wide range of thermal sensitivities. In contrast, Sulphur Creek had later average spawn timing but also showed considerable variability in its response to temperature.
 
 ```{r ranefs-bar, fig.width=8, fig.height=6, fig.cap = "Random intercepts and slopes for 90-day pre-spawn temperature by stream. Each bar represents the best linear unbiased prediction (BLUP) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
 
@@ -2085,96 +2082,4 @@ p.re.int.elev_high + p.re.slp.elev_high +
 
 ```
 
-<!-- ## A Predictive Model -->
-
-<!-- | Goal | Model Type | Handles new streams/years? | -->
-
-<!-- |------------------------|------------------------|------------------------| -->
-
-<!-- | Describe patterns in data | Include stream, year as fixed effects | ❌ | -->
-
-<!-- | Predict for unmeasured sites/years | Use continuous predictors + random effects | ✅ with assumptions | -->
-
-<!-- | Predict new COMIDs in known streams | Use `(1 + temp_90 | COMID)` | ✅ partial pooling helps | -->
-
-<!-- | Predict basin-wide phenology | Avoid fixed stream/year, model gradients | ✅ if predictors available | -->
-
-<!-- If out goal is to predict spawn timing across the entire basin, including unobserved COMIDs or future years: -->
-
-<!-- -   Drop fixed effects that are categorical and not generalizable, like `stream` and `year`. -->
-
-<!-- -   Replace them with continuous predictors that scale across space and time, like: -->
-
-<!--     -   `temp_90` (already in model) -->
-
-<!--     -   `mean_elevation`, `slope`, or modeled flow regime (if available) -->
-
-<!-- Then predictions could be made for new COMIDs as BLUPs (best linear unbiased predictions) or using conditional estimates if partial info is known. -->
-
-<!-- ```{r, echo=TRUE} -->
-
-<!-- m101 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | COMID), data = df_mod) -->
-
-<!-- m102 <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + slope + (1 + temp_90 | COMID), data = df_mod) -->
-
-<!-- compare_aic(m101, m102) -->
-
-<!-- tab_model(m101, m102) -->
-
-<!-- ``` -->
-
-<!-- ```{r, echo=TRUE} -->
-
-<!-- # descriptive, best fit to data -->
-
-<!-- mod_desc <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID), data = df_mod) -->
-
-<!-- # locally predictive, new COMIDs within known stream -->
-
-<!-- mod_local <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1 + temp_90 | COMID), data = df_mod) -->
-
-<!-- # generalizable predictive model (new COMIDs and future years) -->
-
-<!-- mod_pred <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | COMID), data = df_mod) -->
-
-<!-- # AIC -->
-
-<!-- compare_aic(mod_desc, mod_local, mod_pred)  -->
-
-<!-- model_data$pred_desc <- predict(mod_desc) -->
-
-<!-- model_data$pred_local <- predict(mod_local) -->
-
-<!-- model_data$pred_pred <- predict(mod_pred) -->
-
-<!-- ggplot(model_data, aes(x = yday)) + -->
-
-<!--   geom_point(aes(y = pred_desc), color = "blue", alpha = 0.4) + -->
-
-<!--   geom_point(aes(y = pred_local), color = "orange", alpha = 0.4) + -->
-
-<!--   geom_point(aes(y = pred_pred), color = "green", alpha = 0.4) + -->
-
-<!--   geom_abline(slope = 1, intercept = 0, linetype = "dashed") + -->
-
-<!--   labs(title = "Predicted vs Observed Spawn Timing", -->
-
-<!--        subtitle = "Blue = Descriptive, Orange = Local, Green = Generalizable") -->
-
-<!-- ``` -->
-
-<!-- ```{r echo=TRUE} -->
-
-<!-- # Full crossed and nested; -->
-
-<!-- m110 <- lmer(yday ~ temp_90 + I(temp_90^2) + (1 + temp_90 | stream/COMID) + (1|year), data = df_mod) -->
-
-<!-- compare_aic(m101, m110) -->
-
-<!-- tab_model(m110) -->
-
-<!-- plot_model(m110, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE) -->
-
-<!-- check_model(m110) -->
-
-<!-- ``` -->
+## References
