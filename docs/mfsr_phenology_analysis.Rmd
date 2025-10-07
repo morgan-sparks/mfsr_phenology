@@ -563,11 +563,6 @@ These modeled temperatures were validated against empirical logger data collecte
 
 **ADD PLOT OF COMPARISON BETWEEN EMPIRICAL AND MODELED TEMPPS**
 
-```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
-iris |> 
-  ggplot(aes(sep))
-```
-
 #### Discharge (streamflow)
 
 Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)).
