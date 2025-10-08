@@ -35,7 +35,7 @@ library(knitr)
 library(kableExtra)
 library(here)
 library(patchwork)
-library(lemon)
+library(ggh4x)
 library(lme4)
 library(MuMIn)
 library(sjPlot)
@@ -50,31 +50,9 @@ library(ggeffects)
 # set gpplot theme to bw
 theme_set(theme_bw(base_size = 12))
 
-# palettes
-cols.streams <- c(
-  "Bear Valley" = "#55FF00",
-  "Beaver" = "#7A8EF5",
-  "Big" = "#FFFF00",
-  "Camas" = "#E64C00",
-  "Elk" = "#D7D79E",
-  "Loon" = "#7AF5CA",
-  "Marsh" = "#DF73FF",
-  "Sulphur" = "#FFAA00"
-  )
-
-cols.years <- c(
-  "2002" = "#1B9E77", 
-  "2003" = "#D95F02", 
-  "2004" = "#7570B3", 
-  "2005" = "#E7298A", 
-  "2001" = "#66A61E"
-  )
-
-# fixed date for better date axes
-fixed_date <- as.Date("2000-12-31")
-
 # functions
 source(here("R/helper_fxs.R"))
+source(here("R/palettes-themes.R"))
 ```
 
 ```{r load-data, cache=FALSE}
@@ -188,30 +166,13 @@ df_mod <- model_data |>
 
 ## Spawn timing data
 
-Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. Because redds were not observed daily, we inferred spawn dates as the initial date (day of year) a completed redd was observed.
+Spawn timing data for Chinook salmon were collected from 2001 to 2005 in the MFSR. Because redds were not observed daily, we inferred spawn dates as the initial date (day of year) a completed redd was observed. We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled. The final dataset contained `r nrow(spawn_data)` georeferenced redds (i.e., inferred spawn date) across `r length(unique(spawn_data$COMID))` stream reaches (i.e., COMIDs), nested within six major spawning tributaries that also included Beaver Creek (tributary to Marsh Creek) and Elk Creek (tributary to Bear Valley Creek) to total eight different spawning streams, and spanning four years
 
-We removed data from 2001, and data from Knapp Creek and Cape Horn Creek, as these sites were not consistently sampled.
+We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Systems, 2018) to assign stream reaches based on a common identifier (COMID). The COMID is used to link redd data with covariate data associated with the stream reach on which it is located.
 
-We spatially joined each redd GPS location to the NHDPlus Version 2 (Horizon Systems, 2018) to assign stream reaches based on a common identifier (COMID). The COMID is used to link redd data with covariate data associated with the stream reach on which it is located. A summary of the dataset is shown in Table \@ref(tab:spawn-summary).
+**Grouping Structure**
 
-```{r spawn-summary}
-# spawn_data |>
-#   slice_head(n = 5) |>
-#   knitr::kable(
-#     caption = "First five rows of the Chinook salmon redd dataset.",
-#     format = "latex", position = "h!"
-#   )
-
-spawn_data |>
-  slice_head(n = 5) |>
-  knitr::kable(caption = "First five rows of the Chinook salmon redd dataset.") |> 
-  kable_styling(latex_options = c("hold_position"))
-```
-
-
-### Evaluate Grouping structure
-
-```{r comid-counts}
+```{r comids}
 # How many COMIDs have <5 observations?
 n_sparse_COMIDS_5 <- spawn_data |> 
   count(COMID, name = "n_redds") |> 
@@ -239,45 +200,46 @@ n_perc_5 <- spawn_data |>
   nrow() / length(unique(spawn_data$COMID)) * 100
 ```
 
-The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams.
+The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams. Many `COMIDs` only have 1-2 observation (Figure \@ref(fig:comid-counts)). There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). 
 
-Many `COMIDs` only have 1-2 observation (Figure \@ref(fig:comid-str-plot)), so the groups are not well sampled. There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). With \<5 obs/level, variance estimates can become unstable and lead to overfitting and absorbing noise (low AIC / high R2) and singular fits. 
-
-```{r comid-str, eval=FALSE, caption = "Number of COMIDs per stream."}
-# number of comids per stream
-spawn_data |> 
+```{r comid-counts, fig.width=7, fig.height=3, fig.cap="Number of observations (redds) per COMID."}
+# count of comids per stream
+p.counts1 <- spawn_data |> 
   distinct(stream, COMID) |> 
   count(stream, name = "n_COMIDs") |> 
   arrange(desc(n_COMIDs)) |> 
-  kable(caption = "Number of COMIDs per stream (major tributaries).") |> 
-  kable_styling(latex_options = c("hold_position"))
-```
+  ggplot(aes(x = reorder(stream, -n_COMIDs), y = n_COMIDs, fill = stream)) +
+  geom_bar(stat = "identity") +
+  # coord_flip() +
+  scale_fill_manual(values = cols.streams) + 
+  labs(x = "Stream", y = "Count of COMIDs") + 
+  theme(legend.position = "none", axis.text.x = element_text(angle=45, hjust=1))
 
-```{r comid-str-plot, fig.width=5, fig.height=3, fig.cap="Number of observations (redds) per COMID."}
-# number of observations per COMID
-spawn_data |> 
+# count of comids with different numbers of redds
+p.counts2 <- spawn_data |> 
   count(COMID, name = "n_redds") |> 
   arrange(n_redds) |> 
   ggplot(aes(n_redds)) +
   geom_bar() + 
   scale_y_continuous(breaks = seq(0,10,1)) + 
-  labs(title = "Number of obervations (redds) per COMID", 
-       x = "Number of redds", 
-       y = "Count") + 
-  theme_bw()
+  labs(x = "Number of redds", y = "Count of COMIDs") 
+
+p.counts1 | p.counts2 + 
+  plot_annotation(tag_levels = "A")
+
+# count of redds per comid
+# spawn_data |> 
+#   count(COMID, name = "n_redds") |> 
+#   arrange(n_redds) |> 
+#   ggplot(aes(x = reorder(COMID, -n_redds), y = n_redds)) +
+#   geom_bar(stat = "identity") 
 ```
 
 \newpage
 
-### Spawn data descriptive statistics and visualizations
+**Distribution of spawn timing**
 
-**Variation by stream, year, and COMID (stream reach)**
-
-Figure \@ref(fig:spawn-dist) provides a visual summary of the distribution of spawn timing (day of year, `yday`), and variation by stream system and year.
-
-Spawn timing is generally unimodal, with a peak in late August to early September. The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous.
-
-There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
+Spawn timing is generally unimodal, with a peak in late August to early September (Figure \@ref(fig:spawn-dist)A). The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous. There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
 
 ```{r spawn-dist, message=FALSE, warning=FALSE, results='hide', fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
 
@@ -377,7 +339,10 @@ pdftools::pdf_convert(
   )
 ```
 
-```{r temp-dist-spawn, fig.width=8, fig.height = 8, results='hide', fig.cap= "Spawning phenology of adult Chinook Salmon. In all panels, the black density function represented stream-level spawn timing, while the colored density functions represent the spawn timing of individual years. The dashed vertical purple lines represent the 5th and 95th percentiles of the basin-wide spawn timing."}
+\newpage 
+
+```{r temp-dist-spawn, fig.width=8, fig.height=8, fig.pos="H", results='hide', fig.cap= "Histogram and density of Chinook salmon spawn timing across all streams and years (A), by stream (B), and by year (C). In panel (A), the histogram and kernel density illustrate the overall distribution of spawn dates; vertical-colored lines illustrate year-specific means, and the black line depicts the global mean. Spawn timing was generally unimodal, peaking in late August to early September."}
+
 mfsr_by_site <- spawn_data |>
   group_by(stream, yday)
 
@@ -392,7 +357,7 @@ spawn_data |>
   mutate(across(year, as.character)) |>
   group_by(stream, year) |>
   ggplot(aes(x = fixed_date + yday)) +
-  facet_rep_wrap(~stream, scales = "free_y", ncol = 2) +
+  ggh4x::facet_wrap2(~stream, scales = "free_y", ncol = 2) +
   geom_density(
     aes(fill = year),
     alpha = 0.5) +
@@ -412,7 +377,9 @@ spawn_data |>
        y = "Density function of spawn dates")
 ```
 
-```{r spawn-comid, message=FALSE, warning=FALSE, fig.width=8, fig.height=6, fig.cap= "Spawn time variation by COMID and stream."}
+\newpage
+
+```{r spawn-comid, message=FALSE, warning=FALSE, fig.width=8, fig.height=8, fig.cap= "Variation in Chinooks salmon spawn timing by COMID within streams."}
 spawn_data |>
   ggplot(aes(x = COMID, y = fixed_date + yday)) +
   facet_wrap(~stream, scales = "free_y") +
@@ -421,16 +388,18 @@ spawn_data |>
   scale_color_manual(values = cols.streams) +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   coord_flip() +
-  labs(x = "", y = "Spawn Date") +
+  labs(x = "", y = "") +
   theme(axis.text.x = element_text(angle = 90)) +
   guides(color = "none")
 ```
+
+\newpage
 
 **Cumulative proportion of redds over time**
 
 The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
 
-```{r spawn-cum, fig.width=8, fig.height = 8, fig.cap= "Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
+```{r spawn-cum, fig.width=8, fig.height=6, fig.pos="H", results='hide', fig.cap="Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
 
 # Proportional cumulative redds by stream --------------------------------------
 # For each year and stream, calculate the prop. cumulative number of redds
@@ -447,7 +416,7 @@ props <- spawn_data |>
 # Plot pro. cumsums
 props |> 
   ggplot(aes(x = fixed_date + yday, y = cum_redds_p, color = as.factor(year))) +
-  lemon::facet_rep_wrap(~stream, ncol = 2, scales = "free_y") +
+  ggh4x::facet_wrap2(~stream, ncol = 2, scales = "free_y") +
   geom_line(linewidth = 1) + 
   geom_point(size = 1) + 
   scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.5)) + 
@@ -477,6 +446,8 @@ pdftools::pdf_convert(
   )
 ```
 
+\newpage
+
 ## Covariate Derivation and Screening
 
 To identify environmental predictors of Chinook salmon spawn timing, we quantified covariates that describe thermal and physical stream conditions at redd locations. Covariates were selected based on three criteria: (1) demonstrated influence on salmon phenology in prior literature, (2) availability at all redd locations (i.e., COMIDs), and (3) low collinearity with other predictors.
@@ -491,7 +462,7 @@ Elevation and stream slope data were available at the COMID (stream reach) scale
 
 We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries.
 
-```{r plot-temp-regime, fig.width=8, fig.height=9, fig.cap = "Modeled thermal regimes (2001-2005) for MFSR tributaries."}
+```{r plot-temp-regime, fig.width=8, fig.height=7, fig.pos="H", fig.cap="Modeled thermal regimes (2001-2005) for MFSR tributaries."}
 # calculate 40 to 60th percentiles and full range for each COMID
 df_temp_stream <- df_temp |> 
   group_by(stream, yday) |> 
@@ -507,7 +478,7 @@ df_temp_stream <- df_temp |>
 # plot ribbom of 40-60th percentiles and range over yday
 df_temp_stream |> 
   ggplot(aes(x = fixed_date + yday)) +
-  facet_rep_wrap(~stream, ncol = 2) +
+  ggh4x::facet_wrap2(~stream, ncol = 2) +
   geom_ribbon(data = df_temp_stream, aes(ymin = temp_min, ymax = temp_max), fill = "grey") +
   geom_ribbon(data = df_temp_stream, aes(ymin = temp_40, ymax = temp_60), fill = "red") +
   geom_line(aes(y = mean), color = "black") + 
@@ -524,9 +495,29 @@ df_temp_stream |>
   theme(axis.title.y = ggtext::element_markdown())
 ```
 
-These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (R² \> 0.9).
+These modeled temperatures were validated against empirical logger data collected at a subset of sites in the Middle Fork basin, with strong agreement (Pearson correlation coefficient = 0.97; Figure \@ref(fig:isaak-siegel)).
 
-**ADD PLOT OF COMPARISON BETWEEN EMPIRICAL AND MODELED TEMPPS**
+```{r isaak-siegel, fig.width=5, fig.height=5, fig.cap="Comparison of modeled stream temperatures (Siegel et al. 2023) against empirical logger data for the Middle Fork Salmon River."}
+isaak_siegel <- readRDS("./data/siegel_temperature/Isaak_Siegel_Compare.rds")
+isaak_siegel <- isaak_siegel |> 
+  drop_na(DailyMean, Stream_Temp) # remove NAs
+
+### basic mod and correlation
+# is_mod <- lm(DailyMean~Stream_Temp, data = isaak_siegel)
+# sjPlot::tab_model(is_mod)
+
+cor(isaak_siegel$DailyMean, isaak_siegel$Stream_Temp)
+
+### plot
+isaak_siegel |> 
+  ggplot(aes(x= DailyMean , y = Stream_Temp)) +
+  geom_point(size = 0.001) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  labs(x = "Empirical Temperature", y ="Predicted Temperature") +
+  lims(x = c(-2,27), y = c(-2,27)) +
+  theme_bw()  +
+  annotate("text", x = 0, y = 20, label = paste0("r = ", round(cor(isaak_siegel$DailyMean, isaak_siegel$Stream_Temp), 2)), size = 6)
+```
 
 ### Discharge (streamflow)
 
@@ -685,7 +676,7 @@ p.t90.3 <- model_data |>
   ggplot(aes(temp_90, fixed_date + yday, color = stream)) + 
   geom_point() + 
   geom_smooth(method = "lm", se = FALSE) + 
-  facet_rep_wrap(~year, scales = "free") +
+  ggh4x::facet_wrap2(~year, scales = "free") +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   scale_color_manual(values = cols.streams) + 
   labs(
@@ -805,7 +796,7 @@ p.elev.yday <- model_data |>
   ggplot(aes(mean_elevation, fixed_date + yday, color = stream)) + 
   geom_point() + 
   geom_smooth(method = "lm", se = FALSE) + 
-  # facet_rep_wrap(~year, scales = "free") +
+  # ggh4x::facet_wrap2(~year, scales = "free") +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   scale_color_manual(values = cols.streams) +
   labs(
@@ -818,7 +809,7 @@ p.elev.yday <- model_data |>
 #   ggplot(aes(mean_elevation, fixed_date + yday, color = stream)) + 
 #   geom_point() + 
 #   geom_smooth(method = "lm", se = FALSE) + 
-#   # facet_rep_wrap(~year, scales = "free") +
+#   # ggh4x::facet_wrap2(~year, scales = "free") +
 #   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
 #   scale_color_manual(values = cols.streams) +
 #   labs(
@@ -831,7 +822,7 @@ p.elev.yday <- model_data |>
 #   ggplot(aes(mean_elevation, fixed_date + yday, color = stream)) + 
 #   geom_point() + 
 #   geom_smooth(method = "lm", se = FALSE) + 
-#   # facet_rep_wrap(~year, scales = "free") +
+#   # ggh4x::facet_wrap2(~year, scales = "free") +
 #   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
 #   scale_color_manual(values = cols.streams) +
 #   labs(
@@ -912,7 +903,7 @@ vizdata$Predicted_yday <- get_predicted(m.ele.5, vizdata)
 
 ggplot(df_mod, aes(x = mean_elevation, y = yday, color = stream)) +
   geom_point(size = 0.2) +
-  facet_rep_wrap(~year) + 
+  ggh4x::facet_wrap2(~year) + 
   geom_line(data = vizdata, aes(y = Predicted_yday), linewidth = 1) +
   theme_minimal()
 
@@ -940,7 +931,7 @@ model_data |>
   ggplot(aes(slope, fixed_date + yday, color = stream)) + 
   geom_point() + 
   geom_smooth(method = "lm", se = FALSE) + 
-  # facet_rep_wrap(~year, scales = "free") +
+  # ggh4x::facet_wrap2(~year, scales = "free") +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   scale_color_manual(values = cols.streams) +
   labs(x = "Slope", y = "Spawn Date") + 
@@ -1470,7 +1461,7 @@ The normal Q-Q plot of residuals shows slight right-skew and some heavy tails, b
 
 Overall, the model shows no violations of key assumptions and is suitable for inference and prediction.
 
-```{r diagnostics, cache=FALSE, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for `mod\\_final`."}
+```{r diagnostics, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for `mod\\_final`."}
 check_model(
   mod_final,
   base_size = 8, size_title = 10)

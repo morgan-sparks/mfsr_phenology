@@ -37,7 +37,6 @@ compare_models_mixed <- function(...) {
   return(aic_tbl)
 }
 
-
 compare_aic <- function(...) {
   models <- list(...)
   model_names <- as.character(match.call())[-1]
