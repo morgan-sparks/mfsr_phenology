@@ -13,3 +13,5 @@ data/siegel_temperature/IsaakSiegelCompare.csv"
 *_cache
 *_workflow_files
 *.knit
+*.log
+docs/appendix_files
