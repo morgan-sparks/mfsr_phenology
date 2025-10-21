@@ -1788,8 +1788,8 @@ p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
     hjust = 0, vjust = 1.5) +
   labs(
     # title = "Random Intercepts vs. Slopes for temp_90",
-    x = "Random Intercept\n(Average Spawn Timing)",
-    y = "Random Slope\n(Thermal Sensitivity)",
+    x = "Random intercept\n(Deviation in average spawn timing)",
+    y = "Random slope\n(Thermal sensitivity)",
   )
 
 p.re.forest / p.re.cor +
@@ -1832,7 +1832,7 @@ p.re.int.box <- random_wide |>
   guides(fill = "none") +
   labs(
     x = "",
-    y = "Random Intercept\n(Average Spawn Timing)",
+    y = "Random intercept\n(Deviation in average spawn timing)",
   )
 
 p.re.slp.box <- random_wide |> 
@@ -1844,7 +1844,7 @@ p.re.slp.box <- random_wide |>
   guides(fill = "none") +
   labs(
     x = "",
-    y = "Random Slope\n(Thermal Sensitivity)",
+    y = "Random slope\n(Thermal sensitivity)",
   )
 
 # p.re.int.box + p.re.slp.box +
@@ -1864,7 +1864,7 @@ p.re.int.bar <- random_wide |>
   scale_fill_manual(values = cols.streams) + 
   labs(
     x = "COMID", fill = "Stream",
-    y = "Random Intercept\n(Average Spawn Timing)"
+    y = "Random intercept\n(Deviation in average spawn timing)"
   ) + 
   theme(axis.text.y = element_blank())
 
@@ -1875,7 +1875,7 @@ p.re.slp.bar <- random_wide |>
   scale_fill_manual(values = cols.streams) + 
   labs(
     x = "COMID", fill = "Stream",
-    y = "Random Slope\n(Thermal Sensitivity)"
+    y = "Random slope\n(Thermal sensitivity)"
   ) + 
   theme(axis.text.y = element_blank())
 
@@ -1912,8 +1912,8 @@ p.re.preds <- me |>
   scale_color_manual(values = cols.streams) + 
   guides(color = "none") +
   labs(
-    x = "90-day Mean Temperature Pre-Spawn (°C)",
-    y = "Predicted Spawn Day of Year",
+    x = "90-day mean temperature pre-spawn (°C)",
+    y = "Predicted spawn day of year",
     color = ""
     # title = "Predicted Spawn Timing by 90-day Pre-Spawn Temperature and COMID"
   )
@@ -1933,7 +1933,7 @@ ggsave(
   glue::glue("{path}.pdf"),
   plot = last_plot(),
   device = cairo_pdf,
-  scale = 2,
+  scale = 2.4,
   width = 8,
   height = 8,
   units = "cm"
