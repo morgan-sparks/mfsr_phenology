@@ -1889,8 +1889,9 @@ p.re.int.bar + p.re.slp.bar +
 ```{r ranefs-comid, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
 
 me <- predict_response(mod_final, terms = c("temp_90 [all]", "COMID"), type = "random")
-me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
-# plot(me, show_data = TRUE, show_ci = FALSE) + scale_color_manual(values = "black") 
+# me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
+me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
+# plot(me2, show_data = TRUE, show_ci = TRUE)
 
 # back trandform temp_90
 me$x <- me$x * sd_temp + mean_temp
@@ -1900,7 +1901,7 @@ p.re.preds <- me |>
   as_tibble() |> 
   left_join(xref_comid_stream, by = c("group" = "COMID")) |>
   ggplot(aes(x, fixed_date + predicted, group = group)) + 
-  geom_line(aes(color = stream)) + 
+  geom_line(aes(color = stream)) +
   geom_ribbon(
     data = me2, 
     aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
@@ -1910,14 +1911,32 @@ p.re.preds <- me |>
     aes(x = x, y = fixed_date + predicted), 
     linewidth = 2) +
   scale_color_manual(values = cols.streams) + 
+  scale_y_date(date_breaks = "1 month", date_labels = "%b", limits = as.Date(c("2001-06-01", "2001-10-28"))) +
   guides(color = "none") +
   labs(
     x = "90-day mean temperature pre-spawn (°C)",
     y = "Predicted spawn day of year",
     color = ""
-    # title = "Predicted Spawn Timing by 90-day Pre-Spawn Temperature and COMID"
   )
-# p.re.preds
+p.re.preds
+
+# save plot
+path <- here::here("plots", "preds_ranef")
+ggsave(
+  glue::glue("{path}.pdf"),
+  plot = last_plot(),
+  device = cairo_pdf,
+  scale = 3,
+  width = 4,
+  height = 3,
+  units = "cm"
+  )
+pdftools::pdf_convert(
+  pdf = glue::glue("{path}.pdf"),
+  filenames = glue::glue("{path}.png"),
+  format = "png",
+  dpi = 300
+  )
 ```
 
 ```{r comid-variation, fig.width=8, fig.height=9,  results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. (A) Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (B) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
