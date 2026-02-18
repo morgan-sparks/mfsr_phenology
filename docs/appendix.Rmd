@@ -153,6 +153,10 @@ df_mod <- model_data |>
   mutate(temp_90 = scale2(temp_90), 
          mean_elevation = scale2(mean_elevation), 
          slope = scale2(slope))
+
+# --- Raw data back-transform ---
+df_mod_plot <- df_mod |>
+  mutate(temp_90_raw = temp_90 * sd_temp + mean_temp)
 ```
 
 \newpage
@@ -1776,61 +1780,74 @@ When stratified by stream and year, predictions captured both the nonlinear temp
 # plot(estimate_relation(mod_final, by = "temp_90"))
 # plot(estimate_relation(mod_final, by = c("mean_elevation")))
 
-# 1. Create a base grid for prediction (one line per stream–year combo)
-grid_base <- df_mod %>%
-  group_by(stream, year) %>%
+# --- Observed temp range per stream x year (for clipping) ---
+obs_range_sy <- df_mod |>
+  group_by(stream, year) |>
   summarise(
-    min_temp = min(temp_90, na.rm = TRUE),
-    max_temp = max(temp_90, na.rm = TRUE),
+    min_temp = min(temp_90) * sd_temp + mean_temp,
+    max_temp = max(temp_90) * sd_temp + mean_temp,
     .groups = "drop"
-  ) %>%
-  rowwise() %>%
-  do(data.frame(
-    stream = .$stream,
-    year = .$year,
-    temp_90 = seq(.$min_temp, .$max_temp, length.out = 100)
-  ))
+  )
 
-# 2. Get predictions with standard errors (fixed effects only)
-pred_out <- predict(mod_final,
-                    newdata = grid_base,
-                    re.form = NA,  # population-level (no random effects)
-                    se.fit = TRUE,
-                    allow.new.levels = TRUE)
+# --- Predictions: marginal/population-level, varying stream and year ---
+# predict_response with multiple terms gives you the interaction grid
+me_fig5 <- predict_response(
+  mod_final,
+  terms = c("temp_90 [all]", "stream", "year"),
+  type = "fixed"   # population-level, no random effects
+)
 
-# 3. Add predictions and 95% CI to grid
-grid_base$yday_pred <- pred_out$fit
-grid_base$yday_se <- pred_out$se.fit
-grid_base$yday_lower <- grid_base$yday_pred - 1.96 * grid_base$yday_se
-grid_base$yday_upper <- grid_base$yday_pred + 1.96 * grid_base$yday_se
+# Back-transform x
+me_fig5 <- me_fig5 |>
+  as_tibble() |>
+  rename(stream = group, year = facet) |>
+  mutate(
+    x_raw = x * sd_temp + mean_temp,
+    year  = as.character(year)
+  )
 
-# # add original response
-df_mod$temp_90_raw <- df_mod$temp_90 * sd_temp + mean_temp
-grid_base$temp_90_raw <- grid_base$temp_90 * sd_temp + mean_temp
+# Clip to observed stream x year temperature range
+me_fig5_filtered <- me_fig5 |>
+  left_join(obs_range_sy, by = c("stream", "year")) |>
+  filter(x_raw >= min_temp & x_raw <= max_temp)
 
-# 4. Plot with confidence ribbon
-df_mod |> 
+# --- Raw data back-transform (if not already done) ---
+df_mod_plot <- df_mod |>
+  mutate(temp_90_raw = temp_90 * sd_temp + mean_temp)
+
+# --- Plot ---
+df_mod_plot |>
   ggplot(aes(x = temp_90_raw, y = fixed_date + yday, color = stream)) +
   facet_wrap(~year) +
-  geom_point(alpha = 0.3) +
-  # geom_ribbon(data = grid_base,
-  #             aes(x = temp_90_raw,
-  #                 ymin = fixed_date + yday_lower,
-  #                 ymax = fixed_date + yday_upper,
-  #                 fill = stream),
-  #             alpha = 0.2, color = NA) +
-  geom_line(data = grid_base,
-            aes(x = temp_90_raw, y = fixed_date + yday_pred, color = stream),
-            linewidth = 1) +
+  geom_point(alpha = 0.3, size = 0.9) +
+  geom_ribbon(
+    data = me_fig5_filtered,
+    aes(
+      x    = x_raw,
+      ymin = fixed_date + conf.low,
+      ymax = fixed_date + conf.high,
+      fill = stream
+    ),
+    alpha = 0.15, color = NA, 
+    inherit.aes = FALSE  # prevent conflict with aes from base ggplot
+  ) +
+  geom_line(
+    data = me_fig5_filtered,
+    aes(x = x_raw, y = fixed_date + predicted, color = stream),
+    linewidth = 1,
+    inherit.aes = FALSE  # prevent conflict with aes from base ggplot
+  ) +
   scale_color_manual(values = cols.streams) +
   scale_fill_manual(values = cols.streams) +
   scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
   labs(
-    x = "90-day Mean Temperature Pre-Spawn (°C)",
-    y = "Predicted Spawn Day of Year",
+    x     = "90-day mean temperature pre-spawn (°C)",
+    y     = "Predicted spawn day of year",
     color = "",
-    fill = ""
-  )
+    fill  = ""
+  ) +
+  theme_bw() +
+  guides(fill = "none")  # suppress redundant fill legend
 
 # save plot
 path <- here::here("plots", "Figure_05")
@@ -1924,7 +1941,7 @@ p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
 path <- here::here("plots", "Figure_06")
 ggsave(
   glue::glue("{path}.pdf"),
-  plot = last_plot(),
+  plot = p.re.cor,
   device = cairo_pdf,
   scale = 2.2,
   width = 4,
@@ -2009,59 +2026,90 @@ p.re.int.bar + p.re.slp.bar +
 
 # Those sub-July predictions are a problem. The spline is being extrapolated beyond the observed temperature range for some COMIDs — when the random slope pulls a reach's intercept very negative AND the spline is evaluated at cold temperatures outside the data range, you get biologically impossible predictions. The quadratic had the same potential issue but its shape was more constrained at the cold end. The fix is straightforward — clip predictions to the observed temperature range per COMID rather than the global range. In your Figure 7C code, change the prediction grid
 
+# COMID - level responses -----------
+
+# Get COMID observed temp range
+obs_range <- df_mod |> 
+  group_by(COMID) |> 
+  summarise(
+    min_temp = min(temp_90_raw), 
+    max_temp = max(temp_90_raw), 
+    .groups = "drop"
+  )
+
 me <- predict_response(
   mod_final, 
   terms = c("temp_90 [all]", "COMID"), 
   type = "random"
   )
-me$x <- me$x * sd_temp + mean_temp
-
-# Filter to observed temp range per COMID
-obs_range <- model_data |> 
-  group_by(COMID) |> 
-  summarise(
-    min_temp = min(temp_90), 
-    max_temp = max(temp_90), 
-    .groups = "drop"
-  )
 
 me_filtered <- me |> 
   as_tibble() |> 
+  mutate(x = x * sd_temp + mean_temp) |>
   left_join(obs_range, by = c("group" = "COMID")) |> 
   filter(x >= min_temp & x <= max_temp)
 
-# me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
-me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
-# plot(me2, show_data = TRUE, show_ci = TRUE)
-me2$x <- me2$x * sd_temp + mean_temp
+# Get global observed temp range ------------
+obs_global <- df_mod |>
+  summarise(
+    min_temp = min(temp_90_raw),
+    max_temp = max(temp_90_raw)
+  )
 
-p.re.preds <- me_filtered |> 
+me2 <- predict_response(
+  mod_final, 
+  terms = c("temp_90 [all]"), 
+  interval = "confidence"
+  ) |>
   as_tibble() |> 
+  mutate(x = x * sd_temp + mean_temp) |>
+  filter(x >= obs_global$min_temp & x <= obs_global$max_temp)
+
+# # me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
+# me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
+# # plot(me2, show_data = TRUE, show_ci = TRUE)
+# me2$x <- me2$x * sd_temp + mean_temp
+
+p.re.preds <- me_filtered |>
+  as_tibble() |>
   left_join(xref_comid_stream, by = c("group" = "COMID")) |>
-  ggplot(aes(x, fixed_date + predicted, group = group)) + 
-  geom_line(aes(color = stream)) +
+  ggplot(aes(x, fixed_date + predicted, group = group)) +
+  # Raw data points in background
+  geom_point(
+    data = df_mod_plot,
+    aes(x = temp_90_raw, y = fixed_date + yday, color = stream),
+    alpha = 0.15, size = 0.8, inherit.aes = FALSE
+  ) +
+  # Population-level CI ribbon
   geom_ribbon(
-    data = me2, 
-    # fill = "yellow",
+    data = me2,
     aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
-    alpha = 0.2) +
+    alpha = 0.2, inherit.aes = FALSE
+  ) +
+  # COMID-level lines
+  geom_line(aes(color = stream), linewidth = 0.6) +
+  # Population-level mean on top
   geom_line(
     data = me2,
-    aes(x = x, y = fixed_date + predicted), 
-    linewidth = 2) +
+    aes(x = x, y = fixed_date + predicted),
+    linewidth = 2, inherit.aes = FALSE
+  ) +
   scale_color_manual(values = cols.streams) +
-  # scale_color_grey(start = .5, end = .9) + 
+  # scale_y_date(date_breaks = "1 month", date_labels = "%b") +
+  coord_cartesian(ylim = as.Date(c("2001-07-01", "2001-09-15"))) +
+  # scale_y_date(date_breaks = "1 month", date_labels = "%b") +
   # scale_y_date(
-  #   date_breaks = "1 month", 
-  #   date_labels = "%b", 
-  #   limits = as.Date(c("2001-06-01", "2001-10-28"))
+  #   date_breaks = "1 month",
+  #   date_labels = "%b",
+  #   limits = as.Date(c("2001-07-01", "2001-9-15"))
   #   ) +
   guides(color = "none") +
   labs(
     x = "90-day mean temperature pre-spawn (°C)",
-    y = "Predicted spawn day of year",
-    color = ""
-  )
+    y = "Predicted spawn day of year"
+  ) +
+  theme_bw()
+
 p.re.preds
 
 # save plot
@@ -2084,8 +2132,9 @@ pdftools::pdf_convert(
 ```
 
 ```{r comid-variation, fig.width=8, fig.height=9,  results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. (A) Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (B) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
+
 (p.re.int.box + p.re.slp.box) / p.re.preds + 
-  plot_layout(guides = "collect", heights = c(.75,1)) + 
+  plot_layout(guides = "collect", heights = c(.65,1)) + 
   plot_annotation(
     tag_levels = "A"
   )
