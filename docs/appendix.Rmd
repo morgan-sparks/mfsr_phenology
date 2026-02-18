@@ -57,6 +57,7 @@ source(here("R/palettes-themes.R"))
 # Spawn data -------------------------------------------------------------------
 # data were compiled and clean in compile_mfsr_spawn.R and clean_mfsr_spawn.R
 spawn_data_cleaned <- read_csv(here("data", "russ_spawn", "mfsr_spawn_cleaned.csv"))
+coords <- read_csv(here("data","df_sf.csv"))
 
 # remove bad data
 spawn_data <- spawn_data_cleaned |>
@@ -236,6 +237,9 @@ p.counts1 | p.counts2 +
 # spawn_data |>
 #   count(stream, name = "n_redds") 
 ```
+
+Note: Random slope estimates for stream reaches with few observations will reflect strong shrinkage toward the population mean — a desirable property of mixed-effects models that guards against overfitting. However, reach-level interpretations should be made cautiously for the 13 COMIDs with ≤2 observations (12.5% of reaches), where individual BLUPs are poorly constrained by data and shrinkage toward the population mean will be substantial.
+
 
 \newpage
 
