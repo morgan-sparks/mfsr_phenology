@@ -1788,8 +1788,8 @@ p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
     hjust = 0, vjust = 1.5) +
   labs(
     # title = "Random Intercepts vs. Slopes for temp_90",
-    x = "Random intercept\n(Deviation in average spawn timing)",
-    y = "Random slope\n(Thermal sensitivity)",
+    x = "Random intercept",
+    y = "Random slope",
   )
 
 p.re.forest / p.re.cor +
@@ -1832,7 +1832,7 @@ p.re.int.box <- random_wide |>
   guides(fill = "none") +
   labs(
     x = "",
-    y = "Random intercept\n(Deviation in average spawn timing)",
+    y = "Random intercept\n(Baseline spawning phenology)",
   )
 
 p.re.slp.box <- random_wide |> 
@@ -1844,7 +1844,7 @@ p.re.slp.box <- random_wide |>
   guides(fill = "none") +
   labs(
     x = "",
-    y = "Random slope\n(Thermal sensitivity)",
+    y = "Random slope\n(Thermal responsiveness)",
   )
 
 # p.re.int.box + p.re.slp.box +
@@ -1864,7 +1864,7 @@ p.re.int.bar <- random_wide |>
   scale_fill_manual(values = cols.streams) + 
   labs(
     x = "COMID", fill = "Stream",
-    y = "Random intercept\n(Deviation in average spawn timing)"
+    y = "Random intercept\n(Baseline spawning phenology)"
   ) + 
   theme(axis.text.y = element_blank())
 
@@ -1875,7 +1875,7 @@ p.re.slp.bar <- random_wide |>
   scale_fill_manual(values = cols.streams) + 
   labs(
     x = "COMID", fill = "Stream",
-    y = "Random slope\n(Thermal sensitivity)"
+    y = "Random slope\n(Thermal responsiveness)"
   ) + 
   theme(axis.text.y = element_blank())
 
@@ -1904,14 +1904,20 @@ p.re.preds <- me |>
   geom_line(aes(color = stream)) +
   geom_ribbon(
     data = me2, 
+    # fill = "yellow",
     aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
     alpha = 0.5) +
   geom_line(
     data = me2,
     aes(x = x, y = fixed_date + predicted), 
     linewidth = 2) +
-  scale_color_manual(values = cols.streams) + 
-  scale_y_date(date_breaks = "1 month", date_labels = "%b", limits = as.Date(c("2001-06-01", "2001-10-28"))) +
+  scale_color_manual(values = cols.streams) +
+  # scale_color_grey(start = .5, end = .9) + 
+  scale_y_date(
+    date_breaks = "1 month", 
+    date_labels = "%b", 
+    limits = as.Date(c("2001-06-01", "2001-10-28"))
+    ) +
   guides(color = "none") +
   labs(
     x = "90-day mean temperature pre-spawn (°C)",
