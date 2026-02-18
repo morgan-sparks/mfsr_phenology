@@ -155,6 +155,9 @@ df_mod <- model_data |>
          slope = scale2(slope))
 
 # --- Raw data back-transform ---
+mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
+sd_temp <- sd(model_data$temp_90, na.rm = TRUE)
+
 df_mod_plot <- df_mod |>
   mutate(temp_90_raw = temp_90 * sd_temp + mean_temp)
 ```
@@ -1034,12 +1037,6 @@ df_mod |>
     caption = "Final dataset for modeling, first 5 rows."
   ) |> 
   kable_styling(latex_options = "hold_position")
-```
-
-```{r get-temp-mean}
-# get means for back transformation later
-mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
-sd_temp <- sd(model_data$temp_90, na.rm = TRUE)
 ```
 
 
@@ -2029,7 +2026,7 @@ p.re.int.bar + p.re.slp.bar +
 # COMID - level responses -----------
 
 # Get COMID observed temp range
-obs_range <- df_mod |> 
+obs_range <- df_mod_plot |> 
   group_by(COMID) |> 
   summarise(
     min_temp = min(temp_90_raw), 
@@ -2050,7 +2047,7 @@ me_filtered <- me |>
   filter(x >= min_temp & x <= max_temp)
 
 # Get global observed temp range ------------
-obs_global <- df_mod |>
+obs_global <- df_mod_plot |>
   summarise(
     min_temp = min(temp_90_raw),
     max_temp = max(temp_90_raw)
