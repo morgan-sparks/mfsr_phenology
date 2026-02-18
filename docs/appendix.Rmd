@@ -1430,12 +1430,176 @@ check_model(
 ```
 
 ```{r sim-resid, eval=FALSE}
-simulated_residuals <- simulate_residuals(mod_final)
+# scaled residual value of 0.5 means that half of the simulated data are higher than the observed value, and half of them lower
+# a correctly specified model we would expect asymptotically: 
+# a uniform (flat) distribution of the scaled residuals
+# uniformity in y direction if we plot against any predictor
 
-head(residuals(simulated_residuals))
-DHARMa::testUniformity(simulated_residuals, plot = TRUE)
-check_residuals(simulated_residuals)
-check_model(simulated_residuals, size_dot = 1.5)
+# calcualte simulated residuals - conditional on ranefs (omit re.form = NULL)
+# sim_resid <- performance::simulate_residuals(mod_final)  # wrapper for DHARMa
+# sim_resid <- DHARMa::simulateResiduals(mod_final, n = 500, re.form = NULL)
+sim_resid <- DHARMa::simulateResiduals(mod_final, n = 500)
+
+# print
+residuals(sim_resid)
+
+# vizualize
+plot(sim_resid, quantreg = TRUE)
+# plotQQunif(simulationOutput)     # left plot in plot.DHARMa()
+# plotResiduals(simulationOutput)  # right plot in plot.DHARMa()
+
+# The KS test (p≈0) and outlier test (p=1e-05) are flagged significant, and the right panel shows those wavy red quantile curves — a real pattern. However, with n=3,016, DHARMa's KS test will flag very small deviations as significant. The QQ plot itself actually looks quite good visually — points track the diagonal closely. 
+
+# The residuals vs. predicted pattern (the S-curve in the quantile lines) is more worth attending to. It suggests mild non-uniformity across the prediction range, likely reflecting the distributional asymmetry in spawn timing at the tails (early and late spawners are harder to predict precisely).
+
+plotResiduals(sim_resid, form = df_mod$temp_90)
+
+# There's a clear declining trend in the quantile smoother across the temp_90 range — residuals are shifted high at low temperatures and low at high temperatures. This suggests the model is slightly over-predicting spawn timing at cold sites and under-predicting at warm sites, even after the quadratic term. It's not catastrophic, but it does suggest the nonlinear temperature relationship may not be fully captured by the quadratic alone, or that there's an interaction the model isn't accounting for.
+
+
+plotResiduals(sim_resid, form = df_mod$stream)
+plotResiduals(sim_resid, form = df_mod$year)
+
+# Both are flagged significant (red), and you can see the heterogeneity — Elk and Marsh in particular have compressed residual distributions (boxes sitting well below 0.5), while Big and Camas are shifted high. The year plot shows 2005 shifted notably lower. This pattern tells you the model's fixed effects for stream and year are not fully absorbing those group-level differences — there's systematic residual structure by group.
+
+# Try a spline on temp_90
+library(splines)
+
+# Refit final model with natural spline instead of quadratic
+mod_spline <- lmer(
+  yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+
+# Refit final model with ML for fair comparison
+mod_final_ml <- lmer(
+  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+
+
+# Compare
+compare_performance(mod_final_ml, mod_spline, rank = TRUE, metrics = "common")
+compare_aic(mod_final_ml, mod_spline)
+
+
+sim_resid_quad   <- simulateResiduals(mod_final_ml, n = 500)
+sim_resid_spline <- simulateResiduals(mod_spline,   n = 500)
+
+
+par(mfrow = c(1, 2))
+plotResiduals(sim_resid_quad,   form = df_mod$temp_90, main = "Quadratic")
+plotResiduals(sim_resid_spline, form = df_mod$temp_90, main = "Spline (df=3)")
+par(mfrow = c(1, 1))
+
+# Really interesting result. ΔAIC = 139 is substantial and the RMSE improvement (1.782 → 1.715) is real. The residual plot tells the story clearly — the spline doesn't fully eliminate the trend at the tails but it's meaningfully better in the middle range where most of your data live. Worth taking seriously.
+
+# Get predictions from both models across temp_90 range
+pred_quad <- predict_response(mod_final_ml, terms = "temp_90 [all]") |> 
+  as_tibble() |> mutate(model = "Quadratic")
+
+pred_spline <- predict_response(mod_spline, terms = "temp_90 [all]") |> 
+  as_tibble() |> mutate(model = "Spline (df=3)")
+
+# Back-transform temp_90 for interpretability
+mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
+sd_temp   <- sd(model_data$temp_90, na.rm = TRUE)
+
+pred_both <- bind_rows(pred_quad, pred_spline) |> 
+  mutate(temp_raw = x * sd_temp + mean_temp)
+
+# Plot
+ggplot() +
+  geom_point(
+    data = model_data,
+    aes(x = temp_90, y = yday),
+    alpha = 0.15, size = 0.8
+  ) +
+  geom_ribbon(
+    data = pred_both,
+    aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model),
+    alpha = 0.2
+  ) +
+  geom_line(
+    data = pred_both,
+    aes(x = temp_raw, y = predicted, color = model),
+    linewidth = 1.2
+  ) +
+  scale_color_manual(
+    values = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick")) +
+  scale_fill_manual(
+    values  = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick")) +
+  labs(
+    x = "90-day mean pre-spawn temperature (°C)",
+    y = "Predicted spawn day of year",
+    color = "", fill = ""
+  ) +
+  theme_bw()
+
+# The quadratic overpredicts at warm sites (keeps rising past ~13°C when the data clearly plateau) and is reasonably well-behaved at cold sites. The spline nails the warm-end plateau beautifully but underpredicts at the cold end — those low-temperature points (~8-9°C) are sitting well above the spline curve.
+
+# The cold-end underprediction is actually worth thinking about ecologically. Those early-spawning, high-elevation, cold-site fish may genuinely behave differently — recall your random slopes result showing stronger thermal sensitivity at earlier-spawning reaches. 
+# What might be happening is that the population-level curve can't simultaneously fit both the cold-end and warm-end behavior well with a single smooth function, because those fish are responding to temperature differently than mid-range fish. The random slopes are absorbing some of that, but not all of it.
+
+mod_spline4 <- lmer(
+  yday ~ ns(temp_90, df = 4) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+compare_aic(mod_final_ml, mod_spline, mod_spline4)
+
+# The df=4 is doing work and earning the extra parameter
+
+pred_spline4 <- predict_response(mod_spline4, terms = "temp_90 [all]") |>
+  as_tibble() |>
+  mutate(
+    model = "Spline (df=4)",
+    temp_raw = x * sd_temp + mean_temp
+  )
+
+# Add to existing pred_both
+pred_all <- bind_rows(pred_both, pred_spline4)
+
+ggplot() +
+  geom_point(
+    data = model_data,
+    aes(x = temp_90, y = yday),
+    alpha = 0.15, size = 0.8
+  ) +
+  geom_ribbon(
+    data = pred_all,
+    aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model),
+    alpha = 0.2
+  ) +
+  geom_line(
+    data = pred_all,
+    aes(x = temp_raw, y = predicted, color = model),
+    linewidth = 1.2
+  ) +
+  scale_color_manual(values = c(
+    "Quadratic"     = "steelblue",
+    "Spline (df=3)" = "firebrick",
+    "Spline (df=4)" = "darkgreen"
+  )) +
+  scale_fill_manual(values = c(
+    "Quadratic"     = "steelblue",
+    "Spline (df=3)" = "firebrick",
+    "Spline (df=4)" = "darkgreen"
+  )) +
+  labs(
+    x = "90-day mean pre-spawn temperature (°C)",
+    y = "Predicted spawn day of year",
+    color = "", fill = ""
+  ) +
+  theme_bw()
+
+
+sim_resid_spline4 <- simulateResiduals(mod_spline4, n = 500)
+plotResiduals(sim_resid_spline4, form = df_mod$temp_90, 
+              main = "Spline (df=4)")
+
+# And now we are over fitting. The answer is df=3. The cold-end underprediction is a real but minor issue that your random slopes are partially absorbing anyway, and the warm-end behavior is ecologically honest. df=4 just showed you that pushing further makes things worse, which actually strengthens the case for df=3 — you've now bracketed the problem from both sides.
+
+
 ```
 
 ```{r residuals-comid, eval=FALSE, fig.height=8, fig.cap="Residuals by COMID."}
@@ -1483,19 +1647,6 @@ df_mod2 <- df_mod2 %>%
 #        y = "Mean Residual (Observed - Predicted)") +
 #   coord_flip() +
 #   theme_minimal()
-```
-
-```{r dharma, eval=FALSE}
-# sim_resid <- simulateResiduals(mod_final, n = 500, re.form = NULL)
-# plot(sim_resid, quantreg=TRUE)
-# # plotQQunif(sim_resid)
-# testUniformity(sim_resid)
-# testDispersion(sim_resid)
-# testQuantiles(sim_resid)
-# plotResiduals(sim_resid, form = df_mod$temp_90)
-# plotResiduals(sim_resid, form = df_mod$stream)
-# plotResiduals(sim_resid, form = df_mod$year)
-# testOutliers(sim_resid)
 ```
 
 ## Predictions against original data
