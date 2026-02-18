@@ -44,6 +44,8 @@ library(broom)
 library(easystats)
 library(performance)
 library(ggeffects)
+library(splines)
+
 
 # set gpplot theme to bw
 theme_set(theme_bw(base_size = 12))
@@ -1030,6 +1032,13 @@ df_mod |>
   kable_styling(latex_options = "hold_position")
 ```
 
+```{r get-temp-mean}
+# get means for back transformation later
+mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
+sd_temp <- sd(model_data$temp_90, na.rm = TRUE)
+```
+
+
 We used linear mixed-effects models to evaluate environmental predictors of Chinook salmon spawn timing, with redd observation day-of-year (`yday`) as the response variable. We scaled the continuous covariates to have a mean of 0 and standard deviation of 1 to assist convergence and interpretation. `COMID` will be included in all models as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. Further, based on exploratory analysis and biological expectations of nonlinear thermal responses, temperature effects were modeled using both linear and quadratic terms for the 90-day average stream temperature prior to spawning (`temp_90` and `I(temp_90^2)`).
 
 ## Initial Model Selection
@@ -1357,54 +1366,121 @@ Given the limited inferential gain and added complexity of the interaction model
 
 \newpage 
 
-# Model interpretation
+## Residual Diognostics
 
-The final model included a linear and quadratic effect of temperature (`temp_90`, `I(temp_90^2)`), additive fixed effects for `stream` and `year`, and a random intercept and slope for temperature by `COMID`:
+```{r}
+# Simulate residuals from current final model (conditional, includes random effects)
+sim_resid <- DHARMa::simulateResiduals(m16_rs, n = 500)
+
+# Overall QQ and residuals vs. predicted
+plot(sim_resid, quantreg = TRUE)
+
+# The KS test (p≈0) and outlier test (p=1e-05) are flagged significant, and the right panel shows those wavy red quantile curves — a real pattern. However, with n=3,016, DHARMa's KS test will flag very small deviations as significant. The QQ plot itself actually looks quite good visually — points track the diagonal closely. 
+
+# The residuals vs. predicted pattern (the S-curve in the quantile lines) is more worth attending to. It suggests mild non-uniformity across the prediction range, likely reflecting the distributional asymmetry in spawn timing at the tails (early and late spawners are harder to predict precisely).
+
+# Residuals vs. key predictor and grouping variables
+par(mfrow = c(1, 3))
+plotResiduals(sim_resid, form = df_mod$temp_90, main = "vs. temp_90")
+plotResiduals(sim_resid, form = df_mod$stream,  main = "vs. stream")
+plotResiduals(sim_resid, form = df_mod$year,    main = "vs. year")
+par(mfrow = c(1, 1))
+
+# There's a clear declining trend in the quantile smoother across the temp_90 range — residuals are shifted high at low temperatures and low at high temperatures. This suggests the model is slightly over-predicting spawn timing at cold sites and under-predicting at warm sites, even after the quadratic term. It's not catastrophic, but it does suggest the nonlinear temperature relationship may not be fully captured by the quadratic alone, or that there's an interaction the model isn't accounting for.
+
+# Both are flagged significant (red), and you can see the heterogeneity — Elk and Marsh in particular have compressed residual distributions (boxes sitting well below 0.5), while Big and Camas are shifted high. The year plot shows 2005 shifted notably lower. This pattern tells you the model's fixed effects for stream and year are not fully absorbing those group-level differences — there's systematic residual structure by group.
+```
+
+DHARMa diagnostics indicated adequate overall fit but revealed a systematic trend in quantile residuals across the temperature gradient, with residuals shifted high at cold sites and low at warm sites. This pattern suggested the quadratic term did not fully capture the nonlinear temperature–spawn timing relationship, motivating evaluation of a more flexible functional form. 
+
+## Evaluation of Temperature Functional Form
+
+```{r}
+# Fit spline candidates using ML for comparison
+mod_spline3 <- lmer(
+  yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+mod_spline4 <- lmer(
+  yday ~ ns(temp_90, df = 4) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+
+# AIC comparison
+compare_aic(m16_rs, mod_spline3, mod_spline4) |>
+  kable(caption = "AIC comparison of quadratic vs. natural spline temperature terms.") |>
+  kable_styling(latex_options = "hold_position")
+
+# Performance comparison
+compare_performance(
+  m16_rs, mod_spline3, mod_spline4,
+  rank = TRUE, metrics = "common"
+) |>
+  select(-Model, -AIC_wt, -BIC_wt) |>
+  kable(caption = "Model performance for quadratic vs. spline formulations.") |>
+  kable_styling(latex_options = "hold_position")
+```
+
+```{r}
+# Prediction comparison plot — all three models
+pred_quad <- predict_response(m16_rs, terms = "temp_90 [all]") |>
+  as_tibble() |> 
+  mutate(model = "Quadratic", temp_raw = x * sd_temp + mean_temp)
+
+pred_s3 <- predict_response(mod_spline3, terms = "temp_90 [all]") |>
+  as_tibble() |> 
+  mutate(model = "Spline (df=3)", temp_raw = x * sd_temp + mean_temp)
+
+pred_s4 <- predict_response(mod_spline4, terms = "temp_90 [all]") |>
+  as_tibble() |> 
+  mutate(model = "Spline (df=4)", temp_raw = x * sd_temp + mean_temp)
+
+bind_rows(pred_quad, pred_s3, pred_s4) |>
+  ggplot() +
+  geom_point(
+    data = model_data, aes(x = temp_90, y = yday), alpha = 0.15, size = 0.8) +
+  geom_ribbon(
+    aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model),
+    alpha = 0.2) +
+  geom_line(aes(x = temp_raw, y = predicted, color = model), linewidth = 1.2) +
+  scale_color_manual(
+    values = c(
+      "Quadratic" = "steelblue", 
+      "Spline (df=3)" = "firebrick",
+      "Spline (df=4)" = "darkgreen")) +
+  scale_fill_manual(
+    values  = c(
+      "Quadratic" = "steelblue",
+      "Spline (df=3)" = "firebrick", 
+      "Spline (df=4)" = "darkgreen")) +
+  labs(x = "90-day mean pre-spawn temperature (°C)",
+       y = "Predicted spawn day of year", color = "", fill = "") +
+  theme_bw()
+
+```
+
+```{r}
+# DHARMa residuals vs temp_90 for spline df=3 vs quadratic
+sim_s3 <- DHARMa::simulateResiduals(mod_spline3, n = 500)
+
+par(mfrow = c(1, 2))
+plotResiduals(sim_resid, form = df_mod$temp_90, main = "Quadratic")
+plotResiduals(sim_s3,    form = df_mod$temp_90, main = "Spline (df=3)")
+par(mfrow = c(1, 1))
+
+```
+
+The df=3 spline substantially outperformed the quadratic (ΔAIC = 139) with lower RMSE and improved residual behavior across the temperature gradient. The df=4 spline showed further AIC improvement (ΔAIC = 66 over df=3) but produced biologically implausible predictions at warm-end temperature extremes — spawn timing decreasing sharply above ~13°C — indicative of overfitting. The df=3 spline was therefore selected as the final temperature functional form. 
+
+# Final Model Diognostics and Interpretation
 
 ```{r fin-mod, echo=TRUE}
-# final model sturcture
+# Redefine mod_final as spline df=3, refit with REML for interpretation
 mod_final <- lmer(
-  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID), 
+  yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
   data = df_mod, REML = TRUE
-  )
+)
 ```
-
-```{r get-temp-mean}
-# get means for back transformation later
-mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
-sd_temp <- sd(model_data$temp_90, na.rm = TRUE)
-```
-
-This model balances explanatory power, biological realism, and parsimony. It captures both general patterns in spawn timing (via fixed effects) and local deviations in temperature response (via random slopes), and will serve as the basis for diagnostics, prediction, and ecological interpretation.
-
-## Model parameters and performance
-
-```{r fin-param}
-params <- model_parameters(mod_final)
-params |> 
-  select(-CI, -t, -df_error) |> 
-  kable(
-    caption = "Parameter estimates for mod\\_final.", 
-    digits = 2
-  ) |> 
-  kable_styling(latex_options = "hold_position")
-```
-
-```{r fin-perf}
-model_performance(mod_final) |>
-  kable(
-    caption = "Model performance for mod\\_final."
-  ) |> 
-  kable_styling(latex_options = "hold_position")
-```
-
-Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing, with the quadratic term (–0.85) confirming a concave-down relationship—i.e., spawn timing advances with increasing temperature, but levels off at high temperatures.
-
-Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley).
-
-The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = 7.05) and random slopes for `temp_90` (√τ₁₁ = 3.55) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)). The intraclass correlation (ICC) was high (0.95), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
-
-Model fit was excellent: the marginal R² (variance explained by fixed effects) was 0.698, and the conditional R² (fixed + random effects) was 0.985 (Table \@ref(tab:fin-perf)). This suggests that the majority of explanatory power is derived from spatially varying thermal responses captured by the random slopes, with additional structure provided by the fixed effects.
 
 
 ## Residual diagnostics
@@ -1422,184 +1498,27 @@ The normal Q-Q plot of residuals shows slight right-skew and some heavy tails, b
 Overall, the model shows no violations of key assumptions and is suitable for inference and prediction.
 
 ```{r diagnostics, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for mod\\_final."}
-check_model(
-  mod_final,
-  base_size = 8, size_title = 10)
+check_model(mod_final, base_size = 8, size_title = 10)
 # check_model(mod_final, check = c("vif", "qq", "residuals", "homogeneity", "normality"))
 # check_model(mod_final, check = c("homogeneity"))
 ```
 
-```{r sim-resid, eval=FALSE}
-# scaled residual value of 0.5 means that half of the simulated data are higher than the observed value, and half of them lower
-# a correctly specified model we would expect asymptotically: 
-# a uniform (flat) distribution of the scaled residuals
-# uniformity in y direction if we plot against any predictor
-
+```{r sim-resid}
 # calcualte simulated residuals - conditional on ranefs (omit re.form = NULL)
 # sim_resid <- performance::simulate_residuals(mod_final)  # wrapper for DHARMa
 # sim_resid <- DHARMa::simulateResiduals(mod_final, n = 500, re.form = NULL)
 sim_resid <- DHARMa::simulateResiduals(mod_final, n = 500)
-
-# print
-residuals(sim_resid)
 
 # vizualize
 plot(sim_resid, quantreg = TRUE)
 # plotQQunif(simulationOutput)     # left plot in plot.DHARMa()
 # plotResiduals(simulationOutput)  # right plot in plot.DHARMa()
 
-# The KS test (p≈0) and outlier test (p=1e-05) are flagged significant, and the right panel shows those wavy red quantile curves — a real pattern. However, with n=3,016, DHARMa's KS test will flag very small deviations as significant. The QQ plot itself actually looks quite good visually — points track the diagonal closely. 
-
-# The residuals vs. predicted pattern (the S-curve in the quantile lines) is more worth attending to. It suggests mild non-uniformity across the prediction range, likely reflecting the distributional asymmetry in spawn timing at the tails (early and late spawners are harder to predict precisely).
-
-plotResiduals(sim_resid, form = df_mod$temp_90)
-
-# There's a clear declining trend in the quantile smoother across the temp_90 range — residuals are shifted high at low temperatures and low at high temperatures. This suggests the model is slightly over-predicting spawn timing at cold sites and under-predicting at warm sites, even after the quadratic term. It's not catastrophic, but it does suggest the nonlinear temperature relationship may not be fully captured by the quadratic alone, or that there's an interaction the model isn't accounting for.
-
-
-plotResiduals(sim_resid, form = df_mod$stream)
-plotResiduals(sim_resid, form = df_mod$year)
-
-# Both are flagged significant (red), and you can see the heterogeneity — Elk and Marsh in particular have compressed residual distributions (boxes sitting well below 0.5), while Big and Camas are shifted high. The year plot shows 2005 shifted notably lower. This pattern tells you the model's fixed effects for stream and year are not fully absorbing those group-level differences — there's systematic residual structure by group.
-
-# Try a spline on temp_90
-library(splines)
-
-# Refit final model with natural spline instead of quadratic
-mod_spline <- lmer(
-  yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
-  data = df_mod, REML = FALSE
-)
-
-# Refit final model with ML for fair comparison
-mod_final_ml <- lmer(
-  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID),
-  data = df_mod, REML = FALSE
-)
-
-
-# Compare
-compare_performance(mod_final_ml, mod_spline, rank = TRUE, metrics = "common")
-compare_aic(mod_final_ml, mod_spline)
-
-
-sim_resid_quad   <- simulateResiduals(mod_final_ml, n = 500)
-sim_resid_spline <- simulateResiduals(mod_spline,   n = 500)
-
-
-par(mfrow = c(1, 2))
-plotResiduals(sim_resid_quad,   form = df_mod$temp_90, main = "Quadratic")
-plotResiduals(sim_resid_spline, form = df_mod$temp_90, main = "Spline (df=3)")
+par(mfrow = c(1, 3))
+plotResiduals(sim_resid, form = df_mod$temp_90, main = "vs. temp_90")
+plotResiduals(sim_resid, form = df_mod$stream,  main = "vs. stream")
+plotResiduals(sim_resid, form = df_mod$year,    main = "vs. year")
 par(mfrow = c(1, 1))
-
-# Really interesting result. ΔAIC = 139 is substantial and the RMSE improvement (1.782 → 1.715) is real. The residual plot tells the story clearly — the spline doesn't fully eliminate the trend at the tails but it's meaningfully better in the middle range where most of your data live. Worth taking seriously.
-
-# Get predictions from both models across temp_90 range
-pred_quad <- predict_response(mod_final_ml, terms = "temp_90 [all]") |> 
-  as_tibble() |> mutate(model = "Quadratic")
-
-pred_spline <- predict_response(mod_spline, terms = "temp_90 [all]") |> 
-  as_tibble() |> mutate(model = "Spline (df=3)")
-
-# Back-transform temp_90 for interpretability
-mean_temp <- mean(model_data$temp_90, na.rm = TRUE)
-sd_temp   <- sd(model_data$temp_90, na.rm = TRUE)
-
-pred_both <- bind_rows(pred_quad, pred_spline) |> 
-  mutate(temp_raw = x * sd_temp + mean_temp)
-
-# Plot
-ggplot() +
-  geom_point(
-    data = model_data,
-    aes(x = temp_90, y = yday),
-    alpha = 0.15, size = 0.8
-  ) +
-  geom_ribbon(
-    data = pred_both,
-    aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model),
-    alpha = 0.2
-  ) +
-  geom_line(
-    data = pred_both,
-    aes(x = temp_raw, y = predicted, color = model),
-    linewidth = 1.2
-  ) +
-  scale_color_manual(
-    values = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick")) +
-  scale_fill_manual(
-    values  = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick")) +
-  labs(
-    x = "90-day mean pre-spawn temperature (°C)",
-    y = "Predicted spawn day of year",
-    color = "", fill = ""
-  ) +
-  theme_bw()
-
-# The quadratic overpredicts at warm sites (keeps rising past ~13°C when the data clearly plateau) and is reasonably well-behaved at cold sites. The spline nails the warm-end plateau beautifully but underpredicts at the cold end — those low-temperature points (~8-9°C) are sitting well above the spline curve.
-
-# The cold-end underprediction is actually worth thinking about ecologically. Those early-spawning, high-elevation, cold-site fish may genuinely behave differently — recall your random slopes result showing stronger thermal sensitivity at earlier-spawning reaches. 
-# What might be happening is that the population-level curve can't simultaneously fit both the cold-end and warm-end behavior well with a single smooth function, because those fish are responding to temperature differently than mid-range fish. The random slopes are absorbing some of that, but not all of it.
-
-mod_spline4 <- lmer(
-  yday ~ ns(temp_90, df = 4) + stream + year + (1 + temp_90 | COMID),
-  data = df_mod, REML = FALSE
-)
-compare_aic(mod_final_ml, mod_spline, mod_spline4)
-
-# The df=4 is doing work and earning the extra parameter
-
-pred_spline4 <- predict_response(mod_spline4, terms = "temp_90 [all]") |>
-  as_tibble() |>
-  mutate(
-    model = "Spline (df=4)",
-    temp_raw = x * sd_temp + mean_temp
-  )
-
-# Add to existing pred_both
-pred_all <- bind_rows(pred_both, pred_spline4)
-
-ggplot() +
-  geom_point(
-    data = model_data,
-    aes(x = temp_90, y = yday),
-    alpha = 0.15, size = 0.8
-  ) +
-  geom_ribbon(
-    data = pred_all,
-    aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model),
-    alpha = 0.2
-  ) +
-  geom_line(
-    data = pred_all,
-    aes(x = temp_raw, y = predicted, color = model),
-    linewidth = 1.2
-  ) +
-  scale_color_manual(values = c(
-    "Quadratic"     = "steelblue",
-    "Spline (df=3)" = "firebrick",
-    "Spline (df=4)" = "darkgreen"
-  )) +
-  scale_fill_manual(values = c(
-    "Quadratic"     = "steelblue",
-    "Spline (df=3)" = "firebrick",
-    "Spline (df=4)" = "darkgreen"
-  )) +
-  labs(
-    x = "90-day mean pre-spawn temperature (°C)",
-    y = "Predicted spawn day of year",
-    color = "", fill = ""
-  ) +
-  theme_bw()
-
-
-sim_resid_spline4 <- simulateResiduals(mod_spline4, n = 500)
-plotResiduals(sim_resid_spline4, form = df_mod$temp_90, 
-              main = "Spline (df=4)")
-
-# And now we are over fitting. The answer is df=3. The cold-end underprediction is a real but minor issue that your random slopes are partially absorbing anyway, and the warm-end behavior is ecologically honest. df=4 just showed you that pushing further makes things worse, which actually strengthens the case for df=3 — you've now bracketed the problem from both sides.
-
-
 ```
 
 ```{r residuals-comid, eval=FALSE, fig.height=8, fig.cap="Residuals by COMID."}
@@ -1648,6 +1567,36 @@ df_mod2 <- df_mod2 %>%
 #   coord_flip() +
 #   theme_minimal()
 ```
+
+## Model parameters and performance
+
+```{r fin-param}
+params <- model_parameters(mod_final)
+params |> 
+  select(-CI, -t, -df_error) |> 
+  kable(
+    caption = "Parameter estimates for mod\\_final.", 
+    digits = 2
+  ) |> 
+  kable_styling(latex_options = "hold_position")
+```
+
+```{r fin-perf}
+model_performance(mod_final, metrics = "common") |>
+  kable(
+    caption = "Model performance for mod\\_final."
+  ) |> 
+  kable_styling(latex_options = "hold_position")
+```
+
+Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing, with the quadratic term (–0.85) confirming a concave-down relationship—i.e., spawn timing advances with increasing temperature, but levels off at high temperatures.
+
+Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley).
+
+The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = 7.05) and random slopes for `temp_90` (√τ₁₁ = 3.55) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)). The intraclass correlation (ICC) was high (0.95), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
+
+Model fit was excellent: the marginal R² (variance explained by fixed effects) was 0.698, and the conditional R² (fixed + random effects) was 0.985 (Table \@ref(tab:fin-perf)). This suggests that the majority of explanatory power is derived from spatially varying thermal responses captured by the random slopes, with additional structure provided by the fixed effects.
+
 
 ## Predictions against original data
 
@@ -1975,8 +1924,6 @@ pdftools::pdf_convert(
 
 Figure 7 further illustrates this variability across scales, summarizing the distribution of random intercepts and slopes by stream (panel A) and the corresponding predicted temperature–spawn timing relationships for individual reaches (panel B). COMID-level variation in intercepts and slopes reveals substantial spatial heterogeneity in both average timing and thermal sensitivity, with some streams showing greater within-stream variability than others. While the overall relationship between 90-day pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response vary among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, or biological composition. Despite this heterogeneity, the consistency of the population-level trend underscores the biological relevance of temperature as a key cue structuring spawn timing in Middle Fork Chinook Salmon populations.
 
- (Figure \@ref(fig:ranefs-box)).
-
 ```{r ranefs-box, fig.width=8, fig.height=3, fig.cap = "Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
 p.re.int.box <- random_wide |> 
   ggplot(aes(x = stream, y = Intercept, fill = stream)) +
@@ -2043,16 +1990,38 @@ p.re.int.bar + p.re.slp.bar +
 
 ```{r ranefs-comid, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
 
-me <- predict_response(mod_final, terms = c("temp_90 [all]", "COMID"), type = "random")
+# Those sub-July predictions are a problem. The spline is being extrapolated beyond the observed temperature range for some COMIDs — when the random slope pulls a reach's intercept very negative AND the spline is evaluated at cold temperatures outside the data range, you get biologically impossible predictions. The quadratic had the same potential issue but its shape was more constrained at the cold end. The fix is straightforward — clip predictions to the observed temperature range per COMID rather than the global range. In your Figure 7C code, change the prediction grid
+
+me <- predict_response(
+  mod_final, 
+  terms = c("temp_90 [all]", "COMID"), 
+  type = "random"
+  )
+
+# Filter to observed temp range per COMID
+obs_range <- model_data |> 
+  group_by(COMID) |> 
+  summarise(
+    min_temp = min(temp_90), 
+    max_temp = max(temp_90), 
+    .groups = "drop"
+  )
+
+me_filtered <- me |> 
+  as_tibble() |> 
+  left_join(obs_range, by = c("group" = "COMID")) |> 
+  filter(x >= min_temp & x <= max_temp)
+
 # me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
 me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
 # plot(me2, show_data = TRUE, show_ci = TRUE)
 
 # back trandform temp_90
 me$x <- me$x * sd_temp + mean_temp
+me_filtered$x <- me_filtered$x * sd_temp + mean_temp
 me2$x <- me2$x * sd_temp + mean_temp
 
-p.re.preds <- me |> 
+p.re.preds <- me_filtered |> 
   as_tibble() |> 
   left_join(xref_comid_stream, by = c("group" = "COMID")) |>
   ggplot(aes(x, fixed_date + predicted, group = group)) + 
@@ -2061,18 +2030,18 @@ p.re.preds <- me |>
     data = me2, 
     # fill = "yellow",
     aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
-    alpha = 0.5) +
+    alpha = 0.2) +
   geom_line(
     data = me2,
     aes(x = x, y = fixed_date + predicted), 
     linewidth = 2) +
   scale_color_manual(values = cols.streams) +
   # scale_color_grey(start = .5, end = .9) + 
-  scale_y_date(
-    date_breaks = "1 month", 
-    date_labels = "%b", 
-    limits = as.Date(c("2001-06-01", "2001-10-28"))
-    ) +
+  # scale_y_date(
+  #   date_breaks = "1 month", 
+  #   date_labels = "%b", 
+  #   limits = as.Date(c("2001-06-01", "2001-10-28"))
+  #   ) +
   guides(color = "none") +
   labs(
     x = "90-day mean temperature pre-spawn (°C)",
