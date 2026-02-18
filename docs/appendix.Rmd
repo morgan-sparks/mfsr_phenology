@@ -1480,6 +1480,11 @@ mod_final <- lmer(
   yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
   data = df_mod, REML = TRUE
 )
+
+# mod_final <- lmer(
+#   yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID), 
+#   data = df_mod, REML = TRUE
+# )
 ```
 
 
@@ -1853,7 +1858,6 @@ pdftools::pdf_convert(
 ```{r ranefs}
 random <- estimate_grouplevel(mod_final)
 
-# Make random wide
 random_wide <- random |> 
   select(Level, Parameter, Coefficient) |>
   pivot_wider(
@@ -1865,8 +1869,11 @@ random_wide <- random |>
   left_join(df_elev_slope |> mutate(COMID = as.character(COMID)), by = "COMID") 
 ```
 
+Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)A). We found substantial spread in intercepts, indicating variability in baseline spawn timing among reaches. Random slopes for temp_90 likewise varied meaningfully, showing that temperature–spawn timing relationships were not constant across space. 
 
-Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)A). We found substantial spread in intercepts, indicating variability in baseline spawn timing among reaches. Random slopes for temp_90 likewise varied meaningfully, showing that temperature–spawn timing relationships were not constant across space. Sites with earlier average spawn timing (lower intercepts) generally exhibited stronger positive responses to temperature (higher slopes), whereas later-spawning sites tended to present weaker temperature effects—a pattern evident in the weak negative correlation between intercepts and slopes (r = -0.2; Figure \@ref(fig:ranefs-plot)B). These findings highlight spatial heterogeneity in phenological flexibility, with potential implications for how different Middle Fork salmon populations may respond to ongoing climate change.
+<!-- Sites with earlier average spawn timing (lower intercepts) generally exhibited stronger positive responses to temperature (higher slopes), whereas later-spawning sites tended to present weaker temperature effects—a pattern evident in the weak negative correlation between intercepts and slopes (r = -0.2; Figure \@ref(fig:ranefs-plot)B). These findings highlight spatial heterogeneity in phenological flexibility, with potential implications for how different Middle Fork salmon populations may respond to ongoing climate change. -->
+
+Random intercepts and slopes were strongly negatively correlated (r = -0.83, model-estimated from the variance-covariance matrix of random effects), indicating that stream reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity. This pattern was consistent across most data-rich streams (Bear Valley, Big, Camas, Loon), though streams with few COMIDs and compressed intercept ranges (Marsh, Sulphur, Beaver) provided insufficient within-stream variation to evaluate the relationship reliably. The correlation is considerably stronger under the natural spline formulation than under the quadratic model (r = -0.2), likely reflecting the spline's greater flexibility in capturing steep thermal responses at cold temperatures characteristic of early-spawning reaches. While this correlation may be partially amplified by the spline's functional form, its consistency across data-rich streams suggests a real biological signal: reaches that spawn earliest are most responsive to temperature variation, potentially indicating greater phenological plasticity or stronger dependence on thermal cues among high-elevation fish.
 
 ```{r ranefs-plot, fig.width=8, fig.height=9,  results='hide', fig.cap = "(A) COMID-specific random parameter estimates for intercepts (left) and slopes (right). Points represent best linear unbiased predictions (BLUPs) from the final model, with horizontal bars indicating ±1.96 standard errors. (B) Correlation between random intercepts and slopes for 90-day temperature across COMIDs. Each point represents a stream reach (COMID)."}
 
@@ -1875,33 +1882,45 @@ p.re.forest <- plot(random) +
   geom_hline(yintercept = 0, linetype = "dashed") + 
   theme(axis.text.y = element_blank()) +
   labs(x = "Level (COMID)")
+p.re.forest
 
+# Check the random effects correlation parameter from the model directly
+# VarCorr(mod_final)
 
-# Calculate correlation between intercepts and slopes
-cor_val <- cor(random_wide$Intercept, random_wide$Slope)
-
-# Plot cor
-p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
+# Also worth visualizing whether the strong correlation holds up
+# when you look at streams separately
+p.re.cor <- random_wide |>
+  ggplot(aes(x = Intercept, y = Slope, color = stream)) +
   geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "red") +
-  annotate(
-    "text",
-    x = min(random_wide$Intercept), 
-    y = max(random_wide$Slope),
-    label = paste0("r = ", round(cor_val, 2)), 
-    hjust = 0, vjust = 1.5) +
-  labs(
-    # title = "Random Intercepts vs. Slopes for temp_90",
-    x = "Random intercept",
-    y = "Random slope",
-  )
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  facet_wrap(~stream, scales = "free") +
+  labs(x = "Random intercept", y = "Random slope")
 
-p.re.forest / p.re.cor +
-  plot_layout(heights = c(1,.5)) + 
-  plot_annotation(
-    # title = "Random Effects for 90-day Pre-Spawn Temperature",
-    tag_levels = "A"
-  )
+# # Calculate correlation between intercepts and slopes
+# cor_val <- cor(random_wide$Intercept, random_wide$Slope)
+# 
+# # Plot cor
+# p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
+#   geom_point() +
+#   geom_smooth(method = "lm", se = TRUE, color = "red") +
+#   annotate(
+#     "text",
+#     x = min(random_wide$Intercept), 
+#     y = max(random_wide$Slope),
+#     label = paste0("r = ", round(cor_val, 2)), 
+#     hjust = 0, vjust = 1.5) +
+#   labs(
+#     # title = "Random Intercepts vs. Slopes for temp_90",
+#     x = "Random intercept",
+#     y = "Random slope",
+#   )
+#
+# p.re.forest / p.re.cor +
+#   plot_layout(heights = c(1,.5)) + 
+#   plot_annotation(
+#     # title = "Random Effects for 90-day Pre-Spawn Temperature",
+#     tag_levels = "A"
+#   )
 
 # save plot
 path <- here::here("plots", "Figure_06")
@@ -1922,7 +1941,7 @@ pdftools::pdf_convert(
   )
 ```
 
-Figure 7 further illustrates this variability across scales, summarizing the distribution of random intercepts and slopes by stream (panel A) and the corresponding predicted temperature–spawn timing relationships for individual reaches (panel B). COMID-level variation in intercepts and slopes reveals substantial spatial heterogeneity in both average timing and thermal sensitivity, with some streams showing greater within-stream variability than others. While the overall relationship between 90-day pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response vary among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, or biological composition. Despite this heterogeneity, the consistency of the population-level trend underscores the biological relevance of temperature as a key cue structuring spawn timing in Middle Fork Chinook Salmon populations.
+<!-- Figure 7 further illustrates this variability across scales, summarizing the distribution of random intercepts and slopes by stream (panel A) and the corresponding predicted temperature–spawn timing relationships for individual reaches (panel B). COMID-level variation in intercepts and slopes reveals substantial spatial heterogeneity in both average timing and thermal sensitivity, with some streams showing greater within-stream variability than others. While the overall relationship between 90-day pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response vary among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, or biological composition. Despite this heterogeneity, the consistency of the population-level trend underscores the biological relevance of temperature as a key cue structuring spawn timing in Middle Fork Chinook Salmon populations. -->
 
 ```{r ranefs-box, fig.width=8, fig.height=3, fig.cap = "Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
 p.re.int.box <- random_wide |> 
@@ -1988,7 +2007,7 @@ p.re.int.bar + p.re.slp.bar +
   )
 ```
 
-```{r ranefs-comid, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
+```{r ranefs-comid-temp90, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
 
 # Those sub-July predictions are a problem. The spline is being extrapolated beyond the observed temperature range for some COMIDs — when the random slope pulls a reach's intercept very negative AND the spline is evaluated at cold temperatures outside the data range, you get biologically impossible predictions. The quadratic had the same potential issue but its shape was more constrained at the cold end. The fix is straightforward — clip predictions to the observed temperature range per COMID rather than the global range. In your Figure 7C code, change the prediction grid
 
@@ -1997,6 +2016,7 @@ me <- predict_response(
   terms = c("temp_90 [all]", "COMID"), 
   type = "random"
   )
+me$x <- me$x * sd_temp + mean_temp
 
 # Filter to observed temp range per COMID
 obs_range <- model_data |> 
@@ -2015,10 +2035,6 @@ me_filtered <- me |>
 # me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
 me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
 # plot(me2, show_data = TRUE, show_ci = TRUE)
-
-# back trandform temp_90
-me$x <- me$x * sd_temp + mean_temp
-me_filtered$x <- me_filtered$x * sd_temp + mean_temp
 me2$x <- me2$x * sd_temp + mean_temp
 
 p.re.preds <- me_filtered |> 
