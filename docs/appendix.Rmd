@@ -210,7 +210,7 @@ n_perc_5 <- spawn_data |>
 
 The structure of the data is repeated measures on COMIDs, and multiple years, shared across COMIDs within streams. Many `COMIDs` only have 1-2 observation (Figure \@ref(fig:comid-counts)). There are `r n_sparse_COMIDS_5` COMIDs with \<5 redds (`r round(n_perc_5, 1)`%), `r n_sparse_COMIDS_2` with \<= 2. (`r n_perc_2`%). 
 
-```{r comid-counts, fig.width=7, fig.height=3, fig.cap="Number of observations (redds) per COMID."}
+```{r comid-counts, fig.width=6, fig.height=3, fig.cap="Number of observations (redds) per COMID."}
 # count of comids per stream
 p.counts1 <- spawn_data |> 
   distinct(stream, COMID) |> 
@@ -218,9 +218,9 @@ p.counts1 <- spawn_data |>
   arrange(desc(n_COMIDs)) |> 
   ggplot(aes(x = reorder(stream, -n_COMIDs), y = n_COMIDs, fill = stream)) +
   geom_bar(stat = "identity") +
-  # coord_flip() +
+  coord_flip() +
   scale_fill_manual(values = cols.streams) + 
-  labs(x = "Stream", y = "Count of COMIDs") + 
+  labs(x = "", y = "Count of COMIDs") + 
   theme(legend.position = "none", axis.text.x = element_text(angle=45, hjust=1))
 
 # count of comids with different numbers of redds
@@ -256,7 +256,7 @@ Note: Random slope estimates for stream reaches with few observations will refle
 
 Spawn timing is generally unimodal, with a peak in late August to early September (Figure \@ref(fig:spawn-dist)A). The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous. There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
 
-```{r spawn-dist, message=FALSE, warning=FALSE, results='hide', fig.width=10, fig.height=8, fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
+```{r spawn-dist, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=6, out.width="80%", fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
 
 # calculate mean yday for each year
 yr_means <- spawn_data |> 
@@ -356,7 +356,7 @@ pdftools::pdf_convert(
 
 \newpage 
 
-```{r temp-dist-spawn, fig.width=8, fig.height=8, results='hide', fig.cap= "Histogram and density of Chinook salmon spawn timing across all streams and years (A), by stream (B), and by year (C). In panel (A), the histogram and kernel density illustrate the overall distribution of spawn dates; vertical-colored lines illustrate year-specific means, and the black line depicts the global mean. Spawn timing was generally unimodal, peaking in late August to early September."}
+```{r temp-dist-spawn, fig.width=8, fig.height=8, out.width="80%", results='hide', fig.cap= "Histogram and density of Chinook salmon spawn timing across all streams and years (A), by stream (B), and by year (C). In panel (A), the histogram and kernel density illustrate the overall distribution of spawn dates; vertical-colored lines illustrate year-specific means, and the black line depicts the global mean. Spawn timing was generally unimodal, peaking in late August to early September."}
 
 mfsr_by_site <- spawn_data |>
   group_by(stream, yday)
@@ -394,7 +394,7 @@ spawn_data |>
 
 \newpage
 
-```{r spawn-comid, message=FALSE, warning=FALSE, fig.width=8, fig.height=8, fig.cap= "Variation in Chinooks salmon spawn timing by COMID within streams."}
+```{r spawn-comid, message=FALSE, warning=FALSE, fig.width=8, fig.height=8, out.width="80%",  fig.cap= "Variation in Chinooks salmon spawn timing by COMID within streams."}
 spawn_data |>
   ggplot(aes(x = COMID, y = fixed_date + yday)) +
   facet_wrap(~stream, scales = "free_y") +
@@ -414,7 +414,7 @@ spawn_data |>
 
 The temporal progression of Chinook salmon spawning activity varied within each stream across the four study years (Figure \@ref(fig:spawn-cum)). The cumulative proportion of redds provides an intuitive measure of the spawning season’s pace and timing. Streams like Marsh and Sulphur exhibit rapid increases, suggesting short, concentrated spawning windows. In contrast, streams like Big and Camas show more gradual increases, indicating a more protracted spawning season. Year-to-year variation is evident in several streams. Overall, this figure highlights both spatial and temporal heterogeneity in spawn timing that underpins the need for models incorporating stream- and year-specific effects.
 
-```{r spawn-cum, fig.width=8, fig.height=6, results='hide', fig.cap="Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
+```{r spawn-cum, fig.width=8, fig.height=6, out.width="80%", results='hide', fig.cap="Proportion of cumulative Chinook salmon redds over time (day of year) across years (2002–2005) and streams. Each line represents a different year, with color denoting the year. Stream-specific panels illustrate temporal variation in the progression of spawning activity, as measured by cumulative redd counts normalized to the maximum value in each stream-year combination."}
 
 # Proportional cumulative redds by stream --------------------------------------
 # For each year and stream, calculate the prop. cumulative number of redds
@@ -477,7 +477,7 @@ Elevation and stream slope data were available at the COMID (stream reach) scale
 
 We used modeled daily average stream temperature values predicted at the stream segment (COMID) scale (Siegel et al. 2023). These data were downloaded and filtered to 2002-2005 and for the MFSR. Figure \@ref(fig:plot-temp-regime) shows the modeled thermal regimes for MFSR tributaries.
 
-```{r plot-temp-regime, fig.width=8, fig.height=6, fig.cap="Modeled thermal regimes (2001-2005) for MFSR tributaries. Black line are means, Red ribbon are 40 to 60th percentiles, Grey ribbon are full range."}
+```{r plot-temp-regime, fig.width=8, fig.height=6, out.width="80%", fig.cap="Modeled thermal regimes (2001-2005) for MFSR tributaries. Black line are means, Red ribbon are 40 to 60th percentiles, Grey ribbon are full range."}
 # calculate 40 to 60th percentiles and full range for each COMID
 df_temp_stream <- df_temp |> 
   group_by(stream, yday) |> 
@@ -536,7 +536,7 @@ isaak_siegel |>
 
 Stream flow data were compiled from a single USGS Gage lower in the watershed (MF Salmon River at MF Lodge NR Yellow Pine ID - 13309220; Figure \@ref(fig:plot-flow)).
 
-```{r plot-flow, fig.width=8, fig.height=6, fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
+```{r plot-flow, fig.width=8, fig.height=6, out.width="80%", fig.cap = "Inter-annual variability in daily discharge (cfs) at MF Lodge USGS Gage 13309220."}
 p.flow.1 <- df_flows |> 
   ggplot(aes(x = fixed_date + yday, y = flow_cfs  , color = year)) +
   geom_line() +
@@ -633,7 +633,7 @@ The time invariant and after metrics were omitted from further consideration as 
 
 We did exploratory data analysis on the compiled dataset to identify candidate covariates for inclusion in model selection. Bivariate relationships between spawn date (`yday`) and continuous predictors (Figure \@ref(fig:plot-covars)), and pairwise correlations between all continuous covariates (Figure \@ref(fig:colin)), are shown below.
 
-```{r plot-covars, fig.width=6,  fig.height=5, fig.cap = "Bivariate relationships between spawn date (`yday`) and continuous covariates. Solid lines are linear fits."}
+```{r plot-covars, fig.width=6, fig.height=5, fig.cap = "Bivariate relationships between spawn date (`yday`) and continuous covariates. Solid lines are linear fits."}
 covariates <- c(
   "temp_30", 
   "temp_60", 
@@ -648,7 +648,7 @@ plots <- map(covariates, ~ plot_covariate(model_data, .x))
 gridExtra::grid.arrange(grobs = plots, ncol = 3)
 ```
 
-```{r colin, cache=TRUE, fig.width=8, fig.height=7, fig.cap="Pairwise correlations between continuous covariates."}
+```{r colin, cache=TRUE, fig.width=9, fig.height=8, out.width="80%", fig.cap="Pairwise correlations between continuous covariates."}
 model_data |> 
   select(temp_30, temp_60, temp_90, flow_30, flow_60, flow_90, mean_elevation, slope) |> 
   GGally::ggpairs()
@@ -669,7 +669,7 @@ The is a weak negative relationship between `mean_elevation` and `yday` (Figure 
 
 ## Stream temperature (temp_90)
 
-```{r plot-temp-90, fig.width=8, fig.height=4, fig.cap = "Relationship between 90 day antecedent stream temperature and spawn date by stream and year. Solid lines are linear fits."}
+```{r plot-temp-90, fig.width=8, fig.height=4, out.width="90%", fig.cap = "Relationship between 90 day antecedent stream temperature and spawn date by stream and year. Solid lines are linear fits."}
 
 p.t90.1 <- model_data |> 
   ggplot(aes(temp_90, fixed_date + yday, color = stream)) + 
@@ -728,7 +728,7 @@ compare_performance(m.t90.1, m.t90.2, m.t90.3, rank = TRUE, metrics = "common") 
   kable_styling(latex_options = "hold_position")
 ```
 
-```{r t90-relate, fig.width=8, fig.height=3, fig.cap="Marginal effect of 90 day antecedent stream temperature on spawn timing for (A) `m.t90.2` and (B) `m.t90.3`."}
+```{r t90-relate, fig.width=8, fig.height=3, out.width="90%", fig.cap="Marginal effect of 90 day antecedent stream temperature on spawn timing for (A) `m.t90.2` and (B) `m.t90.3`."}
 estimate_relation(m.t90.2) |> 
   plot(show_data = TRUE) | 
 estimate_relation(m.t90.3) |> 
@@ -901,7 +901,7 @@ car::vif(m.ele.6) |>
 
 `slope` is not related to `yday` (Figure \@ref(fig:plot-slope)A), though there is some association between `slope` and `yday` when considering stream (Figure \@ref(fig:plot-slope)B). We will likely drop slope.
 
-```{r plot-slope, fig.width=8, fig.height=3, fig.cap = "Bivariate relationship between `slope` and spawn date (A) and by stream (B). Solid lines are linear fits."}
+```{r plot-slope, fig.width=8, fig.height=3, out.width="90%", fig.cap = "Bivariate relationship between `slope` and spawn date (A) and by stream (B). Solid lines are linear fits."}
 model_data |> 
   filter(slope < .2) |>
   ggplot(aes(slope, fixed_date + yday)) + 
@@ -940,7 +940,7 @@ compare_performance(m_slope1, m_slope2, rank = TRUE) |>
 
 Because flow data are not COMID- or stream-specific, it makes sense to think about and represent flow as an out-of-basin year effect that determines when adults make it back to the MFSR and initially onto the spawning grounds. The strong correlation between `flow_90` and `year` can be seen clearly in (Figure \@ref(fig:plot-flow-met)A).
 
-```{r plot-flow-met, fig.width=8, fig.height=3, fig.cap = "Spawn timing vs. 90-day mean discharge pre spawn at MF Lodge."}
+```{r plot-flow-met, fig.width=8, fig.height=3, out.width="90%", fig.cap = "Spawn timing vs. 90-day mean discharge pre spawn at MF Lodge."}
 ggplot(model_data, aes(x = flow_90, y = fixed_date + yday, color = year)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
@@ -1137,7 +1137,7 @@ Model `m16`, which excludes both `mean_elevation` and `slope`, had nearly identi
 
 Visual inspection of partial (model-based) relationships (Figure \@ref(fig:lm-plot) B)) revealed that the modeled elevation effect was inconsistent with ecological expectations.
 
-```{r lm-plot, fig.width=8, fig.height=3, fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp\\_90`, (B) `mean\\_elevation`."}
+```{r lm-plot, fig.width=8, fig.height=3, out.width="90%", fig.cap="Predicted relationship (red line) between spawn date (`yday`) and (A) `temp\\_90`, (B) `mean\\_elevation`."}
 a <- plot_model(
   m26, type = "eff", terms = c("temp_90"), show.data = TRUE,
   title = "`m26`, `temp_90`"
@@ -1240,7 +1240,7 @@ tab_model(
   )
 ```
 
-```{r plot, eval=FALSE, fig.width=8, fig.height=3, fig.cap = "Model predictions (red lines) for `m16` and `m16\\_rs`."}
+```{r plot, eval=FALSE, fig.width=8, fig.height=3, out.width="90%", fig.cap = "Model predictions (red lines) for `m16` and `m16\\_rs`."}
 plot_model(m16, type = "eff", terms = c("temp_90 [all]"), title = "`m16`", show.data = TRUE) + labs(y = "Predicted\nspawn date") |
 plot_model(m16_rs, type = "eff", terms = c("temp_90 [all]"), title = "`m16_rs`", show.data = TRUE) + labs(y = "") + 
   plot_annotation(tag_levels = "A")
@@ -1291,7 +1291,7 @@ lm_tab |>
   kable_styling(latex_options = "hold_position")
 ```
 
-```{r m16-re-quad-rs-2-plot, fig.width=8, fig.height=3, fig.cap = "Model predictions (red lines) for `m16\\_rs` and `m16\\_rs\\_noquad`."}
+```{r m16-re-quad-rs-2-plot, fig.width=8, fig.height=3, out.width="90%", fig.cap = "Model predictions (red lines) for `m16\\_rs` and `m16\\_rs\\_noquad`."}
 plot_model(m16_rs, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE, title = "`m16_rs`") + labs(y="Predicted\nspawn date") |
 plot_model(m16_rs_noquad, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE, title = "`m16_rs_noquad`") + labs(y="") + 
   plot_annotation(tag_levels = "A")
@@ -1350,7 +1350,7 @@ tab_model(
   )
 ```
 
-```{r interact-plots, fig.width=8, fig.height=3, fig.cap="Predicted spawn timing."}
+```{r interact-plots, fig.width=8, fig.height=3, out.width="90%", fig.cap="Predicted spawn timing."}
 # plot_model(m16_re_quad_rs, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE)
 # plot_model(m201, type = "eff", terms = c("temp_90 [all]"), show.data = TRUE)
 plot_model(m201, type = "int", terms = c("temp_90 [all]"), show.data = TRUE, title = "m201") + labs(y = "Predicted\nspawn date") |
@@ -1369,7 +1369,9 @@ Given the limited inferential gain and added complexity of the interaction model
 
 ## Residual Diognostics
 
-```{r}
+DHARMa diagnostics indicated adequate overall fit but revealed a systematic trend in quantile residuals across the temperature gradient, with residuals shifted high at cold sites and low at warm sites. This pattern suggested the quadratic term did not fully capture the nonlinear temperature–spawn timing relationship, motivating evaluation of a more flexible functional form. 
+
+```{r out.width="80%"}
 # Simulate residuals from current final model (conditional, includes random effects)
 sim_resid <- DHARMa::simulateResiduals(m16_rs, n = 500)
 
@@ -1392,7 +1394,6 @@ par(mfrow = c(1, 1))
 # Both are flagged significant (red), and you can see the heterogeneity — Elk and Marsh in particular have compressed residual distributions (boxes sitting well below 0.5), while Big and Camas are shifted high. The year plot shows 2005 shifted notably lower. This pattern tells you the model's fixed effects for stream and year are not fully absorbing those group-level differences — there's systematic residual structure by group.
 ```
 
-DHARMa diagnostics indicated adequate overall fit but revealed a systematic trend in quantile residuals across the temperature gradient, with residuals shifted high at cold sites and low at warm sites. This pattern suggested the quadratic term did not fully capture the nonlinear temperature–spawn timing relationship, motivating evaluation of a more flexible functional form. 
 
 ## Evaluation of Temperature Functional Form
 
@@ -1422,7 +1423,7 @@ compare_performance(
   kable_styling(latex_options = "hold_position")
 ```
 
-```{r}
+```{r mod-compare-plots, out.width="90%", fig.cap="Prediction comparion plots."}
 # Prediction comparison plot — all three models
 pred_quad <- predict_response(m16_rs, terms = "temp_90 [all]") |>
   as_tibble() |> 
@@ -1460,7 +1461,7 @@ bind_rows(pred_quad, pred_s3, pred_s4) |>
 
 ```
 
-```{r}
+```{r out.width="90%"}
 # DHARMa residuals vs temp_90 for spline df=3 vs quadratic
 sim_s3 <- DHARMa::simulateResiduals(mod_spline3, n = 500)
 
@@ -1472,6 +1473,8 @@ par(mfrow = c(1, 1))
 ```
 
 The df=3 spline substantially outperformed the quadratic (ΔAIC = 139) with lower RMSE and improved residual behavior across the temperature gradient. The df=4 spline showed further AIC improvement (ΔAIC = 66 over df=3) but produced biologically implausible predictions at warm-end temperature extremes — spawn timing decreasing sharply above ~13°C — indicative of overfitting. The df=3 spline was therefore selected as the final temperature functional form. 
+
+\newpage
 
 # Final Model Diognostics and Interpretation
 
@@ -1503,13 +1506,13 @@ The normal Q-Q plot of residuals shows slight right-skew and some heavy tails, b
 
 Overall, the model shows no violations of key assumptions and is suitable for inference and prediction.
 
-```{r diagnostics, fig.width=8, fig.height=9, fig.cap="Residual diagnostics for mod\\_final."}
+```{r diagnostics, fig.width=8, fig.height=9, out.width="80%", fig.cap="Residual diagnostics for mod\\_final."}
 check_model(mod_final, base_size = 8, size_title = 10)
 # check_model(mod_final, check = c("vif", "qq", "residuals", "homogeneity", "normality"))
 # check_model(mod_final, check = c("homogeneity"))
 ```
 
-```{r sim-resid}
+```{r sim-resid, out.width="80%"}
 # calcualte simulated residuals - conditional on ranefs (omit re.form = NULL)
 # sim_resid <- performance::simulate_residuals(mod_final)  # wrapper for DHARMa
 # sim_resid <- DHARMa::simulateResiduals(mod_final, n = 500, re.form = NULL)
@@ -1608,7 +1611,7 @@ Model fit was excellent: the marginal R² (variance explained by fixed effects) 
 
 Model predictions closely matched observed spawn timing, with predicted values aligning well along the 1:1 line (Figure \@ref(fig:preds)). This supports strong overall model fit.
 
-```{r preds, fig.width=5, fig.height=3, fig.cap = "Predicted vs. observed spawn timing for Chinook Salmon across all years and streams. The dashed line shows the 1:1 line. Points represent individual redd observations."}
+```{r preds, fig.width=5, fig.height=3, out.width="80%", fig.cap = "Predicted vs. observed spawn timing for Chinook Salmon across all years and streams. The dashed line shows the 1:1 line. Points represent individual redd observations."}
 
 # Estimate predictions on the model dataset
 pred_data <- estimate_expectation(mod_final)
@@ -1639,7 +1642,7 @@ pred_data |>
 
 We estimated marginal mean of `yday` at each factor level, averaging over the random effects, to provide an overall estimate of the effect in the population (Figure \@ref(fig:means-panel)).
 
-```{r means-panel, fig.width=8, fig.height=8,  results='hide', fig.cap = "Predicted mean spawn dates by stream (A), year (B) and stream and year (C), from the final mixed-effects model. Black points with black lines (A, B), and colored points with horizontal lines (C) represent estimated marginal means and 95\\% confidence intervals. Boxplots in panels A and B show the distribution of observed redd counts by group, with individual data points in grey. The modeled predictions represent marginal means accounting for fixed effects and averaged over random effects."}
+```{r means-panel, fig.width=8, fig.height=8,  out.width="80%", results='hide', fig.cap = "Predicted mean spawn dates by stream (A), year (B) and stream and year (C), from the final mixed-effects model. Black points with black lines (A, B), and colored points with horizontal lines (C) represent estimated marginal means and 95\\% confidence intervals. Boxplots in panels A and B show the distribution of observed redd counts by group, with individual data points in grey. The modeled predictions represent marginal means accounting for fixed effects and averaged over random effects."}
 
 # Estimate means for population-level effects (both)
 means <- estimate_means(mod_final, by = c("stream", "year"), estimate = "average")
@@ -1758,6 +1761,9 @@ contrasts_year |>
   kable_styling(latex_options = "hold_position")
 ```
 
+\newpage
+
+
 ### Estimating response vs. relation
 
 To visualize the model's predictions across the temperature gradient, we estimated the relationship between spawn timing and 90-day pre-spawn mean temperature (`temp_90`) for different groupings: overall, by stream, and by year. This approach allows us to assess both general trends and context-specific responses.
@@ -1772,7 +1778,7 @@ Together, these plots indicate that the final model effectively captures both no
 
 When stratified by stream and year, predictions captured both the nonlinear temperature response and variation in baseline spawn timing across sites and years (Figure \@ref(fig:preds-by-group)). The curvature was consistent across years, while intercept shifts reflected known spatial patterns (e.g., later spawning in warmer, downstream reaches). These results confirm that the model accurately describes both average and context-specific phenological responses to temperature.
 
-```{r preds-by-group, fig.width=8, fig.height=6, results='hide', fig.cap = "Predicted relationship between spawn timing and 90-day pre-spawn mean temperature by stream and year. Lines represent model predictions from the final mixed-effects model. Colored points show observed redd timing, shaded ribbons represent 95% confidence intervals for predictions."}
+```{r preds-by-group, fig.width=8, fig.height=6, out.width="90%", results='hide', fig.cap = "Predicted relationship between spawn timing and 90-day pre-spawn mean temperature by stream and year. Lines represent model predictions from the final mixed-effects model. Colored points show observed redd timing, shaded ribbons represent 95% confidence intervals for predictions."}
 
 # plot(estimate_relation(mod_final, by = "temp_90"))
 # plot(estimate_relation(mod_final, by = c("mean_elevation")))
@@ -1889,7 +1895,7 @@ Random intercepts and slopes varied considerably among COMIDs, reflecting spatia
 
 Random intercepts and slopes were strongly negatively correlated (r = -0.83, model-estimated from the variance-covariance matrix of random effects), indicating that stream reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity. This pattern was consistent across most data-rich streams (Bear Valley, Big, Camas, Loon), though streams with few COMIDs and compressed intercept ranges (Marsh, Sulphur, Beaver) provided insufficient within-stream variation to evaluate the relationship reliably. The correlation is considerably stronger under the natural spline formulation than under the quadratic model (r = -0.2), likely reflecting the spline's greater flexibility in capturing steep thermal responses at cold temperatures characteristic of early-spawning reaches. While this correlation may be partially amplified by the spline's functional form, its consistency across data-rich streams suggests a real biological signal: reaches that spawn earliest are most responsive to temperature variation, potentially indicating greater phenological plasticity or stronger dependence on thermal cues among high-elevation fish.
 
-```{r ranefs-plot, fig.width=8, fig.height=9,  results='hide', fig.cap = "(A) COMID-specific random parameter estimates for intercepts (left) and slopes (right). Points represent best linear unbiased predictions (BLUPs) from the final model, with horizontal bars indicating ±1.96 standard errors. (B) Correlation between random intercepts and slopes for 90-day temperature across COMIDs. Each point represents a stream reach (COMID)."}
+```{r ranefs-plot, fig.width=3, fig.height=2,  results='hide', fig.cap = "Correlation between random intercepts and slopes for 90-day temperature across COMIDs. Points represent best linear unbiased predictions (BLUPs) from the final model."}
 
 # Plot forest
 p.re.forest <- plot(random) +
@@ -1926,7 +1932,7 @@ p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
     x = "Random intercept",
     y = "Random slope",
   )
-
+p.re.cor
 # p.re.forest / p.re.cor +
 #   plot_layout(heights = c(1,.5)) +
 #   plot_annotation(
@@ -2019,9 +2025,7 @@ p.re.int.bar + p.re.slp.bar +
   )
 ```
 
-```{r ranefs-comid-temp90, fig.width=7, fig.height=5, fig.cap = "Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted spawn timing for a specific COMID, colored by stream. The black line and shaded ribbon represents the 95% confidence interval for the population-level predictions."}
-
-# Those sub-July predictions are a problem. The spline is being extrapolated beyond the observed temperature range for some COMIDs — when the random slope pulls a reach's intercept very negative AND the spline is evaluated at cold temperatures outside the data range, you get biologically impossible predictions. The quadratic had the same potential issue but its shape was more constrained at the cold end. The fix is straightforward — clip predictions to the observed temperature range per COMID rather than the global range. In your Figure 7C code, change the prediction grid
+```{r ranefs-comid-temp90, results='hide', fig.width=7, fig.height=5}
 
 # COMID - level responses -----------
 
@@ -2107,7 +2111,7 @@ p.re.preds <- me_filtered |>
   ) +
   theme_bw()
 
-p.re.preds
+# p.re.preds
 
 # save plot
 path <- here::here("plots", "preds_ranef")
@@ -2128,7 +2132,7 @@ pdftools::pdf_convert(
   )
 ```
 
-```{r comid-variation, fig.width=8, fig.height=9,  results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. (A) Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (B) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
+```{r comid-variation, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. (A) Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (B) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
 
 (p.re.int.box + p.re.slp.box) / p.re.preds + 
   plot_layout(guides = "collect", heights = c(.65,1)) + 
