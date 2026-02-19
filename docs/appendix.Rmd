@@ -256,7 +256,7 @@ Note: Random slope estimates for stream reaches with few observations will refle
 
 Spawn timing is generally unimodal, with a peak in late August to early September (Figure \@ref(fig:spawn-dist)A). The distribution is slightly left skewed, but the mean and median are similar, indicating low skewness. The variance is low, suggesting no overdispersion. Suggests Poisson family for response if count of spawning events per day, or Gaussian if modeling day of year as continuous. There is also substantial variation in spawn date by stream and year (Fig. \@ref(fig:spawn-dist)B-C; Fig. \@ref(fig:temp-dist-spawn)) and within COMIDs within streams (Fig. \@ref(fig:spawn-comid)).
 
-```{r spawn-dist, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=6, out.width="80%", fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicated the global mean."}
+```{r spawn-dist, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=6, out.width="80%", fig.cap = "Histogram and density of spawn timing for all streams and years (A), and by stream (B) and year (C). In panel (A), colored, vertical lines indicate the mean spawn date for each year., and the black vertical line indicates the global mean."}
 
 # calculate mean yday for each year
 yr_means <- spawn_data |> 
@@ -356,7 +356,7 @@ pdftools::pdf_convert(
 
 \newpage 
 
-```{r temp-dist-spawn, fig.width=8, fig.height=8, out.width="80%", results='hide', fig.cap= "Histogram and density of Chinook salmon spawn timing across all streams and years (A), by stream (B), and by year (C). In panel (A), the histogram and kernel density illustrate the overall distribution of spawn dates; vertical-colored lines illustrate year-specific means, and the black line depicts the global mean. Spawn timing was generally unimodal, peaking in late August to early September."}
+```{r temp-dist-spawn, fig.width=8, fig.height=8, out.width="80%", results='hide', fig.cap= "Kernel density plots showing the overall distribution of spawn dates by stream and year."}
 
 mfsr_by_site <- spawn_data |>
   group_by(stream, yday)
@@ -656,7 +656,7 @@ model_data |>
 
 **Takeaways from Figures** \@ref(fig:plot-covars) **and** \@ref(fig:colin):
 
-Amoung temperature variables, `temp_90` clearly shows the strongest relationship with spawn date (Figure \@ref(fig:plot-covars)), and is highly colinear with `temp_30` and `temp_60` (Figure \@ref(fig:colin)).
+Among temperature variables, `temp_90` clearly shows the strongest relationship with spawn date (Figure \@ref(fig:plot-covars)), and is highly colinear with `temp_30` and `temp_60` (Figure \@ref(fig:colin)).
 
 The is a weak negative relationship between `mean_elevation` and `yday` (Figure \@ref(fig:plot-covars)), and it is weakly correlated with `temp_90` (0.31, Figure \@ref(fig:colin)).
 
@@ -1021,7 +1021,7 @@ Although we initially considered including 90-day mean streamflow (`flow_90`) as
 
 \newpage
 
-# Data Anlaysis
+# Data Analysis
 
 The final analysis dataset includes:
 
@@ -1129,7 +1129,7 @@ tab_model(
   )
 ```
 
-Based on AIC, the best-fitting model was `m26`, though its improvement in AIC and performance over `m31`, the full model which includes `slope`, was modest (Table \@ref(tab:aic-tab). Suggests little benefit to including `slope` as a predictor.
+Based on AIC, the best-fitting model was `m26`, though its improvement in AIC and performance over `m31`, the full model which includes `slope`, was modest (Table \@ref(tab:aic-tab). Suggests little benefit to including `slope` as a predictor).
 
 `m27`, which excludes `mean_elevation`, had substantially worse AIC and performance than `m26` and `m31`, indicating that elevation contributes meaningfully to explaining spawn timing variation.
 
@@ -1367,7 +1367,7 @@ Given the limited inferential gain and added complexity of the interaction model
 
 \newpage 
 
-## Residual Diognostics
+## Residual Diagnostics
 
 DHARMa diagnostics indicated adequate overall fit but revealed a systematic trend in quantile residuals across the temperature gradient, with residuals shifted high at cold sites and low at warm sites. This pattern suggested the quadratic term did not fully capture the nonlinear temperature–spawn timing relationship, motivating evaluation of a more flexible functional form. 
 
@@ -1476,7 +1476,7 @@ The df=3 spline substantially outperformed the quadratic (ΔAIC = 139) with lowe
 
 \newpage
 
-# Final Model Diognostics and Interpretation
+# Final Model Diagnostics and Interpretation
 
 ```{r fin-mod, echo=TRUE}
 # Redefine mod_final as spline df=3, refit with REML for interpretation
@@ -1598,7 +1598,7 @@ model_performance(mod_final, metrics = "common") |>
   kable_styling(latex_options = "hold_position")
 ```
 
-Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing, with the quadratic term (–0.85) confirming a concave-down relationship—i.e., spawn timing advances with increasing temperature, but levels off at high temperatures.
+Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinear effect of temperature on spawn timing; spawn timing advances with increasing temperature, but levels off at high temperatures.
 
 Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley).
 
@@ -1926,7 +1926,7 @@ p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
     x = min(random_wide$Intercept),
     y = max(random_wide$Slope),
     label = paste0("r = ", round(cor_val, 2)),
-    hjust = -3, vjust = 1.5) +
+    hjust = -2, vjust = 1.5) +
   labs(
     # title = "Random Intercepts vs. Slopes for temp_90",
     x = "Random intercept",
@@ -2132,7 +2132,7 @@ pdftools::pdf_convert(
   )
 ```
 
-```{r comid-variation, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. (A) Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (B) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
+```{r comid-variation, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. Boxplots of (A) random intercepts and (B) slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (C) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
 
 (p.re.int.box + p.re.slp.box) / p.re.preds + 
   plot_layout(guides = "collect", heights = c(.65,1)) + 
