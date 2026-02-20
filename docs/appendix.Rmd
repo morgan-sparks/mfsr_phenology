@@ -1591,7 +1591,8 @@ params |>
 ```
 
 ```{r fin-perf}
-model_performance(mod_final, metrics = "common") |>
+perf_fin <- model_performance(mod_final, metrics = "common")
+perf_fin |>
   kable(
     caption = "Model performance for mod\\_final."
   ) |> 
@@ -1602,9 +1603,9 @@ Parameter estimates (Table \@ref(tab:fin-param)) indicate a significant nonlinea
 
 Most stream and year effects were significant, capturing expected spatiotemporal structure in spawn timing. Notably, Big, Camas, and Loon were not significantly different from the reference level (Bear Valley).
 
-The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = 7.05) and random slopes for `temp_90` (√τ₁₁ = 3.55) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)). The intraclass correlation (ICC) was high (0.95), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
+The random effects structure reveals substantial variation across COMIDs. The standard deviation for random intercepts (√τ₀₀ = `r params$Coefficient[[15]]`) and random slopes for `temp_90` (√τ₁₁ = `r params$Coefficient[[16]]`) indicates strong spatial heterogeneity in both baseline timing and temperature sensitivity (Table \@ref(tab:fin-param)). The intraclass correlation (ICC) was high (`r perf_fin$ICC`), reflecting strong grouping structure at the COMID level (Table \@ref(tab:fin-perf)).
 
-Model fit was excellent: the marginal R² (variance explained by fixed effects) was 0.698, and the conditional R² (fixed + random effects) was 0.985 (Table \@ref(tab:fin-perf)). This suggests that the majority of explanatory power is derived from spatially varying thermal responses captured by the random slopes, with additional structure provided by the fixed effects.
+Model fit was excellent: the marginal R² (variance explained by fixed effects) was `r perf_fin$R2_marginal`, and the conditional R² (fixed + random effects) was `r perf_fin$R2_conditional` (Table \@ref(tab:fin-perf)). This suggests that the majority of explanatory power is derived from spatially varying thermal responses captured by the random slopes, with additional structure provided by the fixed effects.
 
 
 ## Predictions against original data
