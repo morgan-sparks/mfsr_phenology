@@ -628,17 +628,42 @@ covariates <- c(
   "flow_30", 
   "flow_60", 
   "flow_90",
-  "slope",
-  "mean_elevation"
+  "mean_elevation",
+  "slope"
   )
-plots <- map(covariates, ~ plot_covariate(model_data, .x))
-gridExtra::grid.arrange(grobs = plots, ncol = 3)
+
+covariates |>
+  map(~ plot_covariate(model_data, .x)) |>
+  patchwork::wrap_plots(ncol = 3)
 ```
 
 ```{r colin, cache=TRUE, fig.width=9, fig.height=8, out.width="80%", fig.cap="Pairwise correlations between continuous covariates."}
-model_data |> 
-  select(temp_30, temp_60, temp_90, flow_30, flow_60, flow_90, mean_elevation, slope) |> 
-  GGally::ggpairs()
+
+library(ggcorrplot)
+
+model_data |>
+  select(temp_30, temp_60, temp_90, flow_30, flow_60, flow_90, mean_elevation, slope) |>
+  cor(use = "pairwise.complete.obs") |>
+  ggcorrplot(
+    method = "square",
+    type = "lower",
+    lab = TRUE,
+    lab_size = 3,
+    colors = c("#4575b4", "white", "#d73027"),
+    outline.color = "white"
+  )
+
+# Option 2: Refined ggpairs() — keeps the scatterplots but tidies it up considerably:
+
+model_data |>
+  select(temp_30, temp_60, temp_90, flow_30, flow_60, flow_90, mean_elevation, slope) |>
+  GGally::ggpairs(
+    lower = list(continuous = GGally::wrap("smooth", alpha = 0.1, size = 0.5, method = "lm")),
+    upper = list(continuous = GGally::wrap("cor", size = 3)),
+    diag  = list(continuous = GGally::wrap("densityDiag", alpha = 0.5))
+  ) +
+  theme_bw(base_size = 9)
+
 ```
 
 **Takeaways from Figures** \@ref(fig:plot-covars) **and** \@ref(fig:colin):

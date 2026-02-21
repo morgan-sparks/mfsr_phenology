@@ -4,8 +4,8 @@ library(broom.mixed)
 
 
 plot_covariate <- function(data, covariate) {
-  ggplot(data, aes_string(x = covariate, y = "yday")) +
-    geom_point() +
+  ggplot(data, aes(x = .data[[covariate]], y = yday)) +
+    geom_point(alpha = 0.2, size = 0.8) +
     geom_smooth(method = "lm") +
     labs(x = covariate, y = "Day of year") +
     theme_bw()
