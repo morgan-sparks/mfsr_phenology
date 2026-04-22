@@ -1890,79 +1890,22 @@ random_wide <- random |>
   left_join(df_elev_slope |> mutate(COMID = as.character(COMID)), by = "COMID") 
 ```
 
-Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)A). We found substantial spread in intercepts, indicating variability in baseline spawn timing among reaches. Random slopes for temp_90 likewise varied meaningfully, showing that temperature–spawn timing relationships were not constant across space. 
+Random intercepts and slopes varied considerably among COMIDs, with substantial spread both within and between streams (Figure \@ref(fig:ranefs-panel)A, \@ref(fig:ranefs-panel)B). Random intercepts represent reach-level deviations in baseline spawn timing after accounting for fixed effects: a positive intercept indicates a reach where salmon spawn later than expected given temperature, stream identity, and year; a negative intercept indicates earlier-than-expected spawning. Random slopes represent deviations in thermal sensitivity: steeper slopes indicate stronger temperature dependence, shallower slopes reflect weaker or buffered responses. Among-reach variance was substantial for both baseline timing (τ₀₀ = 128.20) and thermal sensitivity (τ₁₁ = 33.44), and the pattern of variation differed among streams.
 
-<!-- Sites with earlier average spawn timing (lower intercepts) generally exhibited stronger positive responses to temperature (higher slopes), whereas later-spawning sites tended to present weaker temperature effects—a pattern evident in the weak negative correlation between intercepts and slopes (r = -0.2; Figure \@ref(fig:ranefs-plot)B). These findings highlight spatial heterogeneity in phenological flexibility, with potential implications for how different Middle Fork salmon populations may respond to ongoing climate change. -->
+The intercept-slope correlation was strongly negative (ρ₀₁ = −0.83; Figure \@ref(fig:ranefs-panel)C), indicating that reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity. Early-spawning, likely higher-elevation reaches are not only earlier — they are also more responsive to temperature variation, suggesting greater phenotypic plasticity. In contrast, later-spawning, lower-elevation reaches exhibit shallower thermal responses, possibly reflecting operation near thermal thresholds or stronger constraint by other cues such as photoperiod or migration timing. 
 
-Random intercepts and slopes were strongly negatively correlated (r = -0.83, model-estimated from the variance-covariance matrix of random effects), indicating that stream reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity. This pattern was consistent across most data-rich streams (Bear Valley, Big, Camas, Loon), though streams with few COMIDs and compressed intercept ranges (Marsh, Sulphur, Beaver) provided insufficient within-stream variation to evaluate the relationship reliably. The correlation is considerably stronger under the natural spline formulation than under the quadratic model (r = -0.2), likely reflecting the spline's greater flexibility in capturing steep thermal responses at cold temperatures characteristic of early-spawning reaches. While this correlation may be partially amplified by the spline's functional form, its consistency across data-rich streams suggests a real biological signal: reaches that spawn earliest are most responsive to temperature variation, potentially indicating greater phenological plasticity or stronger dependence on thermal cues among high-elevation fish.
+Figure \@ref(fig:ranefs-panel)D translates these random effect patterns into predicted temperature–spawn timing relationships for individual COMIDs, illustrating how the combination of varying intercepts and slopes generates a diverse family of reach-specific trajectories around the population mean. While the overall relationship between pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response varies substantially among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, and local thermal buffering capacity. This reach-level heterogeneity is the mechanism by which fine-scale habitat diversity sustains diverse spawning portfolios within the Middle Fork.
 
-```{r ranefs-plot, fig.width=3, fig.height=2,  results='hide', fig.cap = "Correlation between random intercepts and slopes for 90-day temperature across COMIDs. Points represent best linear unbiased predictions (BLUPs) from the final model."}
 
-# Plot forest
+```{r ranefs-plots"}
+
+# forest
 p.re.forest <- plot(random) +
   geom_hline(yintercept = 0, linetype = "dashed") + 
   theme(axis.text.y = element_blank()) +
   labs(x = "Level (COMID)")
 # p.re.forest
 
-# Check the random effects correlation parameter from the model directly
-# VarCorr(mod_final)
-
-# Also worth visualizing whether the strong correlation holds up
-# when you look at streams separately
-p.re.cor <- random_wide |>
-  ggplot(aes(x = Intercept, y = Slope, color = stream)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE, color = "red") +
-  facet_wrap(~stream, scales = "free") +
-  labs(x = "Random intercept", y = "Random slope")
-
-# # Calculate correlation between intercepts and slopes
-cor_val <- cor(random_wide$Intercept, random_wide$Slope)
-p.re.cor <- ggplot(random_wide, aes(x = Intercept, y = Slope)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "red") +
-  annotate(
-    "text",
-    x = min(random_wide$Intercept),
-    y = max(random_wide$Slope),
-    label = paste0("r = ", round(cor_val, 2)),
-    hjust = -2, vjust = 1.5) +
-  labs(
-    # title = "Random Intercepts vs. Slopes for temp_90",
-    x = "Random intercept",
-    y = "Random slope",
-  )
-p.re.cor
-# p.re.forest / p.re.cor +
-#   plot_layout(heights = c(1,.5)) +
-#   plot_annotation(
-#     # title = "Random Effects for 90-day Pre-Spawn Temperature",
-#     tag_levels = "A"
-#   )
-
-# save plot
-path <- here::here("plots", "Figure_06")
-ggsave(
-  glue::glue("{path}.pdf"),
-  plot = p.re.cor,
-  device = cairo_pdf,
-  scale = 2.2,
-  width = 4,
-  height =3,
-  units = "cm"
-  )
-pdftools::pdf_convert(
-  pdf = glue::glue("{path}.pdf"),
-  filenames = glue::glue("{path}.png"),
-  format = "png",
-  dpi = 300
-  )
-```
-
-<!-- Figure 7 further illustrates this variability across scales, summarizing the distribution of random intercepts and slopes by stream (panel A) and the corresponding predicted temperature–spawn timing relationships for individual reaches (panel B). COMID-level variation in intercepts and slopes reveals substantial spatial heterogeneity in both average timing and thermal sensitivity, with some streams showing greater within-stream variability than others. While the overall relationship between 90-day pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response vary among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, or biological composition. Despite this heterogeneity, the consistency of the population-level trend underscores the biological relevance of temperature as a key cue structuring spawn timing in Middle Fork Chinook Salmon populations. -->
-
-```{r ranefs-box, fig.width=8, fig.height=3, fig.cap = "Boxplots of random intercepts and slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
 p.re.int.box <- random_wide |> 
   ggplot(aes(x = stream, y = Intercept, fill = stream)) +
   geom_boxplot() + 
@@ -1972,7 +1915,7 @@ p.re.int.box <- random_wide |>
   guides(fill = "none") +
   labs(
     x = "",
-    y = "Random intercept\n(Baseline spawning phenology)",
+    y = "Random intercept\n(Baseline spawning)",
   )
 
 p.re.slp.box <- random_wide |> 
@@ -1987,49 +1930,45 @@ p.re.slp.box <- random_wide |>
     y = "Random slope\n(Thermal responsiveness)",
   )
 
-# p.re.int.box + p.re.slp.box +
-#   plot_layout(guides = "collect") + 
-#   plot_annotation(
-#     # title = "Random Intercepts and Slopes for 90-day Pre-Spawn Temperature by Stream",
-#     tag_levels = "A"
-#   )
+# Calculate correlation between intercepts and slopes
+# Check the random effects correlation parameter from the model directly
+# VarCorr(mod_final)
+rho <- as.data.frame(VarCorr(mod_final))
+cor_val_model <- rho$sdcor[rho$var2 == "temp_90" & rho$var1 == "(Intercept)" & !is.na(rho$var2)]
+# cor_val <- cor(random_wide$Intercept, random_wide$Slope)
+p.re.cor <- random_wide |> 
+  ggplot(aes(x = Intercept, y = Slope)) +
+  geom_point(aes(fill = stream), shape = 21, size = 2, color = "black") +
+  scale_fill_manual(values = cols.streams) + 
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  annotate(
+  "text",
+  x = min(random_wide$Intercept),
+  y = max(random_wide$Slope),
+  label = paste0("\u03c1 = ", round(cor_val_model, 2)),
+  hjust = -5.5, vjust = 1.5
+  ) +
+  labs(
+    # title = "Random Intercepts vs. Slopes for temp_90",
+    x = "Random intercept",
+    y = "Random slope",
+  ) + 
+  theme(legend.position = "none")
+p.re.cor
+
+# Also worth visualizing whether the strong correlation holds up
+# when you look at streams separately
+p.re.cor_stream <- random_wide |>
+  ggplot(aes(x = Intercept, y = Slope, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  facet_wrap(~stream, scales = "free") +
+  labs(x = "Random intercept", y = "Random slope")
 ```
 
-```{r ranefs-bar, eval=FALSE, fig.width=8, fig.height=6, fig.cap = "Random intercepts and slopes for 90-day pre-spawn temperature by stream. Each bar represents the best linear unbiased prediction (BLUP) for a COMID's random intercept (average spawn timing) or slope (thermal sensitivity). Bars are colored by stream."}
-
-p.re.int.bar <- random_wide |> 
-  ggplot(aes(x = reorder(COMID, Intercept), y = Intercept, fill = stream)) +
-  geom_col() + 
-  coord_flip() + 
-  scale_fill_manual(values = cols.streams) + 
-  labs(
-    x = "COMID", fill = "Stream",
-    y = "Random intercept\n(Baseline spawning phenology)"
-  ) + 
-  theme(axis.text.y = element_blank())
-
-p.re.slp.bar <- random_wide |> 
-  ggplot(aes(x = reorder(COMID, Slope), y = Slope, fill = stream)) +
-  geom_col() + 
-  coord_flip() + 
-  scale_fill_manual(values = cols.streams) + 
-  labs(
-    x = "COMID", fill = "Stream",
-    y = "Random slope\n(Thermal responsiveness)"
-  ) + 
-  theme(axis.text.y = element_blank())
-
-p.re.int.bar + p.re.slp.bar + 
-  plot_layout(guides = "collect") + 
-  plot_annotation(
-    tag_levels = "A"
-  )
-```
-
-```{r ranefs-comid-temp90, results='hide', fig.width=7, fig.height=5}
+```{r ranefs-plots-temp90}
 
 # COMID - level responses -----------
-
 # Get COMID observed temp range
 obs_range <- df_mod_plot |> 
   group_by(COMID) |> 
@@ -2067,11 +2006,7 @@ me2 <- predict_response(
   mutate(x = x * sd_temp + mean_temp) |>
   filter(x >= obs_global$min_temp & x <= obs_global$max_temp)
 
-# # me2 <- predict_response(mod_final, terms = c("temp_90 [all]"))
-# me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "prediction")
-# # plot(me2, show_data = TRUE, show_ci = TRUE)
-# me2$x <- me2$x * sd_temp + mean_temp
-
+# Plot
 p.re.preds <- me_filtered |>
   as_tibble() |>
   left_join(xref_comid_stream, by = c("group" = "COMID")) |>
@@ -2111,45 +2046,25 @@ p.re.preds <- me_filtered |>
     y = "Predicted spawn day of year"
   ) +
   theme_bw()
-
 # p.re.preds
-
-# save plot
-path <- here::here("plots", "preds_ranef")
-ggsave(
-  glue::glue("{path}.pdf"),
-  plot = last_plot(),
-  device = cairo_pdf,
-  scale = 3,
-  width = 4,
-  height = 3,
-  units = "cm"
-  )
-pdftools::pdf_convert(
-  pdf = glue::glue("{path}.pdf"),
-  filenames = glue::glue("{path}.png"),
-  format = "png",
-  dpi = 300
-  )
 ```
 
-```{r comid-variation, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. Boxplots of (A) random intercepts and (B) slopes for 90-day pre-spawn temperature by stream. Each box represents the distribution of best linear unbiased predictions (BLUPs) for COMID-level intercepts (average spawn timing) or slopes (thermal sensitivity). (C) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
+```{r ranefs-panel, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Reach-level (COMID) variation in random intercepts, random slopes, and predicted spawn timing relationships from the final mixed-effects model. (A) Boxplots of random intercepts by stream, representing reach-level deviations in baseline spawn timing after accounting for fixed effects (temperature, stream identity, and year); positive values indicate later-than-expected spawning, negative values indicate earlier-than-expected spawning. (B) Boxplots of random slopes by stream, representing reach-level deviations in thermal sensitivity (responsiveness of spawn timing to 90-day antecedent temperature); larger positive values indicate stronger temperature dependence. Points in A and B represent individual stream reaches (COMIDs). (C) Correlation between random intercepts and random slopes across all COMIDs, colored by stream. The strong negative relationship (ρ = −0.83) indicates that reaches with earlier baseline spawn timing exhibit substantially greater thermal sensitivity. The line represents a linear fit with 95% confidence interval. (D) Predicted temperature–spawn timing relationships for individual COMIDs (colored lines, colored by stream) and the population mean response (black line with 95% confidence interval). The diversity of reach-specific trajectories around the population mean reflects fine-scale variation in local habitat conditions — including hydrology, geomorphology, and thermal buffering — that structures phenological diversity across the Middle Fork watershed."}
 
-(p.re.int.box + p.re.slp.box) / p.re.preds + 
-  plot_layout(guides = "collect", heights = c(.65,1)) + 
-  plot_annotation(
-    tag_levels = "A"
-  )
+(p.re.int.box + p.re.slp.box) / p.re.cor / p.re.preds + 
+  plot_layout(guides = "collect", heights = c(.6,.8,1)) + 
+  plot_annotation(tag_levels = "A") & 
+  theme(plot.margin = margin(2, 4, 2, 4))
 
 # save plot
-path <- here::here("plots", "Figure_07")
+path <- here::here("plots", "Figure_06")
 ggsave(
   glue::glue("{path}.pdf"),
   plot = last_plot(),
   device = cairo_pdf,
-  scale = 2.4,
-  width = 8,
-  height = 8,
+  scale = 2.75,
+  width = 7,
+  height = 9,
   units = "cm"
   )
 pdftools::pdf_convert(

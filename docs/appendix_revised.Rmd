@@ -1153,18 +1153,18 @@ a + b +
   plot_annotation(tag_levels = "A")
 ```
 
-In this case, `m26` is picking up a positive association: after controlling for temperature and stream identity, higher-elevation reaches are predicted to spawn later. This is contrary to the observed negative relationships between elevation, temperature, and spawn timing across streams (Figure \\@ref(fig:elev-plots)), and could reflect either a real ecological effect or a statistical artifact.
+In this case, `m26` is picking up a positive association: after controlling for temperature and stream identity, higher-elevation reaches are predicted to spawn later. This is contrary to the observed negative relationships between elevation, temperature, and spawn timing across streams (Figure \@ref(fig:elev-plots)), and could reflect either a real ecological effect or a statistical artifact.
 
 There are plausible ecological mechanisms for a residual positive elevation effect. Cooler conditions and delayed snowmelt at higher elevations could push back spawning timing independently of mean temperature. Higher-elevation reaches may also host subpopulations adapted to shorter growing seasons, or simply take longer for migrating fish to reach. These remain second-order hypotheses that would require stronger ecological justification to rely on.
 
-Variance inflation factors (VIFs) from `m26` indicated moderate collinearity between elevation and stream (VIF \u2248 6.5 for each). Elevation is strongly confounded with stream identity in this dataset (Figure \\@ref(fig:elev-plots)), and the statistical case for caution is more compelling than the ecological one: once temperature is partialled out, the remaining variation in elevation is limited and potentially unstable, and inconsistent effects across streams suggest this is not a robust, generalizable signal.
+Variance inflation factors (VIFs) from `m26` indicated moderate collinearity between elevation and stream (VIF \u2248 6.5 for each). Elevation is strongly confounded with stream identity in this dataset (Figure \@ref(fig:elev-plots)), and the statistical case for caution is more compelling than the ecological one: once temperature is partialled out, the remaining variation in elevation is limited and potentially unstable, and inconsistent effects across streams suggest this is not a robust, generalizable signal.
 
 ```{r m26-vif, eval=FALSE}
 car::vif(m26)
 check_model(m26, check = c("vif"))
 ```
 
-Both interpretations are acknowledged: the positive elevation effect emerges statistically after controlling for temperature but is likely confounded by collinearity; and while a true ecological effect is possible, the available data cannot disentangle these mechanisms. Because the elevation effect runs counter to raw data patterns and shows clear signs of collinearity, we made the conservative decision to omit it from the final model.
+Both interpretations are acknowledged: the positive elevation effect emerges statistically after controlling for temperature but is likely confounded by collinearity; and while a true ecological effect is possible, the available data cannot disentangle these mechanisms. 
 
 ## Targeted model comparison
 
@@ -1545,8 +1545,8 @@ g1 <- extract_perf(
     dAIC = AIC - AIC[Model == "m16: temp_90 + stream + year"],
     Notes = c(
       "Selected base model",
-      "Implausible elevation direction; excluded",
-      "Implausible elevation direction; excluded"
+      "Collinearity and signal captured by random structure; excluded",
+      "As m26, negligable improvement; excluded"
     )
   )
 
@@ -1608,13 +1608,13 @@ tab1_data <-
 
 ```{r make-kable1, tab.cap = "Model selection for linear mixed-effects models of Chinook salmon spawn timing ($n$ = 3,016 redds; 104 COMIDs; 8 streams; 2002--2005). Models were evaluated sequentially across four decision points: fixed-effect structure, random slope inclusion, temperature functional form, and interaction terms. $\\Delta$AIC is computed relative to the reference model (bold) within each group; negative values indicate better AIC than the reference. RMSE in days. $R^2$ marginal = variance explained by fixed effects only; $R^2$ conditional = fixed + random effects combined. Models marked $\\dagger$ were excluded despite lower AIC due to biologically implausible predictions or overfitting (see Appendix A3)."}
 
-# make_table1(tab1_data)  # gt/HTML
+gtsave(make_table1(tab1_data), filename = here::here("tables", "mod_selection.docx"))
 make_kable1(tab1_data)  # PDF/LaTeX
 ```
 
 ```{r make-kable2, tab.cap = "Parameter estimates for the final linear mixed-effects model of Chinook salmon spawn timing: \\texttt{yday $\\sim$ ns(temp\\_90, df = 3) + stream + year + (1 + temp\\_90 $|$ COMID)}, fit by REML. Fixed effects are shown with estimates, 95\\% confidence intervals, and $p$-values. Reference levels: Stream = Bear Valley Creek; Year = 2002. \\texttt{temp\\_90} was scaled to mean = 0, SD = 1 prior to fitting. Natural spline basis terms (df = 3) are not individually interpretable; see Figure 5 for the estimated temperature--spawn timing relationship. Random effects summarise among-reach variance in baseline timing ($\\tau_{00}$), thermal sensitivity ($\\tau_{11}$), and their correlation ($\\rho_{01}$). ICC = intraclass correlation coefficient."}
 
-# make_table2(mod_final)
+gtsave(make_table2(mod_final), filename = here::here("tables", "mod_coefs.docx"))
 make_kable2(mod_final)
 ```
 
@@ -1804,121 +1804,363 @@ random_wide <- random |>
   left_join(df_elev_slope |> mutate(COMID = as.character(COMID)), by = "COMID")
 ```
 
-Random intercepts and slopes varied considerably among COMIDs, reflecting spatial heterogeneity in both average spawn timing and thermal sensitivity (Figure \@ref(fig:ranefs-plot)). The strong negative intercept-slope correlation ($\rho_{01}$ = −0.83, model-estimated from the variance-covariance matrix) indicates that stream reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity — a pattern consistent with early-spawning, higher-elevation reaches occupying more thermally dynamic positions where temperature is a more variable and reliable phenological cue. This correlation is considerably stronger under the natural spline formulation than under the quadratic model (r = −0.23), likely reflecting the spline's greater flexibility in capturing steep thermal responses at cold temperatures characteristic of early-spawning reaches.
+Random intercepts and slopes varied considerably among COMIDs, with substantial spread both within and between streams (Figure \@ref(fig:ranefs-panel)A, \@ref(fig:ranefs-panel)B). Random intercepts represent reach-level deviations in baseline spawn timing after accounting for fixed effects: a positive intercept indicates a reach where salmon spawn later than expected given temperature, stream identity, and year; a negative intercept indicates earlier-than-expected spawning. Random slopes represent deviations in thermal sensitivity: steeper slopes indicate stronger temperature dependence, shallower slopes reflect weaker or buffered responses. Among-reach variance was substantial for both baseline timing (τ₀₀ = 128.20) and thermal sensitivity (τ₁₁ = 33.44), and the pattern of variation differed among streams.
 
-```{r ranefs-plot, fig.width=5, fig.height=3, out.width="80%", results='hide', fig.cap = "Correlation between random intercepts and slopes for 90-day temperature across COMIDs. Each point represents a stream reach (COMID); the line shows a linear fit with 95% confidence interval."}
+The intercept-slope correlation was strongly negative (ρ₀₁ = −0.83; Figure \@ref(fig:ranefs-panel)C), indicating that reaches with earlier baseline spawn timing exhibited substantially greater thermal sensitivity. Early-spawning, likely higher-elevation reaches are not only earlier — they are also more responsive to temperature variation, suggesting greater phenotypic plasticity. In contrast, later-spawning, lower-elevation reaches exhibit shallower thermal responses, possibly reflecting operation near thermal thresholds or stronger constraint by other cues such as photoperiod or migration timing. 
 
-# Plot forest
+Figure \@ref(fig:ranefs-panel)D translates these random effect patterns into predicted temperature–spawn timing relationships for individual COMIDs, illustrating how the combination of varying intercepts and slopes generates a diverse family of reach-specific trajectories around the population mean. While the overall relationship between pre-spawn temperature and spawn timing is positive and nonlinear, the strength and shape of this response varies substantially among reaches, likely reflecting fine-scale differences in hydrology, geomorphology, and local thermal buffering capacity. This reach-level heterogeneity is the mechanism by which fine-scale habitat diversity sustains diverse spawning portfolios within the Middle Fork.
+
+
+```{r ranefs-plots}
+# forest
 p.re.forest <- plot(random) +
   geom_hline(yintercept = 0, linetype = "dashed") + 
   theme(axis.text.y = element_blank()) +
   labs(x = "Level (COMID)")
 # p.re.forest
 
-# Correlation plot
-cor_val <- cor(random_wide$Intercept, random_wide$Slope)
+p.re.int.box <- random_wide |> 
+  ggplot(aes(x = stream, y = Intercept, fill = stream)) +
+  geom_boxplot() + 
+  geom_jitter(width = 0.2, alpha = 0.3) + 
+  scale_fill_manual(values = cols.streams) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = "none") +
+  labs(
+    x = "",
+    y = "Random intercept\n(Baseline spawning)",
+  )
+
+p.re.slp.box <- random_wide |> 
+  ggplot(aes(x = stream, y = Slope, fill = stream)) +
+  geom_boxplot() + 
+  geom_jitter(width = 0.2, alpha = 0.3) + 
+  scale_fill_manual(values = cols.streams) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  guides(fill = "none") +
+  labs(
+    x = "",
+    y = "Random slope\n(Thermal responsiveness)",
+  )
+
+# Calculate correlation between intercepts and slopes
+# Check the random effects correlation parameter from the model directly
+# VarCorr(mod_final)
+rho <- as.data.frame(VarCorr(mod_final))
+cor_val_model <- rho$sdcor[rho$var2 == "temp_90" & rho$var1 == "(Intercept)" & !is.na(rho$var2)]
+# cor_val <- cor(random_wide$Intercept, random_wide$Slope)
 p.re.cor <- random_wide |> 
   ggplot(aes(x = Intercept, y = Slope)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "red") +
-  annotate("text",
-           x = min(random_wide$Intercept), y = max(random_wide$Slope),
-           label = paste0("r = ", round(cor_val, 2)),
-           hjust = -2, vjust = 1.5) +
-  labs(x = "Random intercept", y = "Random slope")
-p.re.cor
+  geom_point(aes(fill = stream), shape = 21, size = 2.5, color = "black") +
+  scale_fill_manual(values = cols.streams) + 
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  annotate(
+    "text",
+    x = min(random_wide$Intercept),
+    y = max(random_wide$Slope),
+    label = paste0("rho == ", round(cor_val_model, 2)),
+    parse = TRUE,
+    hjust = -5.5, vjust = 1.5
+  ) +
+  labs(
+    # title = "Random Intercepts vs. Slopes for temp_90",
+    x = "Random intercept",
+    y = "Random slope",
+  ) + 
+  theme(legend.position = "none")
+# p.re.cor
 
 # Also worth visualizing whether the strong correlation holds up
 # when you look at streams separately
-# random_wide |>
-#   ggplot(aes(x = Intercept, y = Slope, color = stream)) +
-#   geom_point() +
-#   geom_smooth(method = "lm", se = FALSE, color = "red") +
-#   facet_wrap(~stream, scales = "free") +
-#   labs(x = "Random intercept", y = "Random slope")
-
-# Panel plot
-# p.re.forest / p.re.cor +
-#   plot_layout(heights = c(1,.5)) +
-#   plot_annotation(
-#     # title = "Random Effects for 90-day Pre-Spawn Temperature",
-#     tag_levels = "A"
-#   )
-
-path <- here::here("plots", "Figure_06")
-ggsave(glue::glue("{path}.pdf"), plot = p.re.cor, device = cairo_pdf,
-       scale = 2.2, width = 4, height = 3, units = "cm")
-pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
-                      filenames = glue::glue("{path}.png"), format = "png", dpi = 300)
+p.re.cor_stream <- random_wide |>
+  ggplot(aes(x = Intercept, y = Slope, color = stream)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  facet_wrap(~stream, scales = "free") +
+  labs(x = "Random intercept", y = "Random slope")
 ```
 
-```{r ranefs-box, fig.width=8, fig.height=3, out.width="80%", fig.cap = "Boxplots of random intercepts (A) and slopes (B) for 90-day pre-spawn temperature by stream. Each box represents the distribution of BLUPs for COMID-level intercepts or slopes, colored by stream."}
-p.re.int.box <- random_wide |>
-  ggplot(aes(x = stream, y = Intercept, fill = stream)) +
-  geom_boxplot() +
-  geom_jitter(width = 0.2, alpha = 0.3) +
-  scale_fill_manual(values = cols.streams) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  guides(fill = "none") +
-  labs(x = "", y = "Random intercept\n(Baseline spawning phenology)")
+```{r ranefs-plots-temp90}
 
-p.re.slp.box <- random_wide |>
-  ggplot(aes(x = stream, y = Slope, fill = stream)) +
-  geom_boxplot() +
-  geom_jitter(width = 0.2, alpha = 0.3) +
-  scale_fill_manual(values = cols.streams) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  guides(fill = "none") +
-  labs(x = "", y = "Random slope\n(Thermal responsiveness)")
-```
+# COMID - level responses -----------
+# Get COMID observed temp range
+obs_range <- df_mod_plot |> 
+  group_by(COMID) |> 
+  summarise(
+    min_temp = min(temp_90_raw), 
+    max_temp = max(temp_90_raw), 
+    .groups = "drop"
+  )
 
-```{r ranefs-comid-temp90, results='hide', out.width="80%", fig.width=7, fig.height=8, fig.cap="Variation in COMID- and stream-level thermal sensitivity and predicted spawn timing relationships. Boxplots of (A) random intercepts and (B) slopes for 90-day pre-spawn temperature by stream. (C) Predicted spawn timing by 90-day pre-spawn temperature and COMID. Each line represents the predicted relationship for a specific COMID, colored by stream. The black line and shaded ribbon denote the population-level mean and 95% confidence interval."}
+me <- predict_response(
+  mod_final, 
+  terms = c("temp_90 [all]", "COMID"), 
+  type = "random"
+  )
 
-# COMID observed temperature range for clipping predictions
-obs_range <- df_mod_plot |>
-  group_by(COMID) |>
-  summarise(min_temp = min(temp_90_raw), max_temp = max(temp_90_raw), .groups = "drop")
-
-# COMID-level predictions
-me <- predict_response(mod_final, terms = c("temp_90 [all]", "COMID"), type = "random") |>
-  as_tibble() |>
+me_filtered <- me |> 
+  as_tibble() |> 
   mutate(x = x * sd_temp + mean_temp) |>
-  left_join(obs_range, by = c("group" = "COMID")) |>
+  left_join(obs_range, by = c("group" = "COMID")) |> 
   filter(x >= min_temp & x <= max_temp)
 
-# Population-level predictions
+# Get global observed temp range ------------
 obs_global <- df_mod_plot |>
-  summarise(min_temp = min(temp_90_raw), max_temp = max(temp_90_raw))
+  summarise(
+    min_temp = min(temp_90_raw),
+    max_temp = max(temp_90_raw)
+  )
 
-me2 <- predict_response(mod_final, terms = c("temp_90 [all]"), interval = "confidence") |>
-  as_tibble() |>
+me2 <- predict_response(
+  mod_final, 
+  terms = c("temp_90 [all]"), 
+  interval = "confidence"
+  ) |>
+  as_tibble() |> 
   mutate(x = x * sd_temp + mean_temp) |>
   filter(x >= obs_global$min_temp & x <= obs_global$max_temp)
 
-p.re.preds <- me |>
+# Plot
+p.re.preds <- me_filtered |>
+  as_tibble() |>
   left_join(xref_comid_stream, by = c("group" = "COMID")) |>
   ggplot(aes(x, fixed_date + predicted, group = group)) +
-  geom_point(data = df_mod_plot,
-             aes(x = temp_90_raw, y = fixed_date + yday, color = stream),
-             alpha = 0.15, size = 0.8, inherit.aes = FALSE) +
-  geom_ribbon(data = me2,
-              aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
-              alpha = 0.2, inherit.aes = FALSE) +
+  # Raw data points in background
+  geom_point(
+    data = df_mod_plot,
+    aes(x = temp_90_raw, y = fixed_date + yday, color = stream),
+    alpha = 0.15, size = 0.8, inherit.aes = FALSE
+  ) +
+  # COMID-level lines
   geom_line(aes(color = stream), linewidth = 0.6) +
-  geom_line(data = me2, aes(x = x, y = fixed_date + predicted),
-            linewidth = 2, inherit.aes = FALSE) +
+  # Population-level CI ribbon
+  geom_ribbon(
+    data = me2,
+    aes(x = x, ymin = fixed_date + conf.low, ymax = fixed_date + conf.high),
+    alpha = 0.1, inherit.aes = FALSE
+  ) +
+  # Population-level mean on top
+  geom_line(
+    data = me2,
+    aes(x = x, y = fixed_date + predicted),
+    linewidth = 2, inherit.aes = FALSE
+  ) +
   scale_color_manual(values = cols.streams) +
+  # scale_y_date(date_breaks = "1 month", date_labels = "%b") +
   coord_cartesian(ylim = as.Date(c("2001-07-01", "2001-09-15"))) +
+  # scale_y_date(date_breaks = "1 month", date_labels = "%b") +
+  # scale_y_date(
+  #   date_breaks = "1 month",
+  #   date_labels = "%b",
+  #   limits = as.Date(c("2001-07-01", "2001-9-15"))
+  #   ) +
   guides(color = "none") +
-  labs(x = "90-day mean pre-spawn temperature (°C)", y = "Predicted spawn date")
+  labs(
+    x = "90-day mean temperature pre-spawn (°C)",
+    y = "Predicted spawn day of year"
+  ) +
+  theme_bw()
+# p.re.preds
+```
 
-(p.re.int.box + p.re.slp.box) / p.re.preds +
-  plot_layout(guides = "collect", heights = c(.65, 1)) +
+```{r ranefs-panel, fig.width=8, fig.height=9, out.width="90%", results='hide', fig.cap="Reach-level (COMID) variation in random intercepts, random slopes, and predicted spawn timing relationships from the final mixed-effects model. (A) Boxplots of random intercepts by stream, representing reach-level deviations in baseline spawn timing after accounting for fixed effects (temperature, stream identity, and year); positive values indicate later-than-expected spawning, negative values indicate earlier-than-expected spawning. (B) Boxplots of random slopes by stream, representing reach-level deviations in thermal sensitivity (responsiveness of spawn timing to 90-day antecedent temperature); larger positive values indicate stronger temperature dependence. Points in A and B represent individual stream reaches (COMIDs). (C) Correlation between random intercepts and random slopes across all COMIDs, colored by stream. The strong negative relationship (ρ = −0.83) indicates that reaches with earlier baseline spawn timing exhibit substantially greater thermal sensitivity. The line represents a linear fit with 95% confidence interval. (D) Predicted temperature–spawn timing relationships for individual COMIDs (colored lines, colored by stream) and the population mean response (black line with 95% confidence interval). The diversity of reach-specific trajectories around the population mean reflects fine-scale variation in local habitat conditions — including hydrology, geomorphology, and thermal buffering — that structures phenological diversity across the Middle Fork watershed."}
+
+(p.re.int.box + p.re.slp.box) / p.re.cor / p.re.preds + 
+  plot_layout(guides = "collect", heights = c(.6,.8,1)) + 
+  plot_annotation(tag_levels = "A") & 
+  theme(plot.margin = margin(2, 4, 2, 4))
+
+# save plot
+path <- here::here("plots", "Figure_06")
+ggsave(
+  glue::glue("{path}.pdf"),
+  plot = last_plot(),
+  device = cairo_pdf,
+  scale = 2.75,
+  width = 7,
+  height = 9,
+  units = "cm"
+  )
+pdftools::pdf_convert(
+  pdf = glue::glue("{path}.pdf"),
+  filenames = glue::glue("{path}.png"),
+  format = "png",
+  dpi = 300
+  )
+```
+
+<!-- ### Elevation structure in reach-level random effects -->
+
+<!-- We examined whether the basin-wide intercept-slope correlation was also expressed as consistent within-stream elevation gradients by plotting reach-level random intercepts and slopes against mean reach elevation within each stream (Figure \@ref(fig:re-elevation-plot)) and fitting ordinary least-squares regressions within each stream. Interpreting these relationships requires noting an important structural feature of the study streams: Bear Valley, Beaver, Marsh, and Sulphur are high-elevation systems with constrained elevation ranges (< 100m spread across sampled reaches), whereas Big Creek, Camas, Elk, and Loon span broader elevation gradients (200–500m). Streams with compressed elevation ranges may show statistically significant elevation-random effect relationships simply because their reaches share similar thermal environments and life history characteristics associated with their uniformly high positions in the watershed — not because elevation per se is driving within-stream variation in timing or thermal sensitivity. Results from those streams should therefore be interpreted cautiously. We also note that these regressions are performed on model-derived quantities (BLUPs) rather than raw observations and do not propagate uncertainty from the mixed model; they are best treated as exploratory rather than confirmatory. -->
+
+<!-- With those caveats in mind, significant positive relationships between mean reach elevation and random intercepts — indicating that higher-elevation reaches spawn later relative to their stream mean — were detected in seven of eight streams. Significant negative relationships between elevation and random slopes — indicating that higher-elevation reaches show stronger negative thermal responsiveness — were detected in four streams. The most interpretable results come from Big Creek and Camas Creek, which combine wide elevation ranges with large reach sample sizes (n = 21 and 16, respectively) and strong, significant relationships in both models. These two streams provide the clearest within-stream evidence that the basin-wide intercept-slope pattern reflects a real ecological gradient operating at fine spatial scales rather than an artifact of pooling thermally distinct streams. -->
+
+
+```{r re-elevation-plot, eval=FALSE, echo=FALSE, fig.width=7, fig.height=9, fig.cap="Reach-level random intercepts (A) and random slopes (B) from the final linear mixed-effects model plotted against mean reach elevation, faceted by stream. Random intercepts represent reach-specific deviations in baseline spawn timing from the population mean (positive values = later spawning relative to stream mean; negative values = earlier). Random slopes represent reach-specific deviations in thermal responsiveness from the population mean (positive values = spawn timing advances more steeply with increasing antecedent temperature; negative values = less steeply or declines). Dashed horizontal lines indicate zero deviation. Fitted lines are ordinary least-squares regressions within each stream. Note that Bear Valley, Beaver, Marsh, and Sulphur are high-elevation systems with constrained elevation ranges across sampled reaches (< 100m), limiting the interpretability of within-stream elevation gradients in those streams. All plots share a common x-axis scale to preserve the spatial context of each stream's elevation range within the broader basin.", out.width="90%", dpi=300}
+
+# Shared theme
+theme_re <- theme_bw(base_size = 11) +
+  theme(
+    strip.background = element_rect(fill = "grey92", color = "grey60"),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    axis.title = element_text(size = 11)
+  )
+
+p_int <- random_wide |>
+  ggplot(aes(mean_elevation, Intercept, color = stream)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.4) +
+  geom_point(size = 2.2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7, alpha = 0.6) +
+  facet_wrap(~stream) +
+  scale_color_manual(values = cols.streams) + 
+  labs(
+    x = "Mean reach elevation (m)",
+    y = "Random intercept\n(baseline spawn timing deviation, days)"
+  ) +
+  theme_re
+
+p_slp <- random_wide |>
+  ggplot(aes(mean_elevation, Slope, color = stream)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.4) +
+  geom_point(size = 2.2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7, alpha = 0.6) +
+  facet_wrap(~stream) +
+  scale_color_manual(values = cols.streams) + 
+  labs(
+    x = "Mean reach elevation (m)",
+    y = "Random slope\n(thermal responsiveness deviation)"
+  ) +
+  theme_re
+
+# Stack vertically with patchwork, add panel labels
+p_int / p_slp +
   plot_annotation(tag_levels = "A")
 
-path <- here::here("plots", "Figure_07")
-ggsave(glue::glue("{path}.pdf"), plot = last_plot(), device = cairo_pdf,
-       scale = 2.4, width = 8, height = 8, units = "cm")
-pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
-                      filenames = glue::glue("{path}.png"), format = "png", dpi = 300)
+```
+
+```{r re-elev-models, echo=FALSE, eval=FALSE}
+# Run lm within each stream for both intercept and slope
+re_models <- random_wide |>
+  group_by(stream) |>
+  nest() |>
+  mutate(
+    int_mod = map(data, ~lm(Intercept ~ mean_elevation, data = .x)),
+    slp_mod = map(data, ~lm(Slope ~ mean_elevation, data = .x)),
+    int_tidy = map(int_mod, tidy),
+    slp_tidy = map(slp_mod, tidy),
+    int_glance = map(int_mod, glance),
+    slp_glance = map(slp_mod, glance)
+  )
+
+# Extract elevation term p-values and R² for intercept models
+# re_models |>
+#   unnest(int_tidy) |>
+#   filter(term == "mean_elevation") |>
+#   select(stream, estimate, std.error, p.value) |>
+#   left_join(
+#     re_models |> unnest(int_glance) |> select(stream, r.squared, nobs = nobs),
+#     by = "stream"
+#   )
+
+# Same for slope models
+# re_models |>
+#   unnest(slp_tidy) |>
+#   filter(term == "mean_elevation") |>
+#   select(stream, estimate, std.error, p.value) |>
+#   left_join(
+#     re_models |> unnest(slp_glance) |> select(stream, r.squared, nobs = nobs),
+#     by = "stream"
+#   )
+
+# Build combined table
+re_table <- re_models |>
+  # Intercept model results
+  left_join(
+    re_models |>
+      unnest(int_tidy) |>
+      filter(term == "mean_elevation") |>
+      select(stream,
+        int_estimate = estimate,
+        int_se = std.error,
+        int_p = p.value
+      ) |>
+      left_join(
+        re_models |>
+          unnest(int_glance) |>
+          select(stream, int_r2 = r.squared, nobs),
+        by = "stream"
+      ),
+    by = "stream"
+  ) |>
+  # Slope model results
+  left_join(
+    re_models |>
+      unnest(slp_tidy) |>
+      filter(term == "mean_elevation") |>
+      select(stream,
+        slp_estimate = estimate,
+        slp_se = std.error,
+        slp_p = p.value
+      ) |>
+      left_join(
+        re_models |>
+          unnest(slp_glance) |>
+          select(stream, slp_r2 = r.squared),
+        by = "stream"
+      ),
+    by = "stream"
+  ) |>
+  select(
+    stream, nobs,
+    int_estimate, int_se, int_r2, int_p,
+    slp_estimate, slp_se, slp_r2, slp_p
+  ) |>
+  arrange(stream) |>
+  # Flag constrained elevation streams
+  mutate(stream = case_when(
+    stream %in% c(
+      "Bear Valley", "Beaver",
+      "Marsh", "Sulphur"
+    ) ~ paste0(stream, "†"),
+    TRUE ~ as.character(stream)
+  ))
+
+```
+
+```{r re-elevation-table, results='asis', echo=FALSE, eval=FALSE}
+re_table |>
+  kable(
+    format = "latex",  # swap to "html" if knitting to HTML
+    booktabs = TRUE,
+    digits = c(0, 0, 3, 3, 2, 3, 3, 3, 2, 3),
+    col.names = c(
+      "Stream", "n",
+      "β", "SE", "R²", "p",
+      "β", "SE", "R²", "p"
+    ),
+    caption = "Ordinary least-squares regression results 
+    for reach-level random intercepts and slopes regressed on mean 
+    reach elevation within each stream. β = elevation slope coefficient 
+    (days m⁻¹ for intercept models; thermal responsiveness units m⁻¹ 
+    for slope models). n = number of reaches. † High-elevation 
+    systems with constrained elevation ranges (< 100m); 
+    interpret cautiously.",
+    align = c("l", "c", "r", "r", "r", "r", "r", "r", "r", "r")
+  ) |>
+  add_header_above(
+    c(" " = 2, 
+      "Random intercept model" = 4, 
+      "Random slope model" = 4)
+  ) |>
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size = 9
+  ) |>
+  row_spec(0, bold = TRUE) |>
+  footnote(
+    symbol = "High-elevation system with constrained elevation range; interpret cautiously.",
+    footnote_as_chunk = TRUE
+  )
 ```

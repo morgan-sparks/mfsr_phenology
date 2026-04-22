@@ -149,7 +149,7 @@ make_table1 <- function(df) {
       locations = cells_column_labels(columns = dAIC)
     ) |>
     tab_footnote(
-      footnote  = "Models marked \u2020 were excluded despite lower AIC due to biologically implausible predictions or overfitting; see Appendix A3.",
+      footnote  = "Models marked \u2020 were excluded despite lower AIC due to elevation collinearity and signal captured by random effects structure; see Appendix A3.",
       locations = cells_column_labels(columns = Notes)
     ) |>
     tab_header(
