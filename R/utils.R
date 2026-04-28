@@ -3,7 +3,7 @@
 # General utilities, model comparison, and publication tables
 #
 # Tables require the following objects in environment (from appendix.Rmd):
-#   ML-fit:   m16, m26, m31, m16_rs, mod_spline3, mod_spline4, m201, m202
+#   ML-fit:   m1-7, m7_rs, mod_spline3, mod_spline4
 #   REML-fit: mod_final
 # =============================================================================
 
@@ -34,7 +34,7 @@ plot_covariate <- function(data, covariate) {
     geom_point(alpha = 0.2, size = 0.8) +
     geom_smooth(method = "lm") +
     labs(x = covariate, y = "Day of year") +
-    theme_bw()
+    theme_mfsr(base_size = 11)
 }
 
 # =============================================================================
@@ -106,13 +106,14 @@ extract_perf <- function(mod_list, labels) {
 make_table1 <- function(df) {
   df |>
     gt(groupname_col = "Group") |>
+    cols_hide(Notes) |> 
     cols_label(
       Model = "Model",
       dAIC  = md("\u0394AIC"),
       RMSE  = "RMSE (days)",
       R2_m  = md("R\u00b2 (marginal)"),
       R2_c  = md("R\u00b2 (conditional)"),
-      Notes = "Notes"
+      # Notes = "Notes"
     ) |>
     fmt_number(columns = dAIC,          decimals = 1) |>
     fmt_number(columns = RMSE,          decimals = 2) |>
@@ -149,42 +150,38 @@ make_table1 <- function(df) {
       locations = cells_column_labels(columns = dAIC)
     ) |>
     tab_footnote(
-      footnote  = "Models marked \u2020 were excluded despite lower AIC due to elevation collinearity and signal captured by random effects structure; see Appendix A3.",
-      locations = cells_column_labels(columns = Notes)
+      footnote  = "Models marked \u2020 were excluded due to biologically implausible predictions or overfitting; see Appendix A3.",
+      locations = cells_column_labels(columns = Model)
     ) |>
     tab_header(
       title    = "Table 1. Model selection for linear mixed-effects models of Chinook salmon spawn timing.",
-      subtitle = "Models evaluated sequentially: base structure, random slopes, temperature functional form, and interaction terms."
+      subtitle = "Models evaluated sequentially: fixed-effect structure, random slope inclusion, and temperature functional form."
     )
 }
 
 # --- kableExtra version (PDF / LaTeX) ----------------------------------------
 make_kable1 <- function(df) {
   df |>
-    select(-Group) |>
+    select(-Group, -Notes) |>
     mutate(
       Model = gsub("_",      "\\\\_",        Model),
       Model = gsub("\u00b2", "$^2$",         Model),
       Model = gsub("\u2020", "$\\\\dagger$", Model),
-      Model = gsub("\u00d7", "$\\\\times$",  Model),
-      Notes = gsub("_",      "\\\\_",        Notes),
-      Notes = gsub("\u2020", "$\\\\dagger$", Notes),
-      Notes = gsub("\u00d7", "$\\\\times$",  Notes),
-      Notes = gsub("\u0394", "$\\\\Delta$",  Notes)
+      Model = gsub("\u00d7", "$\\\\times$",  Model)
     ) |>
     kable(
-      format    = "latex", booktabs = TRUE, escape = FALSE,
-      col.names = c("Model", "$\\Delta$AIC", "RMSE", "$R^2$ (marg.)", "$R^2$ (cond.)", "Notes"),
-      digits    = c(0, 1, 2, 3, 3, 0)
+      format = "latex", booktabs = TRUE, escape = FALSE,
+      col.names = c("Model", "$\\Delta$AIC", "RMSE", "$R^2$ (marg.)", "$R^2$ (cond.)"),
+      digits    = c(0, 1, 2, 3, 3)
     ) |>
     kable_styling(latex_options = "HOLD_position", font_size = 9) |>
-    column_spec(1,   width = "4.5cm") |>
+    column_spec(1,   width = "6cm") |>
     column_spec(2:5, width = "1.2cm") |>
-    column_spec(6,   width = "4.0cm") |>
-    pack_rows("1. Additive models (random intercept only)", 1, 3,  hline_after = FALSE) |>
-    pack_rows("2. Random slope evaluation (ML fit)",        4, 5,  hline_after = FALSE) |>
-    pack_rows("3. Temperature functional form (ML fit)",    6, 8,  hline_after = FALSE) |>
-    pack_rows("4. Interaction terms (ML fit)",              9, 11, hline_after = FALSE)
+    # column_spec(6,   width = "4.0cm") |>
+    pack_rows("1. Additive models (random intercept only)", 1, 7,  hline_after = FALSE) |>
+    pack_rows("2. Random slope evaluation (REML fit)",      8, 9,  hline_after = FALSE) |>
+    pack_rows("3. Temperature functional form (ML fit)",    10, 12, hline_after = FALSE)
+  
 }
 
 # =============================================================================
@@ -345,7 +342,7 @@ make_kable2 <- function(mod) {
 
   mp <- tibble(
     Parameter = c("$R^2$ marginal", "$R^2$ conditional", "RMSE (days)"),
-    Estimate  = c(round(perf$R2_marginal, 3), round(perf$R2_conditional, 3), round(perf$RMSE, 2)),
+    Estimate  = c(round(perf$R2_marginal, 4), round(perf$R2_conditional, 4), round(perf$RMSE, 2)),
     CI        = NA_character_,
     p         = NA_character_
   )
@@ -354,7 +351,7 @@ make_kable2 <- function(mod) {
 
   bind_rows(fe, re, mp) |>
     kable(
-      format    = "latex", booktabs = TRUE, escape = FALSE,
+      format = "latex", booktabs = TRUE, escape = FALSE,
       col.names = c("Parameter", "Est.", "95\\% CI", "\\textit{p}"),
       digits    = 2
     ) |>

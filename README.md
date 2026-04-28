@@ -4,8 +4,8 @@
 
 This repository contains data and code supporting the manuscript:
 
-> **Habitat heterogeneity and phenotypic variation: Site temperature largely predicts diverse spawning portfolios of an interior Chinook Salmon stock**
-> Bryan M. Maitland, Dan Isaak, Russ Thurow, John Buffington
+> **Network-scale thermal and habitat heterogeneity structures a diverse Chinook salmon spawning portfolio**
+> Bryan M. Maitland, Russ Thurow, Morgan Sparks, Dan Isaak, and John Buffington
 
 Analysis of Chinook salmon spawning phenology in the Middle Fork Salmon River (MFSR), Idaho, USA, using georeferenced redd data (2002–2005) and modeled daily stream temperatures (Siegel et al. 2023).
 
@@ -114,8 +114,3 @@ This loads all data objects into your session. You can then run chunks in any of
 Figures in the supplementary appendix are numbered with an "A" prefix (Figure A1, A2, …) controlled by the LaTeX counter commands in `analysis/_01_eda.qmd`. Reference them in the manuscript text as, e.g., "see Supplementary Material, Figure A2."
 
 ---
-
-## Authors
-
-Bryan M. Maitland · Dan Isaak · Russ Thurow · John Buffington  
-USDA Forest Service, Rocky Mountain Research Station

@@ -3,11 +3,13 @@ title: "Appendices"
 subtitle: "Habitat heterogeneity and phenotypic variation: Site temperature largely predicts diverse spawning portfolios of an interior Chinook Salmon stock"
 format:
   pdf:
+    output-file: "appendix.pdf"
     documentclass: article
     latex-engine: lualatex
     toc: true
     number-sections: true
     toc-depth: 2
+    geometry: "top=1in, bottom=1in, left=1in, right=1in"
     include-in-header:
       text: |
         \usepackage{float}
@@ -18,7 +20,13 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
+```{r}
+#| label: setup
+#| include: false
+
+source(here::here("analysis", "_shared.R"))
+
+# Appendix specific options
 knitr::opts_chunk$set(
   echo    = FALSE,
   warning = FALSE,
@@ -28,30 +36,6 @@ knitr::opts_chunk$set(
   fig.pos = "H",
   out.extra = ""
 )
-
-library(tidyverse)
-library(knitr)
-library(kableExtra)
-library(here)
-library(patchwork)
-library(ggh4x)
-library(lme4)
-library(MuMIn)
-library(sjPlot)
-library(DHARMa)
-library(visdat)
-library(skimr)
-library(broom)
-library(easystats)
-library(performance)
-library(ggeffects)
-library(splines)
-
-theme_set(theme_bw(base_size = 12))
-
-# Load shared data and helper functions.
-# _shared.R sources utils.R and palettes-themes.R internally.
-source(here("analysis", "_shared.R"))
 ```
 
 {{< include ../analysis/_01_eda.qmd >}}
