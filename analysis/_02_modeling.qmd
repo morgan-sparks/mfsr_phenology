@@ -1,0 +1,241 @@
+# Data Analysis
+
+The final analysis dataset includes:
+
+-   `yday`: spawn date, continuous response variable
+-   `comid`, `stream`, `year`: grouping variables
+-   `temp_90`: 90-day mean temperature pre-spawn, continuous variable
+<!-- -   `slope` and `mean_elevation`: provisionally retaining continuous predictor variable -->
+
+```{r final-dataset, eval=FALSE}
+df_mod |>
+  slice_head(n = 5) |>
+  kable(caption = "Final dataset for modeling, first 5 rows.") |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+We used linear mixed-effects models to evaluate environmental predictors of Chinook salmon spawn timing, with redd observation day-of-year (`yday`) as the response variable. We scaled the continuous covariates to have a mean of 0 and standard deviation of 1 to assist convergence and interpretation. `COMID` will be included in all models as a random (intercept) effect to account for repeated measures on `COMID`s. `Stream` will be treated as a fixed effect to compare average effects across streams, and `year` as a fixed effect to compare average effects across years. Further, based on exploratory analysis and biological expectations of nonlinear thermal responses, temperature effects were modeled using both linear and quadratic terms for the 90-day average stream temperature prior to spawning (`temp_90` and `I(temp_90^2)`).
+
+## Initial Model Selection
+
+We fit 31 additive models representing all combinations of fixed effects: `temp_90`, `stream`, `year`, `slope`, and `mean_elevation`. Model selection was performed using AIC, and model fit was evaluated using marginal and conditional R², RMSE, and intraclass correlation coefficients (ICC).
+
+```{r lm-fits, echo=TRUE, eval=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# one covariate
+m1  <- lmer(yday ~ temp_90 + I(temp_90^2) + (1|COMID), data = df_mod, REML = FALSE)
+m2  <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
+m3  <- lmer(yday ~ year + (1|COMID), data = df_mod, REML = FALSE)
+
+# two covariates
+m4  <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + (1|COMID), data = df_mod, REML = FALSE)
+m5  <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1|COMID), data = df_mod, REML = FALSE)
+# m8  <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m9  <- lmer(yday ~ temp_90 + I(temp_90^2) + slope + (1|COMID), data = df_mod, REML = FALSE)
+m6 <- lmer(yday ~ stream + year + (1|COMID), data = df_mod, REML = FALSE)
+
+# three covariates
+m7 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+```
+
+```{r lm-fits-31, eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# one covariate
+# m1  <- lmer(yday ~ temp_90 + I(temp_90^2) + (1|COMID), data = df_mod, REML = FALSE)
+# m2  <- lmer(yday ~ stream + (1|COMID), data = df_mod, REML = FALSE)
+# m3  <- lmer(yday ~ year + (1|COMID), data = df_mod, REML = FALSE)
+# m4  <- lmer(yday ~ mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m5  <- lmer(yday ~ slope + (1|COMID), data = df_mod, REML = FALSE)
+
+# two covariates
+# m6  <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + (1|COMID), data = df_mod, REML = FALSE)
+# m7  <- lmer(yday ~ temp_90 + I(temp_90^2) + year + (1|COMID), data = df_mod, REML = FALSE)
+# m8  <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m9  <- lmer(yday ~ temp_90 + I(temp_90^2) + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m10 <- lmer(yday ~ stream + year + (1|COMID), data = df_mod, REML = FALSE)
+# m11 <- lmer(yday ~ stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m12 <- lmer(yday ~ stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m13 <- lmer(yday ~ year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m14 <- lmer(yday ~ year + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m15 <- lmer(yday ~ mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+# three covariates
+# m16 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + (1|COMID), data = df_mod, REML = FALSE)
+# m17 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m18 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m19 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m20 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m21 <- lmer(yday ~ temp_90 + I(temp_90^2) + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m22 <- lmer(yday ~ stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m23 <- lmer(yday ~ stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m24 <- lmer(yday ~ stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m25 <- lmer(yday ~ year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+# four covariates
+# m26 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + (1|COMID), data = df_mod, REML = FALSE)
+# m27 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m28 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m29 <- lmer(yday ~ temp_90 + I(temp_90^2) + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+# m30 <- lmer(yday ~ stream + I(temp_90^2) + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+
+# all five covariates
+# m31 <- lmer(yday ~ temp_90 + I(temp_90^2) + stream + year + mean_elevation + slope + (1|COMID), data = df_mod, REML = FALSE)
+```
+
+```{r lm-compare}
+aic_tab <- compare_aic(
+  m1,m2,m3,m4,m5,m6,m7
+)
+perf_tab <- compare_performance(
+  m1,m2,m3,m4,m5,m6,m7,
+  estimator = "ML", rank = TRUE, metrics = "common"
+)
+
+# aic_tab <- compare_aic(
+#   m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
+#   m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31
+# )
+# perf_tab <- compare_performance(
+#   m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,
+#   m18,m19,m20,m21,m22,m23,m24,m25,m26,m27,m28,m29,m30,m31,
+#   estimator = "ML", rank = TRUE, metrics = "common"
+# )
+
+lm_tbl <- aic_tab |>
+  left_join(perf_tab, by = c("Model" = "Name")) |>
+  select(Model, df, AIC, delta_AIC = delta, R2_marginal, R2_conditional, RMSE, ICC)
+```
+
+```{r tbl-aic}
+lm_tbl |>
+  # slice_head(n = 10) |>
+  kable(caption = "AIC and model performance metrics for 7 additive candidate models.") |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+The full additive model (`m7`) was the top-ranked model and was carried forward as the base model for subsequent evaluation of random slopes and temperature functional form. 
+
+## Targeted model comparison
+
+We compared our top additive model (`m7`) to a series of increasingly flexible models to evaluate the contribution of random slopes and temperature nonlinearity.
+
+### Random slopes for `temp_90`
+
+To account for potential variation in temperature sensitivity across sites, we extended `m7` to include **COMID-specific random slopes for `temp_90`**, yielding a model with the same fixed effects but with the random structure `(1 + temp_90 | COMID)`. Because the random effects structure differed, we fit both models using restricted maximum likelihood (REML).
+
+```{r rs-fits, echo=TRUE}
+m7_reml <- lmer(
+  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 | COMID),
+  data = df_mod, REML = TRUE
+)
+m7_rs_reml <- lmer(
+  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = TRUE
+)
+```
+
+```{r rs-tbl}
+rs_tab <- compare_aic(m7_reml, m7_rs_reml) |>
+  left_join(
+    compare_performance(m7_reml, m7_rs_reml, rank = TRUE, metrics = "common"),
+    by = c("Model" = "Name")
+  ) |>
+  select(Model, df, AIC, delta_AIC = delta, R2_marginal, R2_conditional, RMSE, ICC) |>
+  mutate(across(where(is.numeric), ~ round(., 3)))
+```
+
+```{r tbl-rs}
+rs_tab |>
+  kable(caption = "Model selection for `m7` vs. `m7\\_rs`.") |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+The random slope model (`m7_rs_reml`) substantially improved fit (ΔAIC = 510), reduced RMSE (2.02 → 1.78 days), and slightly increased conditional R² (0.981 → 0.985). However, the marginal R² declined from 0.714 to 0.698, reflecting a redistribution of explanatory power from fixed to random effects. This shift is expected when site-specific variation in temperature responses is modeled explicitly, and suggests that temperature sensitivity varies meaningfully among stream reaches. We next assessed residual behavior of `m7_rs_reml` to evaluate whether the quadratic temperature term adequately captured the nonlinear relationship before proceeding to functional form comparison.
+
+## Residual Diagnostics
+
+DHARMa diagnostics for `m7_rs_reml` revealed adequate overall fit alongside a systematic pattern that motivated evaluation of a more flexible temperature functional form. The QQ plot showed close tracking of the diagonal despite a flagged KS test (p $\approx$ 0) and outlier test (p = $1 \times 10^{-5}$); with n = 3,016, DHARMa's omnibus tests readily detect minor deviations that carry little practical significance, and the dispersion test was non-significant (p = 0.44). More informative was the residuals vs. predicted plot, which showed a pronounced S-shaped pattern in the quantile smoothers — indicating mild non-uniformity across the prediction range, likely reflecting asymmetry in spawn timing at the distributional tails.
+
+The residuals vs. temp_90 plot was more diagnostic: quantile smoothers showed a clear monotonic decline across the temperature gradient, with residuals shifted consistently above 0.5 at cold sites and below 0.5 at warm sites. This systematic trend indicates the model was over-predicting spawn timing at low temperatures and under-predicting at high temperatures even after the quadratic term, suggesting the quadratic did not fully capture the nonlinear temperature–spawn timing relationship. Residuals plotted against stream and year were also flagged (Levene test significant), reflecting heterogeneity not fully absorbed by the fixed effects: Elk and Marsh creeks showed compressed distributions shifted below 0.5, while Big and Camas were shifted high, and 2005 exhibited notably lower residuals than other years.
+
+Together, these patterns motivated evaluation of a more flexible functional form for the temperature effect.
+
+```{r fig-dharma-m7rs1, fig.width=8, fig.height=6, out.width="80%", fig.cap="DHARMa residuals 1."}
+sim_resid <- DHARMa::simulateResiduals(m7_rs_reml, n = 500)
+plot(sim_resid, quantreg = TRUE)
+```
+
+```{r fig-dharma-m7rs2, fig.width=8, fig.height=3, out.width="80%", fig.cap="DHARMa residuals 2."}
+par(mfrow = c(1, 3))
+plotResiduals(sim_resid, form = df_mod$temp_90, main = "vs. temp_90")
+plotResiduals(sim_resid, form = df_mod$stream,  main = "vs. stream")
+plotResiduals(sim_resid, form = df_mod$year,    main = "vs. year")
+par(mfrow = c(1, 1))
+```
+
+## Evaluation of Temperature Functional Form
+
+The df=3 spline substantially outperformed the quadratic (ΔAIC = 139) with lower RMSE and improved residual behavior across the temperature gradient. The df=4 spline showed further AIC improvement (ΔAIC = 66 over df=3) but produced biologically implausible predictions at warm-end temperature extremes — spawn timing decreasing sharply above ~13°C — indicative of overfitting. The df=3 spline was therefore selected as the final temperature functional form.
+
+```{r spline-fits}
+m7_rs <- lmer(
+  yday ~ temp_90 + I(temp_90^2) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+mod_spline3 <- lmer(
+  yday ~ ns(temp_90, df = 3) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+mod_spline4 <- lmer(
+  yday ~ ns(temp_90, df = 4) + stream + year + (1 + temp_90 | COMID),
+  data = df_mod, REML = FALSE
+)
+```
+
+```{r tbl-spline-aic}
+compare_aic(m7_rs, mod_spline3, mod_spline4) |>
+  kable(caption = "AIC comparison of quadratic vs. spline forms.") |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+```{r tbl-spline-perf}
+compare_performance(
+  m7_rs, mod_spline3, mod_spline4,
+  rank = TRUE, metrics = "common"
+  ) |>
+  select(-Model, -AIC_wt, -BIC_wt) |>
+  kable(caption = "Model performance for quadratic vs. spline forms") |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+```{r fig-compare-curves, fig.width=5, fig.height=3, out.width="80%", fig.cap="Prediction comparison plots."}
+pred_quad <- predict_response(m7_rs, terms = "temp_90 [all]") |>
+  as_tibble() |>
+  mutate(model = "Quadratic", temp_raw = x * sd_temp + mean_temp)
+
+pred_s3 <- predict_response(mod_spline3, terms = "temp_90 [all]") |>
+  as_tibble() |>
+  mutate(model = "Spline (df=3)", temp_raw = x * sd_temp + mean_temp)
+
+pred_s4 <- predict_response(mod_spline4, terms = "temp_90 [all]") |>
+  as_tibble() |>
+  mutate(model = "Spline (df=4)", temp_raw = x * sd_temp + mean_temp)
+
+bind_rows(pred_quad, pred_s3, pred_s4) |>
+  ggplot() +
+  geom_point(data = model_data, aes(x = temp_90, y = yday), alpha = 0.15, size = 0.8) +
+  geom_ribbon(aes(x = temp_raw, ymin = conf.low, ymax = conf.high, fill = model), alpha = 0.2) +
+  geom_line(aes(x = temp_raw, y = predicted, color = model), linewidth = 1.2) +
+  scale_color_manual(values = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick", "Spline (df=4)" = "darkgreen")) +
+  scale_fill_manual(values  = c("Quadratic" = "steelblue", "Spline (df=3)" = "firebrick", "Spline (df=4)" = "darkgreen")) +
+  labs(x = "90-day mean pre-spawn temperature (°C)", y = "Predicted spawn day of year", color = "", fill = "")
+```
+
+```{r fig-dharma-spline-compare, fig.width=8, fig.height=4, out.width="80%"}
+sim_s3 <- DHARMa::simulateResiduals(mod_spline3, n = 500)
+
+par(mfrow = c(1, 2))
+plotResiduals(sim_resid, form = df_mod$temp_90, main = "Quadratic")
+plotResiduals(sim_s3,    form = df_mod$temp_90, main = "Spline (df=3)")
+par(mfrow = c(1, 1))
+```
+
+\newpage

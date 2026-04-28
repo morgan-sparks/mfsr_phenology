@@ -1,0 +1,45 @@
+---
+title: "Appendices"
+subtitle: "Habitat heterogeneity and phenotypic variation: Site temperature largely predicts diverse spawning portfolios of an interior Chinook Salmon stock"
+format:
+  pdf:
+    output-file: "appendix.pdf"
+    documentclass: article
+    latex-engine: lualatex
+    toc: true
+    number-sections: true
+    toc-depth: 2
+    geometry: "top=1in, bottom=1in, left=1in, right=1in"
+    include-in-header:
+      text: |
+        \usepackage{float}
+fontsize: 10pt
+date: today
+date-format: "DD MMMM YYYY"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+source(here::here("analysis", "_shared.R"))
+
+# Appendix specific options
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  cache   = FALSE,
+  fig.align = "center",
+  fig.pos = "H",
+  out.extra = ""
+)
+```
+
+{{< include ../analysis/_01_eda.qmd >}}
+
+{{< include ../analysis/_02_modeling.qmd >}}
+
+{{< include ../analysis/_03_results.qmd >}}

@@ -1,17 +1,20 @@
+# R project files
+.Rproj
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# Cache and render artifacts
+*_cache/
+*_files/
+*.knit.md
+*.log
+docs/appendix_files/
+
+# Data files not tracked
 data/siegel_temperature/siegel_mfsr.rds
-.DS_Store
-data/.DS_Store
-*.DS_Store
 data/siegel_temperature/IsaakSiegelCompare.csv"
 
-
-# Cache files
-*_cache
-*_workflow_files
-*.knit
-*.log
-docs/appendix_files
+# MacOS files
+.DS_Store
