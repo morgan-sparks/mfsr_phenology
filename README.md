@@ -1,11 +1,11 @@
 # Chinook salmon spawning phenology — Middle Fork Salmon River
 
-<img src="plots/MFsalmonRedds_GT2001_BigYellow_Apr24.jpg" alt="MFSR redds" align="right" style="margin-top: 20px" width="200"/>
+<img src="plots/Figure_01.jpg" alt="MFSR redds" align="right" style="margin-top: 20px" width="200"/>
 
 This repository contains data and code supporting the manuscript:
 
 > **Network-scale thermal and habitat heterogeneity structures a diverse Chinook salmon spawning portfolio**
-> Bryan M. Maitland, Russ Thurow, Morgan Sparks, Dan Isaak, and John Buffington
+> By: Bryan M. Maitland, Russ Thurow, Morgan Sparks, Dan Isaak, and John Buffington
 
 Analysis of Chinook salmon spawning phenology in the Middle Fork Salmon River (MFSR), Idaho, USA, using georeferenced redd data (2002–2005) and modeled daily stream temperatures (Siegel et al. 2023).
 
@@ -18,33 +18,33 @@ mfsr_phenology/
 │
 ├── data/
 │   ├── raw/
-│   │   └── russ_spawn/          # Original redd monitor XLS files + data notes
+│   │   └── russ_spawn/           # Original redd monitor XLS files + data notes
 │   └── processed/
-│       ├── russ_spawn/          # Cleaned and compiled redd CSV/RDS files
-│       ├── siegel_temperature/  # Filtered Siegel et al. 2023 temperature data
-│       └── gis/                 # Spatial layers (NHD flowlines, HUC8 boundaries)
+│       ├── russ_spawn/           # Cleaned and compiled redd CSV/RDS files
+│       ├── siegel_temperature/   # Filtered Siegel et al. 2023 temperature data
+│       └── gis/                  # Spatial layers (NHD flowlines, HUC8 boundaries)
 │
 ├── R/
-│   ├── 01_compile-spawn-data.R  # Compiles raw XLS redd files into combined dataset
-│   ├── 02_clean-spawn-data.R    # Cleans and filters combined redd data
+│   ├── 01_compile-spawn-data.R   # Compiles raw XLS redd files into combined dataset
+│   ├── 02_clean-spawn-data.R     # Cleans and filters combined redd data
 │   ├── 03_process-siegel-temps.R # Filters Siegel et al. 2023 data to MFSR COMIDs
-│   ├── 04_comid-temperature.R   # Computes time-windowed temperature summaries per redd
-│   ├── 05_flow-covariates.R     # Downloads and summarises USGS flow data
-│   ├── utils.R                  # Helper functions (model comparison, tables, plotting)
-│   ├── palettes-themes.R        # Color palettes and ggplot2 themes
-│   └── archive/                 # Superseded or exploratory scripts (kept for reference)
+│   ├── 04_comid-temperature.R    # Computes time-windowed temperature summaries per redd
+│   ├── 05_flow-covariates.R      # Downloads and summarises USGS flow data
+│   ├── utils.R                   # Helper functions (model comparison, tables, plotting)
+│   ├── palettes-themes.R         # Color palettes and ggplot2 themes
+│   └── archive/                  # Superseded or exploratory scripts (kept for reference)
 │
 ├── analysis/
-│   ├── _shared.R                # Shared data loading — source this before running interactively
-│   ├── _01_eda.qmd              # Fragment: Datasets + Exploratory Data Analysis
-│   ├── _02_modeling.qmd         # Fragment: Model selection and diagnostics
-│   └── _03_results.qmd          # Fragment: Final model results and interpretation
+│   ├── _shared.R                 # Shared data loading — source this before running interactively
+│   ├── _01_eda.qmd               # Fragment: Datasets + Exploratory Data Analysis
+│   ├── _02_modeling.qmd          # Fragment: Model selection and diagnostics
+│   └── _03_results.qmd           # Fragment: Final model results and interpretation
 │
 ├── appendix/
-│   └── appendix.qmd             # Published supplementary document (renders to PDF)
+│   └── appendix.qmd              # Published supplementary document (renders to PDF)
 │
 ├── docs/
-│   └── ms/                      # Manuscript versions (Word .docx files)
+│   └── ms/                       # Manuscript versions (Word .docx files)
 │
 ├── plots/                        # Final figures (PDF + PNG)
 ├── tables/                       # Final tables (CSV + DOCX)
