@@ -20,39 +20,22 @@
 #   plots: population-level temperature response; COMID intercepts vs
 #          drainage area / elevation within stream
 #
-# Change the index here:
+# The thermal index (INDEX_END_DOY, INDEX_N) is set in R/revision_setup.R.
 # =============================================================================
-INDEX_END_DOY <- 197   # 16 Jul (DOY in 2002; non-leap years 2002-2005)
-INDEX_N       <- 60    # window length (days): 18 May - 16 Jul
 
 library(lme4)
 library(splines)
 library(emmeans)
 library(performance)
-source(here::here("R", "revision_setup.R"))   # redds, temps, win_mean(), out_tab, out_plot
+source(here::here("R", "revision_setup.R"))   # redds, win_mean(), model_data(), index, theme
 emm_options(lmer.df = "asymptotic")            # n > 3000: Satterthwaite/KR disabled anyway
-
-doy_lab <- function(d) format(as.Date(d - 1, "2002-01-01"), "%d %b")
-index_label <- sprintf("%d-d mean ending %s (%s - %s)", INDEX_N, doy_lab(INDEX_END_DOY),
-                       doy_lab(INDEX_END_DOY - INDEX_N + 1), doy_lab(INDEX_END_DOY))
 message("Thermal index: ", index_label)
 
 # -----------------------------------------------------------------------------
 # Data
 # -----------------------------------------------------------------------------
-d <- redds |>
-  mutate(T = win_mean(key, INDEX_END_DOY, INDEX_N)) |>
-  filter(!is.na(T)) |>
-  group_by(COMID) |>
-  mutate(T_bar = mean(T[!duplicated(key)])) |>    # reach mean over years sampled
-  ungroup() |>
-  mutate(T_dev = T - T_bar,                         # reach-year anomaly
-         year  = factor(year),
-         COMID = factor(COMID),
-         key   = factor(key))
+d <- model_data()
 mu_T <- mean(d$T); sd_T <- sd(d$T)
-d <- d |> mutate(Ts = (T - mu_T) / sd_T,
-                 t90s = (temp_90 - mean(temp_90)) / sd(temp_90))
 message(sprintf("n = %d redds, %d COMIDs, %d COMID-years; index range %.1f-%.1f C",
                 nrow(d), n_distinct(d$COMID), n_distinct(d$key), min(d$T), max(d$T)))
 
