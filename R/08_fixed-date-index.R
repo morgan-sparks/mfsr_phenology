@@ -38,22 +38,26 @@
 # (T_bar + T_dev + stream + year), all with (1|COMID) + (1|COMID:year);
 # (ii) is repeated without Big Creek (see R/09 F5).
 #
-# Outputs: tables/revision/E1_fixed_date_candidates.csv, plots/revision/E1_*.png,
-#          tables/revision/E2_post_spawn_indices.csv
+# Outputs (tables/revision/, plots/revision/):
+#   E1_fixed_date_candidates.csv / .png
+#   E2_post_spawn_indices.csv, E2_post_spawn_index_values.csv
 # =============================================================================
 
 library(lme4)
 library(splines)
-source(here::here("R", "revision_setup.R"))   # redds, temps, win_mean(), out_tab, out_plot
+source(here::here("R", "revision_setup.R"))   # redds, temps, win_mean(), win_mean_dates(), ctl
+theme_set(theme_mfsr())
 
-doy_lab <- function(d) format(as.Date(d - 1, "2002-01-01"), "%d %b")
-first_redd <- min(redds$yday)
+first_redd <- min(redds$yday)                 # windows ending before the first redd are pre-spawn
 
-# -----------------------------------------------------------------------------
-# Candidate indices at the COMID-year level
-# -----------------------------------------------------------------------------
+# =============================================================================
+# E1: pre-spawn (and summer) indices
+# =============================================================================
+# One row per reach-year; every candidate index is computed for each
 cy <- redds |> distinct(key, COMID, year)
 
+# Window means: 30, 60 or 90 d ending every 5 days from 1 Jul (DOY 182) to
+# 15 Aug (DOY 227)
 grid <- expand_grid(end_doy = seq(182, 227, by = 5), n = c(30, 60, 90)) |>
   mutate(index = sprintf("mean%d_end%s", n, gsub(" ", "", doy_lab(end_doy))))
 
@@ -61,7 +65,8 @@ idx_long <- pmap_dfr(grid, \(end_doy, n, index) {
   cy |> mutate(index = index, end_doy = end_doy, n = n, T = win_mean(key, end_doy, n))
 })
 
-# Seasonal summaries
+# Seasonal summaries: mean 1 Jul - 31 Aug, and MWAT (maximum 7-day running
+# mean, 1 Jun - 30 Sep; stats::filter with sides = 1 gives the trailing mean)
 mwat <- temps |>
   filter(doy >= 152, doy <= 273) |>
   arrange(COMID, year, doy) |>
@@ -78,14 +83,18 @@ idx_long <- bind_rows(idx_long, seasonal)
 
 # -----------------------------------------------------------------------------
 # Fit each candidate
+#   m_lin   linear, reach + reach-year intercepts (used for ranking)
+#   m_sp    natural spline (df = 3), same random effects
+#   m_noRY  linear, reach intercept only (shows why the reach-year term matters)
+#   m_rc    reach-year means: weighted mean spawn date ~ T + stream + year
+# r2_marg() is a fast marginal R2 (Nakagawa); performance::r2_nakagawa gives
+# the same value but is slow over 32 candidates.
 # -----------------------------------------------------------------------------
 r2_marg <- function(m) {
   vf <- var(as.vector(model.matrix(m) %*% fixef(m)))
   vr <- sum(sapply(VarCorr(m), \(v) sum(diag(v))))
   vf / (vf + vr + sigma(m)^2)
 }
-
-ctl <- lmerControl(optimizer = "bobyqa")
 
 fit_index <- function(d_idx) {
   d <- redds |> left_join(d_idx |> select(key, T), by = "key") |> filter(!is.na(T))
@@ -101,7 +110,7 @@ fit_index <- function(d_idx) {
   tibble(n_redds = nrow(d),
          AIC_linear = AIC(m_lin), AIC_spline = AIC(m_sp), AIC_linear_noRY = AIC(m_noRY),
          slope_lmer = fixef(m_lin)[["T"]],
-         slope_lmer_se = sqrt(diag(vcov(m_lin)))[2],
+         slope_lmer_se = sqrt(vcov(m_lin)["T", "T"]),
          R2m_linear = r2_marg(m_lin),
          rmse_linear = sqrt(mean(residuals(m_lin)^2)),
          r_reach_year = cor(rc$T, rc$yday),
@@ -123,8 +132,8 @@ E1 <- idx_long |>
 
 # Reference: the date-anchored temp_90 under the same model (NOT a valid
 # comparison of fit -- included only to show how much the artefact inflates)
-ref <- redds |> mutate(key = factor(key))
-m_ref <- lmer(yday ~ temp_90 + stream + factor(year) + (1 | COMID) + (1 | key), data = ref, REML = FALSE, control = ctl)
+m_ref <- lmer(yday ~ temp_90 + stream + factor(year) + (1 | COMID) + (1 | key),
+              data = redds, REML = FALSE, control = ctl)
 message(sprintf("Reference (date-anchored temp_90): AIC %.0f, R2m %.2f, RMSE %.2f d",
                 AIC(m_ref), r2_marg(m_ref), sqrt(mean(residuals(m_ref)^2))))
 
@@ -135,27 +144,27 @@ message(sprintf("AIC spread across candidates: %.1f with reach-year RE vs %.1f w
 write_csv(E1, file.path(out_tab, "E1_fixed_date_candidates.csv"))
 
 # -----------------------------------------------------------------------------
-# Plot: fit and effect size by window end date and length
+# Plot: fit (A), effect size +/- 2 SE (B) and reach-year correlation (C) by
+# window end date and length. Dashed line: first observed redd.
 # -----------------------------------------------------------------------------
 pd <- E1 |> filter(!is.na(end_doy), n %in% c(30, 60, 90)) |>
-  mutate(end = as.Date(end_doy - 1, "2002-01-01"), window = factor(paste(n, "d")))
-p1 <- ggplot(pd, aes(end, dAIC_linear, colour = window)) +
-  geom_line() + geom_point() +
-  geom_vline(xintercept = as.Date(first_redd - 1, "2002-01-01"), linetype = 2) +
-  labs(x = "Window end date", y = "\u0394AIC (linear model, reach-year RE)", colour = "Window") + theme_bw()
-p2 <- ggplot(pd, aes(end, slope_lmer, colour = window)) +
-  geom_line() + geom_point() +
-  geom_errorbar(aes(ymin = slope_lmer - 2 * slope_lmer_se, ymax = slope_lmer + 2 * slope_lmer_se), width = 1, show.legend = FALSE) +
-  geom_vline(xintercept = as.Date(first_redd - 1, "2002-01-01"), linetype = 2) +
-  labs(x = "Window end date", y = "Linear slope (d per \u00B0C)", colour = "Window") + theme_bw()
-p3 <- ggplot(pd, aes(end, r_reach_year, colour = window)) +
-  geom_line() + geom_point() +
-  geom_vline(xintercept = as.Date(first_redd - 1, "2002-01-01"), linetype = 2) +
-  labs(x = "Window end date", y = "r (reach-year mean spawn date)", colour = "Window") + theme_bw()
+  mutate(end = fixed_date + end_doy, window = factor(paste(n, "d")))
+e1_panel <- function(y, ylab) {
+  ggplot(pd, aes(end, .data[[y]], colour = window)) +
+    geom_line() + geom_point() +
+    geom_vline(xintercept = fixed_date + first_redd, linetype = 2) +
+    labs(x = "Window end date", y = ylab, colour = "Window")
+}
+p1 <- e1_panel("dAIC_linear", "\u0394AIC")
+p2 <- e1_panel("slope_lmer", "Slope (d per \u00B0C)") +
+  geom_errorbar(aes(ymin = slope_lmer - 2 * slope_lmer_se, ymax = slope_lmer + 2 * slope_lmer_se),
+                width = 1, show.legend = FALSE)
+p3 <- e1_panel("r_reach_year", "r with reach-year\nmean spawn date")
 ggsave(file.path(out_plot, "E1_fixed_date_candidates.png"),
        patchwork::wrap_plots(p1, p2, p3, ncol = 1, guides = "collect") +
-         patchwork::plot_annotation(subtitle = "Dashed line: first observed redd (any windows ending after it are still fixed in calendar time)"),
-       width = 7, height = 9, dpi = 300)
+         patchwork::plot_annotation(tag_levels = "A"),
+       width = 7, height = 8, dpi = 300)
+
 # =============================================================================
 # E2: post-spawn (incubation) indices
 # =============================================================================
@@ -165,14 +174,18 @@ emerge_expr <- if (requireNamespace("hatchR", quietly = TRUE)) {
 } else {
   "1 / exp(6.872 - log(x + 0.332))"   # hatchR model_table: Beacham & Murray 1990, chinook, model 2, emerge
 }
+# Days to emergence: the model gives the fraction of development completed on
+# a day at temperature x (ef = 1 / days-to-emergence at constant x). Summing
+# ef day by day from the spawn date, emergence is the first day the sum
+# reaches 1 (the effective-value approach used by hatchR::predict_phenology).
 days_to_emerge <- function(comid, spawn_date) {
-  x <- pmax(temp_series(comid, spawn_date, as.Date(spawn_date) + 365), 0)  # clamp sub-zero to 0 (avoids NaN)
+  x <- pmax(temp_series(comid, spawn_date, as.Date(spawn_date) + 364), 0)  # clamp sub-zero to 0 (avoids NaN)
   ef <- eval(parse(text = emerge_expr))
   which(cumsum(ef) >= 1)[1]
 }
 
-cy2 <- redds |> distinct(key, COMID, year)
-post <- cy2 |>
+# Post-spawn indices per reach-year (winter ends on the last day of February)
+post <- cy |>
   mutate(fall   = win_mean_dates(COMID, paste0(year, "-09-01"), paste0(year, "-11-30")),
          winter = win_mean_dates(COMID, paste0(year, "-12-01"), paste0(year + 1, "-02-28")),
          spring = win_mean_dates(COMID, paste0(year + 1, "-03-01"), paste0(year + 1, "-04-30")),
@@ -181,23 +194,28 @@ post <- cy2 |>
          emerge_15Aug = map2_dbl(COMID, paste0(year, "-08-15"), days_to_emerge))
 write_csv(post, file.path(out_tab, "E2_post_spawn_index_values.csv"))
 
-dm <- model_data()                                           # final-model data (pre-spawn T, E)
-dm <- dm |> left_join(post |> select(-COMID, -year) |> mutate(key = factor(key, levels = levels(dm$key))), by = "key")
-base_full <- lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
-base_T    <- lmer(yday ~ T + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
-base_none <- lmer(yday ~ stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+# Add the post-spawn indices to the final-model data and fit reference models
+dm <- model_data() |>
+  left_join(post |> select(-COMID, -year), by = "key") |>
+  mutate(key = factor(key))
+dnb <- droplevels(filter(dm, stream != "Big"))      # Big Creek sensitivity (see R/09 F5)
+fit_ml <- function(f, data = dm) lmer(f, data, REML = FALSE, control = ctl)
+base_full <- fit_ml(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key))
+base_T    <- fit_ml(yday ~ T + stream + year + (1 | COMID) + (1 | key))
+base_none <- fit_ml(yday ~ stream + year + (1 | COMID) + (1 | key))
+base_nb   <- fit_ml(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), dnb)
 
 lab_post <- c(fall = "Fall mean, 1 Sep\u201330 Nov", winter = "Winter mean, 1 Dec\u201328 Feb",
               spring = "Spring mean, 1 Mar\u201330 Apr", incub = "Incubation mean, 1 Sep\u201330 Apr",
               emerge_1Sep = "Days to emergence if spawned 1 Sep", emerge_15Aug = "Days to emergence if spawned 15 Aug")
+# For each index P: (i) P alone instead of the pre-spawn index; (ii) P added
+# to the final model; (iii) as (ii) without Big Creek
 E2 <- map_dfr(names(lab_post), \(v) {
-  dm$P <- dm[[v]]
-  m_alone <- lmer(yday ~ P + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
-  m_add   <- lmer(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
-  dnb <- droplevels(filter(dm, stream != "Big"))      # Big Creek sensitivity (see R/09 F5)
-  base_nb <- lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), dnb, REML = FALSE, control = ctl)
-  m_nb    <- lmer(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dnb, REML = FALSE, control = ctl)
-  ry <- dm |> distinct(key, .keep_all = TRUE)
+  dm$P <- dm[[v]]; dnb$P <- dnb[[v]]      # local copies with P = this index
+  m_alone <- fit_ml(yday ~ P + stream + year + (1 | COMID) + (1 | key), dm)
+  m_add   <- fit_ml(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dm)
+  m_nb    <- fit_ml(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dnb)
+  ry <- dm |> distinct(key, .keep_all = TRUE)        # one row per reach-year
   tibble(index = v, label = lab_post[[v]],
          mean_value = mean(ry$P), sd_value = sd(ry$P),
          r_with_prespawn_T = cor(ry$P, ry$T),

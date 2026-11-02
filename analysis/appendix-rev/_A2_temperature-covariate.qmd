@@ -14,7 +14,7 @@ In the original submission, each redd's thermal covariate was the mean modeled t
 
 ## Seasonal context
 
-Stream temperature across surveyed reaches peaked in late July, and every redd was completed after the peak (@fig-a2-thermograph). A 90-day window ending in August or September therefore spans cold late-spring days at its start and warm summer days at its end. Moving the end date later drops cold days and adds warm ones, so a later spawn date mechanically yields a warmer temp_90.
+Stream temperature across surveyed reaches peaked in late July, and no redd was completed before the peak (@fig-a2-thermograph). A 90-day window ending in August or September therefore spans cold late-spring days at its start and warm summer days at its end. Moving the end date later drops cold days and adds warm ones, so a later spawn date mechanically yields a warmer temp_90.
 
 ```{r}
 #| label: fig-a2-thermograph

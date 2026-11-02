@@ -1,160 +1,194 @@
 # =============================================================================
-# revision_setup.R  (CJFAS revision helper; sourced by R/07_* - R/11_*)
+# revision_setup.R  (CJFAS revision; sourced by R/07-R/12 and the appendix)
 #
-# Loads redds and Siegel et al. (2023) daily temperatures with the same
-# filters as analysis/_shared.R, and provides win_mean(key, end_doy, n):
-# mean modeled temperature for COMID-year `key` over the n days ending on
-# day-of-year `end_doy` (missing days ignored; identical to
-# R/04_comid-temperature.R with period = "before").
+# One place for everything the revision scripts share:
+#   1. Settings   : output folders, the chosen thermal index, model formula
+#   2. Data       : redds and Siegel et al. (2023) modeled daily temperatures
+#   3. Windows    : fast window means over the daily temperature series
+#   4. Model data : model_data() builds T, T_bar, T_dev and covariates
+#   5. Helpers    : model fitting/summary and plotting helpers
 #
-# Also holds the chosen thermal index (INDEX_END_DOY, INDEX_N), the model
-# dataset built from it (model_data()), and the manuscript ggplot theme.
+# Calendar convention. All day-of-year (DOY) values use a NON-LEAP calendar:
+# in 2004, dates after 28 Feb are shifted back one day and 29 Feb is dropped,
+# so a given calendar date has the same DOY in every year (16 Jul = 197).
+# This applies to spawn dates (yday) and to the temperature series, so fixed-
+# date windows cover the same calendar days each year and fixed_date + yday
+# plots the correct date. (The submitted analysis used raw DOY, which put 2004
+# one day out of step.)
 # =============================================================================
 
 library(tidyverse)
 library(here)
+source(here("R", "palettes-themes.R"))   # cols.streams, cols.years, fixed_date, theme_mfsr()
 
+# -----------------------------------------------------------------------------
+# 1. Settings
+# -----------------------------------------------------------------------------
 out_tab  <- here("tables", "revision")
 out_plot <- here("plots", "revision")
 dir.create(out_tab,  showWarnings = FALSE, recursive = TRUE)
 dir.create(out_plot, showWarnings = FALSE, recursive = TRUE)
 
-# Thermal index used in the final model (chosen in R/08; change here only) ----
-INDEX_END_DOY <- 197   # 16 Jul (DOY in 2002; non-leap years 2002-2005)
-INDEX_N       <- 60    # window length (days): 18 May - 16 Jul
+# Thermal index used in the final model (chosen in R/08; change it only here)
+INDEX_END_DOY <- 197   # 16 Jul
+INDEX_N       <- 60    # window length in days: 18 May - 16 Jul
 
-doy_lab <- function(d) format(as.Date(d - 1, "2002-01-01"), "%d %b")
+# Final model (chosen 2 Nov 2026; R/09 F1 and F5, Table 1). Elevation is a
+# sensitivity analysis only: its effect comes from Big Creek's gradient.
+FINAL_FORMULA <- yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key)
+
+# Optimizer used for every lmer fit
+ctl <- lme4::lmerControl(optimizer = "bobyqa")
+
+# DOY on the non-leap calendar, and labels for it
+std_doy <- function(date) {
+  date <- as.Date(date)
+  yday(date) - (leap_year(date) & month(date) > 2)
+}
+doy_lab <- function(d) format(fixed_date + d, "%d %b")   # fixed_date is 31 Dec 2000, so 2001 = non-leap
 index_label <- sprintf("%d-d mean ending %s (%s - %s)", INDEX_N, doy_lab(INDEX_END_DOY),
                        doy_lab(INDEX_END_DOY - INDEX_N + 1), doy_lab(INDEX_END_DOY))
 
-# Manuscript theme and palettes (theme copied from analysis/_shared.R) -------
-source(here("R", "palettes-themes.R"))   # cols.streams, cols.years, fixed_date
-theme_mfsr <- function(base_size = 11, base_family = "") {
-  theme_bw(base_size = base_size, base_family = base_family) %+replace%
-    theme(
-      panel.background  = element_rect(fill = "white", color = NA),
-      panel.border      = element_blank(),
-      panel.grid.major  = element_blank(),
-      panel.grid.minor  = element_blank(),
-      axis.line         = element_line(color = "black", linewidth = 0.5),
-      axis.ticks        = element_line(color = "black", linewidth = 0.4),
-      axis.text         = element_text(size = rel(0.85), color = "grey20"),
-      axis.title        = element_text(size = rel(0.95), color = "grey10"),
-      strip.background  = element_rect(fill = "white", color = "black", linewidth = 0.5),
-      strip.text        = element_text(size = rel(0.9), margin = margin(3, 3, 3, 3)),
-      legend.background = element_blank(),
-      legend.key        = element_blank(),
-      legend.title      = element_text(size = rel(0.85)),
-      legend.text       = element_text(size = rel(0.8)),
-      plot.margin       = margin(4, 6, 4, 6)
-    )
-}
-
-# Data (same filtering as analysis/_shared.R) ---------------------------------
+# -----------------------------------------------------------------------------
+# 2. Data
+# Redds: same filters as the submitted analysis (drop Knapp and Cape Horn
+# creeks and 2001, which were not surveyed consistently).
+# Temperatures: Siegel et al. (2023) daily predictions for surveyed reaches.
+# -----------------------------------------------------------------------------
 redds <- read_csv(here("data", "processed", "russ_spawn", "mfsr_spawn_cleaned.csv"),
                   show_col_types = FALSE) |>
   filter(stream != "Knapp" & stream != "Cape Horn" & year != 2001) |>
   mutate(spawn_date = mdy(DATE),
+         yday   = std_doy(spawn_date),          # response: spawn DOY (non-leap calendar)
          COMID  = as.character(COMID),
          year   = as.integer(year),
-         stream = factor(stream)) |>
-  select(redd_id = UNIQUE_ID, COMID, stream, year, spawn_date, yday)
+         stream = factor(stream),
+         key    = paste(COMID, year, sep = "_")) |>   # reach-year identifier
+  select(redd_id = UNIQUE_ID, COMID, stream, year, key, spawn_date, yday)
 
-temps <- readRDS(here("data", "processed", "siegel_temperature", "siegel_mfsr_comid.RDS")) |>
-  transmute(COMID = as.character(COMID),
-            date  = as.Date(tim.date),
-            temp  = prd.stream_temp) |>
-  mutate(year = year(date), doy = yday(date)) |>
-  filter(year %in% 2002:2005, COMID %in% redds$COMID)
+siegel <- readRDS(here("data", "processed", "siegel_temperature", "siegel_mfsr_comid.RDS")) |>
+  transmute(COMID = as.character(COMID), date = as.Date(tim.date), temp = prd.stream_temp) |>
+  filter(COMID %in% redds$COMID, format(date, "%m-%d") != "02-29")
+
+# Study years only, indexed by non-leap DOY
+temps <- siegel |>
+  filter(year(date) %in% 2002:2005) |>
+  mutate(year = year(date), doy = std_doy(date))
 
 # -----------------------------------------------------------------------------
-# Fast window means: cumulative sums per COMID-year over day of year.
-# win_mean(key, end_doy, n) = mean temp over [end_doy - n + 1, end_doy],
-# ignoring missing days (equivalent to R/04_comid-temperature.R).
+# 3. Window means
+# Means over many windows are needed (thousands of redds x several windows x
+# 200 permutations in R/07), so they are computed from cumulative sums rather
+# than by filtering the daily data each time:
+#   mean over days s..e = (cumsum[e] - cumsum[s-1]) / (number of non-missing days)
+# Missing days are skipped, matching R/04_comid-temperature.R.
 # -----------------------------------------------------------------------------
-keys <- temps |> distinct(COMID, year) |> mutate(key = paste(COMID, year, sep = "_"))
-M <- matrix(NA_real_, nrow = nrow(keys), ncol = 366,
-            dimnames = list(keys$key, NULL))
-M[cbind(match(paste(temps$COMID, temps$year, sep = "_"), keys$key), temps$doy)] <- temps$temp
-cs_val <- t(apply(ifelse(is.na(M), 0, M), 1, cumsum))
-cs_n   <- t(apply(!is.na(M), 1, cumsum))
-cs_val <- cbind(0, cs_val); cs_n <- cbind(0, cs_n)   # column j+1 = through doy j
-
-win_mean <- function(key, end_doy, n) {
-  i  <- match(key, rownames(M))
-  e  <- end_doy + 1
-  s  <- pmax(end_doy - n, 0) + 1
-  (cs_val[cbind(i, e)] - cs_val[cbind(i, s)]) / (cs_n[cbind(i, e)] - cs_n[cbind(i, s)])
+cumsum_matrix <- function(M) {
+  list(v = cbind(0, t(apply(ifelse(is.na(M), 0, M), 1, cumsum))),   # running sum of temps
+       n = cbind(0, t(apply(!is.na(M), 1, cumsum))))                 # running count of days
+}
+window_from_cumsum <- function(cs, i, s, e) {   # rows i, columns s..e (1-based, inclusive)
+  (cs$v[cbind(i, e + 1)] - cs$v[cbind(i, s)]) / (cs$n[cbind(i, e + 1)] - cs$n[cbind(i, s)])
 }
 
+# (a) Within one year. Rows = reach-years (key), columns = DOY 1-365.
+#     win_mean(key, end_doy, n): mean temperature over the n days ending on
+#     end_doy. Used for spawn-date-anchored windows (end_doy = a redd's yday)
+#     and for fixed-date indices (end_doy = a calendar date).
+keys <- temps |> distinct(COMID, year) |> mutate(key = paste(COMID, year, sep = "_"))
+M <- matrix(NA_real_, nrow = nrow(keys), ncol = 365, dimnames = list(keys$key, NULL))
+M[cbind(match(paste(temps$COMID, temps$year, sep = "_"), keys$key), temps$doy)] <- temps$temp
+cs_year <- cumsum_matrix(M)
+
+win_mean <- function(key, end_doy, n) {
+  window_from_cumsum(cs_year, match(key, rownames(M)), pmax(end_doy - n + 1, 1), end_doy)
+}
+
+# (b) Across years, for windows that cross 1 January (post-spawn indices,
+#     emergence). Rows = reaches, columns = every date 2002-2006.
+#     win_mean_dates(COMID, start, end): mean over [start, end].
+#     temp_series(COMID, start, end): the daily values themselves.
+all_dates <- seq(as.Date("2002-01-01"), as.Date("2006-12-31"), by = "day")
+all_dates <- all_dates[format(all_dates, "%m-%d") != "02-29"]
+s_all <- filter(siegel, date %in% all_dates)
+Mall <- matrix(NA_real_, nrow = n_distinct(s_all$COMID), ncol = length(all_dates),
+               dimnames = list(sort(unique(s_all$COMID)), NULL))
+Mall[cbind(match(s_all$COMID, rownames(Mall)), match(s_all$date, all_dates))] <- s_all$temp
+cs_all <- cumsum_matrix(Mall)
+
+date_col <- function(x) {                     # column of a date; 29 Feb maps to 28 Feb
+  x <- as.Date(x)
+  x[format(x, "%m-%d") == "02-29"] <- x[format(x, "%m-%d") == "02-29"] - 1
+  match(x, all_dates)
+}
+win_mean_dates <- function(comid, start, end) {
+  window_from_cumsum(cs_all, match(comid, rownames(Mall)), date_col(start), date_col(end))
+}
+temp_series <- function(comid, start, end) Mall[comid, date_col(start):date_col(end)]
+
+# Date-anchored antecedent means used in the submitted analysis (R/07 only)
 redds <- redds |>
-  mutate(key     = paste(COMID, year, sep = "_"),
-         temp_30 = win_mean(key, yday, 30),
+  mutate(temp_30 = win_mean(key, yday, 30),
          temp_60 = win_mean(key, yday, 60),
          temp_90 = win_mean(key, yday, 90)) |>
   filter(!is.na(temp_90))
 
 # -----------------------------------------------------------------------------
-# Daily series by COMID across years (2002-2006), for windows that cross
-# 1 January (post-spawn / incubation indices) and for emergence predictions.
-# win_mean_dates(COMID, start, end): mean temp over [start, end], any dates.
-# temp_series(COMID, start, end): the daily vector itself.
+# 4. Model dataset
+#   T       reach-year thermal index (one value per reach-year)
+#   T_bar   reach mean of T over the years the reach was surveyed. Each
+#           reach-year counts once (not once per redd).
+#   T_dev   T - T_bar: the reach-year anomaly (within-reach, between-year)
+#   E       reach elevation, centred, in 100-m units (sensitivity only)
+#   slope_s reach slope, standardized (sensitivity only)
+#   Ts, t90s  scaled T and temp_90, for spline fits
 # -----------------------------------------------------------------------------
-temps_all <- readRDS(here("data", "processed", "siegel_temperature", "siegel_mfsr_comid.RDS")) |>
-  transmute(COMID = as.character(COMID), date = as.Date(tim.date), temp = prd.stream_temp) |>
-  filter(date >= as.Date("2002-01-01"), date <= as.Date("2006-12-31"), COMID %in% redds$COMID)
-all_dates <- seq(as.Date("2002-01-01"), as.Date("2006-12-31"), by = "day")
-Mall <- matrix(NA_real_, nrow = n_distinct(temps_all$COMID), ncol = length(all_dates),
-               dimnames = list(sort(unique(temps_all$COMID)), NULL))
-Mall[cbind(match(temps_all$COMID, rownames(Mall)), match(temps_all$date, all_dates))] <- temps_all$temp
-cs_all_v <- cbind(0, t(apply(ifelse(is.na(Mall), 0, Mall), 1, cumsum)))
-cs_all_n <- cbind(0, t(apply(!is.na(Mall), 1, cumsum)))
-
-win_mean_dates <- function(comid, start, end) {
-  i <- match(comid, rownames(Mall))
-  s <- match(as.Date(start), all_dates); e <- match(as.Date(end), all_dates) + 1
-  (cs_all_v[cbind(i, e)] - cs_all_v[cbind(i, s)]) / (cs_all_n[cbind(i, e)] - cs_all_n[cbind(i, s)])
-}
-temp_series <- function(comid, start, end) {
-  Mall[comid, match(as.Date(start), all_dates):match(as.Date(end), all_dates)]
-}
-
-# Reach attributes: mean elevation (m) and slope, as in analysis/_shared.R ------
 reach_attr <- readRDS(here("data", "processed", "elevslope.rds")) |>
   as_tibble() |>
   transmute(COMID = as.character(COMID),
-            elev  = (MAXELEVSMO + MINELEVSMO) / 2 / 100,   # cm -> m
-            slope = ifelse(SLOPE > 0.2, 0.002, SLOPE)) |>
+            elev  = (MAXELEVSMO + MINELEVSMO) / 2 / 100,   # NHDPlus elevations are in cm
+            slope = ifelse(SLOPE > 0.2, 0.002, SLOPE)) |>  # as in the submitted analysis
   distinct(COMID, .keep_all = TRUE)
 
-# -----------------------------------------------------------------------------
-# Model dataset for the chosen index (used by R/09-R/11)
-#   T     : reach-year thermal index (same value for every redd in a reach-year)
-#   T_bar : reach mean of T over the years it was sampled (between-reach part)
-#   T_dev : reach-year anomaly, T - T_bar (within-reach, between-year part)
-#   E     : reach elevation, centred, in units of 100 m
-#   Ts    : T scaled (for spline/quadratic fits); t90s: scaled temp_90 (reference only)
-# -----------------------------------------------------------------------------
 model_data <- function(end_doy = INDEX_END_DOY, n = INDEX_N) {
-  d <- redds |>
+  redds |>
     mutate(T = win_mean(key, end_doy, n)) |>
     filter(!is.na(T)) |>
     left_join(reach_attr, by = "COMID") |>
     group_by(COMID) |>
     mutate(T_bar = mean(T[!duplicated(key)])) |>
     ungroup() |>
-    mutate(T_dev = T - T_bar,
-           year  = factor(year),
-           COMID = factor(COMID),
-           key   = factor(key))
-  d |> mutate(Ts   = (T - mean(T)) / sd(T),
-              t90s = (temp_90 - mean(temp_90)) / sd(temp_90),
-              E    = (elev - mean(elev)) / 100,
-              slope_s = (slope - mean(slope)) / sd(slope))
+    mutate(T_dev   = T - T_bar,
+           Ts      = (T - mean(T)) / sd(T),
+           t90s    = (temp_90 - mean(temp_90)) / sd(temp_90),
+           E       = (elev - mean(elev)) / 100,
+           slope_s = (slope - mean(slope)) / sd(slope),
+           year    = factor(year),
+           COMID   = factor(COMID),
+           key     = factor(key))
 }
 
-# Final model formula (chosen 2 Nov 2026; see R/09 F1, F5) ------------------
-# Elevation is tested as a sensitivity analysis (F5): its effect is driven by
-# Big Creek's long elevational gradient and is not supported network-wide.
-FINAL_FORMULA <- yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key)
+# -----------------------------------------------------------------------------
+# 5. Helpers
+# -----------------------------------------------------------------------------
+# One-row summary of a fitted model (used for Table 1 and F1)
+fit_summary <- function(m, label) {
+  r2 <- suppressWarnings(performance::r2_nakagawa(m))
+  tibble(model = label, k = attr(logLik(m), "df"), AIC = AIC(m),
+         R2_m = r2$R2_marginal, R2_c = r2$R2_conditional,
+         RMSE = sqrt(mean(residuals(m)^2)), singular = lme4::isSingular(m))
+}
 
+# Spawn dates with the stream and year fixed effects removed, for partial-
+# effect plots (Fig. 4; Fig. A5.1). Each redd's yday has its stream and year
+# coefficients subtracted and the average over levels added back, which is
+# the same averaging emmeans uses, so points sit on the plotted model line.
+adjust_stream_year <- function(d, model) {
+  fe <- lme4::fixef(model)
+  level_effects <- function(f) {             # coefficient per level, reference = 0
+    lv <- levels(d[[f]])
+    setNames(ifelse(paste0(f, lv) %in% names(fe), fe[paste0(f, lv)], 0), lv)
+  }
+  s <- level_effects("stream"); y <- level_effects("year")
+  d |> mutate(y_adj = yday - s[as.character(stream)] - y[as.character(year)] + mean(s) + mean(y))
+}

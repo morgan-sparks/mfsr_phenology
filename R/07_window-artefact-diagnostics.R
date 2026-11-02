@@ -20,21 +20,23 @@
 #   D4. Per-COMID within-reach slope (spawn date on temp_90) vs. the slope
 #       expected from the artefact alone (1 / rate the window warms).
 #
-# Outputs: tables/revision/, plots/revision/
-# Data + window helper: R/revision_setup.R (same inputs/filters as analysis/_shared.R).
+# Outputs (tables/revision/, plots/revision/):
+#   D1_seasonal_thermograph.png
+#   D2_within_reach_window_change.csv
+#   D3_shuffled_date_null.csv (+ _runs.csv), D3_shuffled_date_null.png
+#   D4_comid_slope_vs_artefact.csv / .png
+# Data and window helper: R/revision_setup.R
 # =============================================================================
 
-library(tidyverse)
-library(here)
 library(lme4)
 library(splines)
+source(here::here("R", "revision_setup.R"))   # redds (with temp_30/60/90), temps, win_mean()
+theme_set(theme_mfsr())
 
 set.seed(20261030)
 n_perm <- 200
 
-source(here("R", "revision_setup.R"))   # redds, temps, win_mean(), out_tab, out_plot
-
-# Check against the saved temp_90 used in the submitted analysis
+# Check: our temp_90 reproduces the values used in the submitted analysis
 load(here("data", "processed", "comid_temps.RData"))   # object: out
 chk <- out |>
   filter(period == "before", duration == 90) |>
@@ -48,6 +50,8 @@ message(sprintf("Redds: %d; COMIDs: %d; COMID-years: %d",
 # -----------------------------------------------------------------------------
 # D1. Seasonal thermograph
 # -----------------------------------------------------------------------------
+# Network mean (and 10th-90th percentile) of daily temperature across all
+# surveyed reach-years, April-October
 thermo <- temps |>
   group_by(doy) |>
   summarise(mean = mean(temp, na.rm = TRUE),
@@ -56,24 +60,27 @@ thermo <- temps |>
   filter(doy >= 91, doy <= 305)
 peak_doy <- thermo$doy[which.max(thermo$mean)]
 message(sprintf("Network thermal peak: DOY %d (%s), %.1f C; spawning DOY %d-%d",
-                peak_doy, format(as.Date(peak_doy - 1, "2002-01-01"), "%d %b"),
+                peak_doy, doy_lab(peak_doy),
                 max(thermo$mean), min(redds$yday), max(redds$yday)))
 
-p_thermo <- ggplot(thermo, aes(as.Date(doy - 1, "2002-01-01"))) +
+# Grey band: 10th-90th percentile; blue: observed spawn dates; dashed: peak
+p_thermo <- ggplot(thermo, aes(fixed_date + doy)) +
   geom_ribbon(aes(ymin = lo, ymax = hi), fill = "grey85") +
   geom_line(aes(y = mean), linewidth = 0.8) +
-  annotate("rect",
-           xmin = as.Date(min(redds$yday) - 1, "2002-01-01"),
-           xmax = as.Date(max(redds$yday) - 1, "2002-01-01"),
+  annotate("rect", xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
            ymin = -Inf, ymax = Inf, alpha = 0.15, fill = "steelblue") +
-  geom_vline(xintercept = as.Date(peak_doy - 1, "2002-01-01"), linetype = 2) +
-  labs(x = NULL, y = "Stream temperature (\u00B0C)",
-       subtitle = "Network-mean modeled daily temperature, study COMIDs 2002\u20132005\n(grey band: 10th\u201390th pct; blue: observed spawn dates; dashed: thermal peak)") +
-  theme_bw()
+  geom_vline(xintercept = fixed_date + peak_doy, linetype = 2) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  labs(x = NULL, y = "Stream temperature (\u00B0C)")
 ggsave(file.path(out_plot, "D1_seasonal_thermograph.png"), p_thermo, width = 7, height = 4, dpi = 300)
 
 # -----------------------------------------------------------------------------
 # D2. Within reach-year change in antecedent temperature per day of spawn date
+# Centre spawn date (x) and the window mean (y) within each reach-year, so only
+# differences among redds in the same reach and year remain, then regress y
+# on x. The slope is how much the window mean changes when the same reach is
+# simply sampled later. var_share_within = share of the window mean's total
+# variance that lies within reach-years (i.e. driven only by spawn date).
 # -----------------------------------------------------------------------------
 within_cy <- function(d, var) {
   d <- d |>
@@ -95,6 +102,14 @@ write_csv(D2, file.path(out_tab, "D2_within_reach_window_change.csv"))
 
 # -----------------------------------------------------------------------------
 # D3. Shuffled-date null
+# Shuffle spawn dates among redds within each year (breaking any real link
+# between a reach and its timing), recompute temp_90 at each redd's own reach
+# for its new date, and refit. Statistics from the shuffled data show what
+# window construction alone produces.
+#   r2_quad            yday ~ temp_90 + temp_90^2 (the submitted figure)
+#   r2_quad_stream_year  same + stream + year
+#   within_slope_d_per_C  slope of yday on temp_90 within reach-years
+#   lmer_resid_sd      residual SD of a submitted-style mixed model
 # -----------------------------------------------------------------------------
 fit_stats <- function(d) {
   d <- d |> mutate(t = temp_90)
@@ -132,21 +147,23 @@ p_null <- null |>
   select(r2_quad, within_slope_d_per_C) |>
   pivot_longer(everything()) |>
   ggplot(aes(value)) +
-  geom_histogram(bins = 30, fill = "grey70") +
+  geom_histogram(bins = 30, fill = "grey70", color = "grey40", linewidth = 0.2) +
   geom_vline(data = obs |> select(r2_quad, within_slope_d_per_C) |> pivot_longer(everything()),
              aes(xintercept = value), colour = "firebrick", linewidth = 1) +
   facet_wrap(~name, scales = "free",
              labeller = as_labeller(c(r2_quad = "R\u00B2 (yday ~ temp_90 + temp_90\u00B2)",
                                       within_slope_d_per_C = "Within reach-year slope (d per \u00B0C)"))) +
-  labs(x = NULL, y = "Permutations",
-       subtitle = sprintf("Grey: %d shuffles of spawn date within year (temp_90 recomputed). Red: observed.", n_perm)) +
-  theme_bw()
+  labs(x = NULL, y = "Permutations")
 ggsave(file.path(out_plot, "D3_shuffled_date_null.png"), p_null, width = 8, height = 3.5, dpi = 300)
 
 # -----------------------------------------------------------------------------
-# D4. Per-COMID within-reach slope vs. artefact-only expectation
-#     If temp_90 = a + b * yday within a reach-year, a regression of yday on
-#     temp_90 has slope 1/b regardless of biology.
+# D4. Per-reach within-reach slope vs. artefact-only expectation
+# If temp_90 = a + b * yday within a reach-year (b = how fast the 90-d window
+# warms as its end date moves later), then regressing yday on temp_90 within
+# that reach gives slope 1/b whatever the fish do. For each reach with >= 15
+# redds (and some spread in dates), compare the observed slope with 1/b.
+# Both slopes use deviations from reach-year means (x, t), so they are
+# within-reach-year quantities.
 # -----------------------------------------------------------------------------
 D4 <- redds |>
   group_by(key) |>
@@ -166,13 +183,9 @@ write_csv(D4, file.path(out_tab, "D4_comid_slope_vs_artefact.csv"))
 p_d4 <- ggplot(D4, aes(slope_artefact, slope_observed, colour = stream)) +
   geom_abline(linetype = 2) +
   geom_point(aes(size = n)) +
-  scale_colour_manual(values = c("Bear Valley" = "#55FF00", "Beaver" = "#7A8EF5", "Big" = "#C9C900",
-                                 "Camas" = "#E64C00", "Elk" = "#B5B57A", "Loon" = "#3FC79A",
-                                 "Marsh" = "#DF73FF", "Sulphur" = "#FFAA00")) +
+  scale_colour_manual(values = cols.streams) +
   labs(x = "Artefact-only slope: 1 / window warming rate (d per \u00B0C)",
-       y = "Observed within-reach slope (d per \u00B0C)",
-       subtitle = "Each point a COMID with \u226515 redds; dashed = 1:1") +
-  theme_bw()
+       y = "Observed within-reach slope (d per \u00B0C)", colour = "Stream", size = "Redds")
 ggsave(file.path(out_plot, "D4_comid_slope_vs_artefact.png"), p_d4, width = 6.5, height = 4.5, dpi = 300)
 
 message("Done. Tables in tables/revision/, plots in plots/revision/.")

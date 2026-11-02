@@ -19,19 +19,26 @@
 #   F1  model comparison (ML); submitted temp_90 model shown for reference only
 #   F2  final model (REML) coefficients and variance components
 #   F3  estimated marginal means + Tukey contrasts for stream and year
-#   F4  COMID random intercepts vs network position (R2 general points 1-2)
+#   F4  reach random intercepts vs network position (R2 general points 1-2)
 #   F5  elevation sensitivity: all streams, without Big Creek, Big vs others
-#   plot: COMID intercepts vs drainage area within stream
-# Manuscript Figure 4 (partial effects) is built in R/10.
+# Manuscript Figure 4 (partial effects) is built in R/10; Table 1 (the
+# published version of F1) and Table 2 in R/11.
 # The thermal index (INDEX_END_DOY, INDEX_N) is set in R/revision_setup.R.
+#
+# Outputs (tables/revision/, plots/revision/):
+#   F1_model_comparison_fixed_index.csv, F2_final_model_fixed_index.csv,
+#   F3_emmeans_fixed_index.csv, F3_contrasts_fixed_index.csv,
+#   F4_comid_random_intercepts.csv, F4_comid_intercepts_vs_position.csv,
+#   F4_comid_intercepts_vs_drainage_area.png,
+#   F5_elevation_sensitivity.csv, F5_elevation_span_by_stream.csv
 # =============================================================================
 
 library(lme4)
 library(splines)
 library(emmeans)
-library(performance)
-source(here::here("R", "revision_setup.R"))   # redds, win_mean(), model_data(), index, theme
-emm_options(lmer.df = "asymptotic")            # n > 3000: Satterthwaite/KR disabled anyway
+source(here::here("R", "revision_setup.R"))   # model_data(), FINAL_FORMULA, ctl, fit_summary()
+theme_set(theme_mfsr())
+emm_options(lmer.df = "asymptotic")            # z-based CIs; n > 3000 redds, so df-corrections are moot
 message("Thermal index: ", index_label)
 
 # -----------------------------------------------------------------------------
@@ -43,11 +50,13 @@ message(sprintf("n = %d redds, %d COMIDs, %d COMID-years; index range %.1f-%.1f 
                 nrow(d), n_distinct(d$COMID), n_distinct(d$key), min(d$T), max(d$T)))
 
 # -----------------------------------------------------------------------------
-# F1 Model comparison (ML)
+# F1 Model comparison (ML). Every model has stream + year and the reach and
+# reach-year intercepts unless the name says otherwise; fm() fills these in.
 # -----------------------------------------------------------------------------
-ctl <- lmerControl(optimizer = "bobyqa")
 RE  <- "+ stream + year + (1 | COMID) + (1 | key)"
-fm  <- function(fixed, re = RE) lmer(as.formula(paste("yday ~", fixed, re)), d, REML = FALSE, control = ctl)
+fm  <- function(fixed, re = RE, data = d) {
+  lmer(as.formula(paste("yday ~", fixed, re)), droplevels(data), REML = FALSE, control = ctl)
+}
 mods <- list(
   "FINAL: T_bar + T_dev"                 = fm("T_bar + T_dev"),
   "T (not split)"                        = fm("T"),
@@ -60,19 +69,14 @@ mods <- list(
   "FINAL + random slopes for T_dev"      = fm("T_bar + T_dev", "+ stream + year + (1 + T_dev | COMID) + (1 | key)"),
   "FINAL without reach-year RE"          = fm("T_bar + T_dev", "+ stream + year + (1 | COMID)")
 )
+# The submitted model (spline on date-anchored temp_90, random slopes), for
+# reference only: its fit is inflated by the artefact (R/07)
 ref <- lmer(yday ~ ns(t90s, 3) + stream + year + (1 + t90s | COMID), d, REML = FALSE, control = ctl)
 
-summ <- function(m, name) {
-  r2 <- suppressWarnings(performance::r2_nakagawa(m))
-  tibble(model = name, df = attr(logLik(m), "df"), AIC = AIC(m),
-         R2_marginal = r2$R2_marginal, R2_conditional = r2$R2_conditional,
-         RMSE_days = sqrt(mean(residuals(m)^2)),
-         singular = isSingular(m))
-}
-F1 <- imap_dfr(mods, summ) |>
+F1 <- imap_dfr(mods, \(m, name) fit_summary(m, name)) |>
   mutate(dAIC = AIC - AIC[1]) |>
   arrange(AIC) |>
-  bind_rows(summ(ref, "REFERENCE ONLY: submitted model, date-anchored temp_90 (circular)")) |>
+  bind_rows(fit_summary(ref, "REFERENCE ONLY: submitted model, date-anchored temp_90 (circular)")) |>
   relocate(model, dAIC)
 print(F1, width = Inf)
 write_csv(F1, file.path(out_tab, "F1_model_comparison_fixed_index.csv"))
@@ -125,23 +129,24 @@ write_csv(F3_means, file.path(out_tab, "F3_emmeans_fixed_index.csv"))
 write_csv(F3_contr, file.path(out_tab, "F3_contrasts_fixed_index.csv"))
 
 # -----------------------------------------------------------------------------
-# F4 COMID random intercepts vs network position (Copeland general points 1-2)
-#     Position = NHDPlus total drainage area (larger = further downstream).
+# F4 Reach random intercepts vs network position (Copeland general points 1-2)
+#    Position = NHDPlus total drainage area (larger = further downstream),
+#    read from the flowline GeoPackage without loading the geometry.
+#    Per stream: correlation of intercept with log(drainage area) and with
+#    elevation. Pooled: within-stream slope of intercept on log(drainage area).
 # -----------------------------------------------------------------------------
 con <- DBI::dbConnect(RSQLite::SQLite(), here("data", "processed", "gis", "flowline_pn17_nsi_MFSR.gpkg"))
 nhd <- DBI::dbGetQuery(con, "select COMID, LENGTHKM, TotDASqKM from flowline_pn17_nsi_MFSR") |>
   mutate(COMID = as.character(COMID)) |>
   group_by(COMID) |> summarise(length_km = first(LENGTHKM), da_km2 = max(TotDASqKM), .groups = "drop")
 DBI::dbDisconnect(con)
-elev <- readRDS(here("data", "processed", "elevslope.rds")) |>
-  transmute(COMID = as.character(COMID), elev_m = (MAXELEVSMO + MINELEVSMO) / 2 / 100)
 
 re <- ranef(final)$COMID |>
   rownames_to_column("COMID") |>
   rename(intercept = `(Intercept)`) |>
   left_join(d |> distinct(COMID = as.character(COMID), stream), by = "COMID") |>
   left_join(nhd, by = "COMID") |>
-  left_join(elev |> distinct(COMID, .keep_all = TRUE), by = "COMID") |>
+  left_join(reach_attr |> select(COMID, elev_m = elev), by = "COMID") |>
   left_join(d |> count(COMID = as.character(COMID), name = "n_redds"), by = "COMID")
 
 message(sprintf("COMID length: median %.2f km (range %.2f-%.2f), n = %d",
@@ -156,10 +161,10 @@ F4 <- re |>
             r_intercept_elev  = cor(intercept, elev_m, use = "complete.obs"),
             .groups = "drop")
 m_pos <- lmer(intercept ~ log(da_km2) + (1 | stream), data = re)
-F4 <- bind_rows(F4, tibble(stream = "ALL (within-stream slope, lmer)",
+F4 <- bind_rows(F4, tibble(stream = "ALL (pooled within-stream slope)",
                            n_comid = nrow(re),
-                           r_intercept_logDA = fixef(m_pos)[2],
-                           r_intercept_elev = NA_real_))
+                           slope_logDA = fixef(m_pos)[[2]],
+                           slope_logDA_se = sqrt(vcov(m_pos)[2, 2])))
 message(sprintf("Pooled within-stream slope of COMID intercept on log(drainage area): %.2f d (SE %.2f)",
                 fixef(m_pos)[2], sqrt(vcov(m_pos)[2, 2])))
 print(F4)
@@ -169,12 +174,13 @@ write_csv(re, file.path(out_tab, "F4_comid_random_intercepts.csv"))
 # -----------------------------------------------------------------------------
 # F5 Elevation sensitivity. Elevation is fixed per reach, so it competes only
 #    with T_bar. Big Creek spans ~650 m of surveyed elevation (others <= ~300 m).
+#    (a) with vs (b) without elevation, all streams and without Big Creek;
+#    then one model with separate elevation slopes for Big Creek and others.
 # -----------------------------------------------------------------------------
-fit5 <- function(dd, fixed) lmer(as.formula(paste("yday ~", fixed, RE)), droplevels(dd), REML = FALSE, control = ctl)
-coef_row <- function(m, v) if (v %in% names(fixef(m))) c(fixef(m)[[v]], sqrt(vcov(m)[v, v])) else c(NA, NA)
+coef_row <- function(m, v) c(fixef(m)[[v]], sqrt(vcov(m)[v, v]))   # estimate, SE
 F5 <- map_dfr(c("All streams", "Without Big Creek"), \(sub) {
   dd <- if (sub == "All streams") d else filter(d, stream != "Big")
-  a <- fit5(dd, "T_bar + T_dev + E"); b <- fit5(dd, "T_bar + T_dev")
+  a <- fm("T_bar + T_dev + E", data = dd); b <- fm("T_bar + T_dev", data = dd)
   tibble(data = sub, n_redds = nrow(dd),
          T_bar_noE = coef_row(b, "T_bar")[1], T_bar_noE_se = coef_row(b, "T_bar")[2],
          T_bar_withE = coef_row(a, "T_bar")[1], T_bar_withE_se = coef_row(a, "T_bar")[2],
@@ -182,7 +188,8 @@ F5 <- map_dfr(c("All streams", "Without Big Creek"), \(sub) {
          E_per100m = coef_row(a, "E")[1], E_se = coef_row(a, "E")[2],
          dAIC_adding_E = AIC(a) - AIC(b))
 })
-mb <- fit5(d |> mutate(E_big = E * (stream == "Big"), E_oth = E * (stream != "Big")), "T_bar + T_dev + E_big + E_oth")
+mb <- fm("T_bar + T_dev + E_big + E_oth",
+        data = d |> mutate(E_big = E * (stream == "Big"), E_oth = E * (stream != "Big")))
 F5 <- bind_rows(F5, tibble(data = "All streams, elevation slope split",
                            E_big = coef_row(mb, "E_big")[1], E_big_se = coef_row(mb, "E_big")[2],
                            E_others = coef_row(mb, "E_oth")[1], E_others_se = coef_row(mb, "E_oth")[2]))
@@ -193,20 +200,17 @@ write_csv(F5, file.path(out_tab, "F5_elevation_sensitivity.csv"))
 write_csv(elev_span, file.path(out_tab, "F5_elevation_span_by_stream.csv"))
 
 # -----------------------------------------------------------------------------
-# Plots
+# F4 plot: reach intercepts vs drainage area, by stream (Fig. A6.1)
 # -----------------------------------------------------------------------------
-cols <- c("Bear Valley" = "#55FF00", "Beaver" = "#7A8EF5", "Big" = "#C9C900", "Camas" = "#E64C00",
-          "Elk" = "#B5B57A", "Loon" = "#3FC79A", "Marsh" = "#DF73FF", "Sulphur" = "#FFAA00")
-
 p_pos <- ggplot(re, aes(da_km2, intercept, colour = stream)) +
   geom_hline(yintercept = 0, linetype = 3) +
   geom_point(aes(size = n_redds)) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
-  scale_x_log10() + scale_colour_manual(values = cols) +
+  scale_x_log10() + scale_colour_manual(values = cols.streams) +
   facet_wrap(~stream, scales = "free_x") +
   labs(x = "Total drainage area (km\u00B2, log scale; larger = further downstream)",
-       y = "COMID random intercept (d)", size = "Redds") +
-  theme_bw() + theme(legend.position = "none")
-ggsave(file.path(out_plot, "F_comid_intercepts_vs_drainage_area.png"), p_pos, width = 8, height = 6, dpi = 300)
+       y = "Reach random intercept (d)", size = "Redds") +
+  theme(legend.position = "none")
+ggsave(file.path(out_plot, "F4_comid_intercepts_vs_drainage_area.png"), p_pos, width = 8, height = 6, dpi = 300)
 
 message("Done.")

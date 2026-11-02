@@ -1,0 +1,67 @@
+\newpage
+
+# The study years in the long-term thermal record
+
+```{r a7-load}
+G1 <- rev_tab("G1_index_by_year.csv")
+G2 <- rev_tab("G2_variance_partition.csv")
+G2r <- rev_tab("G2_reach_rank_stability.csv")
+G3 <- rev_tab("G3_anomaly_summary.csv")
+T2  <- rev_tab("Table_02_rev.csv")
+F3m <- rev_tab("F3_emmeans_fixed_index.csv")
+g1s <- filter(G1, study_year)
+g2v <- function(comp, per, col = "sd") G2[[col]][G2$component == comp & G2$period == per]
+g3v <- function(pattern, col) G3[[col]][grepl(pattern, G3$set)]
+rank_desc <- function(p) round(p * nrow(G1))          # pct_rank -> rank from coldest
+```
+
+Siegel et al. (2023) predict daily temperatures for every year from 1990 to 2021, so we computed the thermal index (Section A3) for every surveyed reach in every year of that record (`R/12_long-term-thermal-context.R`). This shows how the four study years compare with the longer record. It also shows how much of the variation in the index is fixed among reaches and how much changes between years.
+
+## Were 2002--2005 typical years?
+
+Network-wide, the study years were average to slightly warm, and very similar to one another (@fig-a7-years). The mean index across surveyed reaches ranged from `r sprintf("%.1f", min(g1s$network_mean))` °C (`r g1s$year[which.min(g1s$network_mean)]`) to `r sprintf("%.1f", max(g1s$network_mean))` °C (`r g1s$year[which.max(g1s$network_mean)]`), against a 1990--2021 mean of `r sprintf("%.1f", mean(G1$network_mean))` °C. The study years ranked `r min(rank_desc(g1s$pct_rank))`th to `r max(rank_desc(g1s$pct_rank))`th coldest of `r nrow(G1)` years. Over the full record the network mean ranged from `r sprintf("%.1f", min(G1$network_mean))` to `r sprintf("%.1f", max(G1$network_mean))` °C, so the four study years span about `r sprintf("%.0f", 100 * diff(range(g1s$network_mean)) / diff(range(G1$network_mean)))`% of the between-year range in the record.
+
+```{r}
+#| label: fig-a7-years
+#| fig-cap: "Thermal index (mean modeled temperature, 18 May–16 Jul) averaged across all surveyed reaches, 1990–2021. Bars: 10th–90th percentile among reaches. Filled points: study years. Dashed line: 1990–2021 mean."
+#| out-width: "90%"
+knitr::include_graphics(rev_plot("G1_network_index_by_year.png"))
+```
+
+## Is the index a property of the reach?
+
+Yes. The order of reaches from cold to warm was almost the same in every year: the median Spearman correlation between the reach values of any two years was `r sprintf("%.2f", G2r$spearman[1])` (minimum `r sprintf("%.2f", G2r$min[1])`), and reach means over the study years correlated `r sprintf("%.3f", G2r$spearman[3])` with reach means over 1990--2021. Over the full record, the index varied about as much between years network-wide (SD `r sprintf("%.2f", g2v("year", "1990-2021"))` °C) as among reaches (SD `r sprintf("%.2f", g2v("reach", "1990-2021"))` °C), and the reach-by-year part was small (SD `r sprintf("%.2f", g2v("reach_x_year", "1990-2021"))` °C; @tbl-a7-partition). The reach mean ($\bar{T}$) estimated from the study years therefore measures each reach's long-term thermal regime. The between-reach effect in the final model (Section A6) compares places that are consistently warmer or cooler, not places that happened to be warm in 2002--2005.
+
+```{r}
+#| label: tbl-a7-partition
+#| tbl-cap: "Variation in the thermal index among reaches, among years (network-wide) and in the reach-by-year interaction, for the full record and for the study years. Two-way decomposition on reaches with a complete record; SD in °C."
+G2 |>
+  mutate(component = recode(component, reach = "Among reaches",
+                             year = "Among years (network-wide)",
+                             reach_x_year = "Reach-by-year")) |>
+  select(period, component, sd, share) |>
+  pivot_wider(names_from = period, values_from = c(sd, share)) |>
+  transmute(Component = component,
+            `SD, 1990–2021` = sprintf("%.2f", `sd_1990-2021`),
+            `Share, 1990–2021` = sprintf("%.0f%%", 100 * `share_1990-2021`),
+            `SD, 2002–2005` = sprintf("%.2f", `sd_2002-2005`),
+            `Share, 2002–2005` = sprintf("%.0f%%", 100 * `share_2002-2005`)) |>
+  kbl2(align = "lrrrr")
+```
+
+## How large are the within-reach anomalies?
+
+The within-reach temperature contrast in the final model ($T-\bar{T}$) is small: SD `r sprintf("%.2f", g3v("^Model", "sd"))` °C, range `r sprintf("%.2f", g3v("^Model", "min"))` to `r sprintf("%+.2f", g3v("^Model", "max"))` °C. Because the model includes year effects, this contrast is estimated from the reach-specific part of each anomaly, beyond the shift shared by the whole network that year. In the study years that reach-specific part had SD `r sprintf("%.2f", g3v("Reach-by-year residual, surveyed", "sd"))` °C, comparable to its SD over the full record (`r sprintf("%.2f", g3v("Reach-by-year residual, all", "sd"))` °C; @fig-a7-anomaly B). The network-wide part was much narrower than in the record: anomalies from each reach's 1990--2021 mean had SD `r sprintf("%.2f", g3v("Long-term anomaly, surveyed", "sd"))` °C in the surveyed reach-years, against `r sprintf("%.2f", g3v("Long-term anomaly, all", "sd"))` °C over all reach-years (@fig-a7-anomaly A).
+
+This has three consequences for interpretation:
+
+1. The within-reach slope (`r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` d per °C, Section A6) is estimated from anomalies of a few tenths of a degree. In the longer record, network-wide anomalies of 1--2 °C were common. Applying the slope to such years would extrapolate well beyond the data.
+2. The year effects in the final model cannot be attributed to temperature. The four study years were thermally similar (network means within `r sprintf("%.1f", diff(range(g1s$network_mean)))` °C), yet adjusted mean spawn date differed by up to `r sprintf("%.0f", diff(range(F3m$emmean[F3m$factor == "year"])))` days among years. Something other than this thermal index (for example escapement, flow or the timing of adult arrival) must underlie those differences.
+3. A test of whether spawn timing tracks large between-year temperature differences would need redd surveys that include cold years (such as the late 1990s) and warm years (such as 2007, 2015 and 2021).
+
+```{r}
+#| label: fig-a7-anomaly
+#| fig-cap: "Reach-year anomalies in the thermal index, 2002–2005 (dark) vs the other years of 1990–2021 (light). (A) Anomaly from each reach's 1990–2021 mean. (B) The reach-specific part of the anomaly after removing the network-wide year effect; this is the part that informs the within-reach slope once year effects are in the model."
+#| out-width: "75%"
+knitr::include_graphics(rev_plot("G3_anomaly_distribution.png"))
+```

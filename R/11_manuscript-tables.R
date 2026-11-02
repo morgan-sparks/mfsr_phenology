@@ -13,28 +13,23 @@
 
 library(lme4)
 library(splines)
-library(performance)
-source(here::here("R", "revision_setup.R"))   # model_data(), index, out_tab
+source(here::here("R", "revision_setup.R"))   # model_data(), ctl, fit_summary(), index labels
 
 d <- model_data()
-T_bar_ref <- mean(distinct(d, COMID, T_bar)$T_bar)  # average reach temperature
-d$T_bar_c <- d$T_bar - T_bar_ref                   # intercept = Bear Valley, 2002, average reach, T_dev = 0
-ctl <- lmerControl(optimizer = "bobyqa")
-fit <- function(f) lmer(f, data = d, REML = FALSE, control = ctl)
-
-perf_row <- function(m, label) {
-  r2 <- suppressWarnings(performance::r2_nakagawa(m))
-  tibble(Model = label, k = attr(logLik(m), "df"), AIC = AIC(m),
-         RMSE = sqrt(mean(residuals(m)^2)),
-         R2_m = r2$R2_marginal, R2_c = r2$R2_conditional,
-         singular = isSingular(m))
-}
+# Centre T_bar at the average reach (each reach once) so the Table 2 intercept
+# is the predicted spawn DOY for Bear Valley, 2002, an average reach, T_dev = 0
+T_bar_ref <- mean(distinct(d, COMID, T_bar)$T_bar)
+d$T_bar_c <- d$T_bar - T_bar_ref
 
 # -----------------------------------------------------------------------------
-# Table 1: model comparison
+# Table 1: model comparison (ML), in four groups. Within each group, dAIC is
+# relative to the group's first row; fm() builds yday ~ <fixed> + <random>.
 # -----------------------------------------------------------------------------
 RE  <- "(1 | COMID) + (1 | key)"
-fm  <- function(fixed, re = RE) fit(as.formula(paste("yday ~", fixed, "+", re)))
+fm  <- function(fixed, re = RE) {
+  lmer(as.formula(paste("yday ~", fixed, "+", re)), d, REML = FALSE, control = ctl)
+}
+perf_row <- function(m, label) fit_summary(m, label) |> rename(Model = model)
 FIN <- "T_bar + T_dev + stream + year"
 LAB_FINAL <- "T\u0304 + (T \u2212 T\u0304) + stream + year"
 

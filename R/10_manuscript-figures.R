@@ -11,7 +11,7 @@
 #             because the final model has no interaction and Fig. 3 already
 #             shows stream x year patterns
 # Figure 6 (random slopes) is retired; reach intercepts vs network position
-# go to the appendix (plots/revision/F_comid_intercepts_vs_drainage_area.png).
+# go to the appendix (plots/revision/F4_comid_intercepts_vs_drainage_area.png).
 #
 # Style follows the first submission (theme_mfsr, cols.streams, cols.years).
 # Outputs: plots/revision/Figure_0X_rev.pdf and .png
@@ -21,10 +21,11 @@ library(lme4)
 library(emmeans)
 library(patchwork)
 library(ggridges)
-source(here::here("R", "revision_setup.R"))   # redds, model_data(), index, theme
+source(here::here("R", "revision_setup.R"))   # redds, model_data(), FINAL_FORMULA, adjust_stream_year()
 emm_options(lmer.df = "asymptotic")
 theme_set(theme_mfsr(base_size = 11))
 
+# Save each figure as vector PDF (for submission) and PNG (for review); cm units
 save_fig <- function(p, name, width, height) {
   path <- file.path(out_plot, name)
   ggsave(paste0(path, ".pdf"), p, device = cairo_pdf, width = width, height = height, units = "cm")
@@ -97,7 +98,7 @@ save_fig(fig3, "Figure_03_rev", width = 17.6, height = 16)
 # Final model (identical to R/09; FINAL_FORMULA in R/revision_setup.R)
 # -----------------------------------------------------------------------------
 d <- model_data()
-final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = lmerControl(optimizer = "bobyqa"))
+final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = ctl)
 fe <- fixef(final)
 
 # -----------------------------------------------------------------------------
@@ -111,22 +112,15 @@ fe <- fixef(final)
 #       that reach's own mean) vs the reach-year anomaly in the index
 #       (T - T_bar); reaches sampled in >= 2 years; line = within-reach slope.
 # -----------------------------------------------------------------------------
-lev_eff <- function(f, prefix) {
-  lv <- levels(d[[f]]); e <- setNames(rep(0, length(lv)), lv)
-  hit <- paste0(prefix, lv) %in% names(fe); e[hit] <- fe[paste0(prefix, lv)[hit]]; e
-}
-s_eff <- lev_eff("stream", "stream"); y_eff <- lev_eff("year", "year")
-d <- d |> mutate(y_adj = yday - s_eff[as.character(stream)] - y_eff[as.character(year)] +
-                   mean(s_eff) + mean(y_eff))
+d <- adjust_stream_year(d, final)             # adds y_adj
 
-# (A) between reaches
+# (A) between reaches: one point per reach. The reach's own anomaly effect
+#     (b_T_dev * T_dev) is also removed so points reflect T_bar alone.
 reach <- d |> group_by(COMID, stream) |>
   summarise(T_bar = first(T_bar), y = mean(y_adj - fe[["T_dev"]] * T_dev), n = n(), .groups = "drop")
 grid_b <- seq(min(d$T_bar), max(d$T_bar), length.out = 60)
 pred_b <- as_tibble(emmeans(final, ~ T_bar, at = list(T_bar = grid_b, T_dev = 0)))
 
-x_lab_idx <- paste0("(\u00B0C; ", INDEX_N, "-d mean, ", doy_lab(INDEX_END_DOY - INDEX_N + 1),
-                    "\u2013", doy_lab(INDEX_END_DOY), ")")
 p4a <- ggplot() +
   geom_ribbon(data = pred_b, aes(T_bar, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL),
               fill = "grey50", alpha = 0.3) +
@@ -139,7 +133,10 @@ p4a <- ggplot() +
        color = "Stream", size = "Redds", subtitle = "Between reaches") +
   guides(color = guide_legend(override.aes = list(size = 2.5), order = 1))
 
-# (B) within reaches, between years
+# (B) within reaches, between years: one point per reach-year, for reaches
+#     surveyed in >= 2 years. y_anom = reach-year mean adjusted spawn date
+#     minus that reach's mean over its reach-years. The line and its CI are
+#     b_T_dev * T_dev (it passes through 0 by construction).
 multi <- d |> group_by(COMID) |> filter(n_distinct(year) >= 2) |> ungroup()
 ryw <- multi |> group_by(COMID, stream, key) |>
   summarise(T_dev = first(T_dev), y = mean(y_adj), n = n(), .groups = "drop") |>

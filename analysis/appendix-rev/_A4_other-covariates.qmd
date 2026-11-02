@@ -66,10 +66,10 @@ Discharge was available only from one gauge downstream of all study reaches (USG
 #| fig-cap: "Mean daily discharge at the Middle Fork Salmon River gauge near Middle Fork Lodge (USGS 13309220), 2002–2005."
 #| fig-width: 7
 #| fig-height: 3
-readr::read_csv(here::here("data", "processed", "mfsr_flow.csv"), show_col_types = FALSE) |>
+read_csv(here("data", "processed", "mfsr_flow.csv"), show_col_types = FALSE) |>
   transmute(date = as.Date(Date), flow = Flow) |>
-  filter(lubridate::year(date) %in% 2002:2005) |>
-  mutate(year = factor(lubridate::year(date)), doy = lubridate::yday(date)) |>
+  filter(year(date) %in% 2002:2005, format(date, "%m-%d") != "02-29") |>
+  mutate(year = factor(year(date)), doy = std_doy(date)) |>
   ggplot(aes(fixed_date + doy, flow, color = year)) +
   annotate("rect", xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
            ymin = 0, ymax = Inf, fill = "steelblue", alpha = 0.15) +

@@ -7,7 +7,6 @@ T2  <- rev_tab("Table_02_rev.csv")
 F3m <- rev_tab("F3_emmeans_fixed_index.csv")
 F3c <- rev_tab("F3_contrasts_fixed_index.csv")
 F4  <- rev_tab("F4_comid_intercepts_vs_position.csv")
-lens <- rev_tab("F4_comid_random_intercepts.csv")
 g <- function(p) T2$Estimate[T2$Parameter == p]
 vc <- as.data.frame(VarCorr(final))
 ```
@@ -29,7 +28,7 @@ T2 |>
   pack_rows(index = table(factor(T2$Section, levels = unique(T2$Section))))
 ```
 
-Spawning was `r sprintf("%.1f", T2$Estimate[grepl("^Reach mean", T2$Parameter)])` days later per °C between reaches and `r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` days later per °C within reaches between years. The within-reach estimate rests on anomalies of about ±0.5 °C (Fig. 4 of the main text), so it corresponds to shifts of roughly ±3 days. Once temperature, stream and year were accounted for, persistent differences among reaches were small (reach SD `r sprintf("%.1f", vc$sdcor[vc$grp == "COMID"])` d) compared with year-specific shifts within reaches (reach-year SD `r sprintf("%.1f", vc$sdcor[vc$grp == "key"])` d) and the spread of individual redds (residual SD `r sprintf("%.1f", vc$sdcor[vc$grp == "Residual"])` d).
+Spawning was `r sprintf("%.1f", T2$Estimate[grepl("^Reach mean", T2$Parameter)])` days later per °C between reaches and `r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` days later per °C within reaches between years. The within-reach estimate rests on anomalies of about ±0.5 °C (Fig. 4 of the main text), so it corresponds to shifts of roughly ±3 days (see Section A7 for how these anomalies compare with the 1990--2021 record). Once temperature, stream and year were accounted for, persistent differences among reaches were small (reach SD `r sprintf("%.1f", vc$sdcor[vc$grp == "COMID"])` d) compared with year-specific shifts within reaches (reach-year SD `r sprintf("%.1f", vc$sdcor[vc$grp == "key"])` d) and the spread of individual redds (residual SD `r sprintf("%.1f", vc$sdcor[vc$grp == "Residual"])` d).
 
 ## Stream and year means
 
@@ -66,11 +65,11 @@ F3c |>
 
 ## Reach effects and position in the network
 
-Reach random intercepts showed no consistent upstream--downstream pattern within streams: the pooled within-stream slope on log drainage area was `r sprintf("%.2f", F4$r_intercept_logDA[grepl("ALL", F4$stream)])` days (@fig-a6-position). Big Creek was the exception, with downstream reaches spawning later than predicted; this is the same gradient that drives the elevation result in Section A4.
+Reach random intercepts showed no consistent upstream--downstream pattern within streams: the pooled within-stream slope on log drainage area was `r sprintf("%.2f", F4$slope_logDA[grepl("ALL", F4$stream)])` days per log unit (SE `r sprintf("%.2f", F4$slope_logDA_se[grepl("ALL", F4$stream)])`; @fig-a6-position). Big Creek was the exception, with downstream reaches spawning later than predicted; this is the same gradient that drives the elevation result in Section A4.
 
 ```{r}
 #| label: fig-a6-position
 #| fig-cap: "Reach random intercepts from the final model against total drainage area (log scale; larger = further downstream), by stream. Point size: number of redds; lines: linear fits."
 #| out-width: "90%"
-knitr::include_graphics(rev_plot("F_comid_intercepts_vs_drainage_area.png"))
+knitr::include_graphics(rev_plot("F4_comid_intercepts_vs_drainage_area.png"))
 ```
