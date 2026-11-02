@@ -1,23 +1,24 @@
 Section,Parameter,Estimate,CI,p
-Fixed effects,"Intercept (Bear Valley, 2002, mean T)",237.63073706516522,"[236.00, 239.26]",<0.001
-Fixed effects,"Thermal index, T (d per <c2><b0>C)",5.0340479965594325,"[4.28, 5.78]",<0.001
-Fixed effects,Stream: Beaver,5.163373297852768,"[2.50, 7.82]",<0.001
-Fixed effects,Stream: Big,-1.270358768834068,"[-3.24, 0.70]",0.207
-Fixed effects,Stream: Camas,0.748495025574382,"[-1.22, 2.71]",0.455
-Fixed effects,Stream: Elk,-2.154613207484551,"[-4.87, 0.56]",0.120
-Fixed effects,Stream: Loon,5.808339451852888,"[3.75, 7.86]",<0.001
-Fixed effects,Stream: Marsh,6.23673237909827,"[4.13, 8.35]",<0.001
-Fixed effects,Stream: Sulphur,0.509952007816493,"[-2.03, 3.05]",0.694
-Fixed effects,Year: 2003,1.1408946310945514,"[-0.02, 2.30]",0.054
-Fixed effects,Year: 2004,2.8719999529147673,"[1.56, 4.18]",<0.001
-Fixed effects,Year: 2005,5.671699285032539,"[4.11, 7.23]",<0.001
-Random effects,SD reach-year intercept (d),3.142266469301746,NA,NA
-Random effects,SD reach (COMID) intercept (d),1.3515267397823778,NA,NA
-Random effects,SD residual (d),4.3290737797021475,NA,NA
-Random effects,ICC (adjusted),0.38436093761000767,NA,NA
+Fixed effects,"Intercept (Bear Valley, 2002, average reach)",238.088024826476,"[236.26, 239.92]",<0.001
+Fixed effects,"Reach mean thermal index, T̄ (d per °C)",4.879477902493608,"[4.10, 5.66]",<0.001
+Fixed effects,"Reach-year anomaly, T − T̄ (d per °C)",7.197696053833462,"[4.12, 10.27]",<0.001
+Fixed effects,Stream: Beaver,5.0823782910894675,"[2.42, 7.74]",<0.001
+Fixed effects,Stream: Big,-0.9954251557893522,"[-3.00, 1.01]",0.331
+Fixed effects,Stream: Camas,0.8578278147261986,"[-1.11, 2.83]",0.393
+Fixed effects,Stream: Elk,-1.968593672058477,"[-4.70, 0.76]",0.157
+Fixed effects,Stream: Loon,5.954258885031984,"[3.89, 8.02]",<0.001
+Fixed effects,Stream: Marsh,6.435279865992477,"[4.31, 8.56]",<0.001
+Fixed effects,Stream: Sulphur,0.7267113184136708,"[-1.83, 3.28]",0.577
+Fixed effects,Year: 2003,1.5198813647163825,"[0.25, 2.79]",0.019
+Fixed effects,Year: 2004,3.5703901619964635,"[1.95, 5.20]",<0.001
+Fixed effects,Year: 2005,7.042355204300547,"[4.59, 9.49]",<0.001
+Random effects,SD reach-year intercept (d),3.1416063090694,NA,NA
+Random effects,SD reach (COMID) intercept (d),1.3493802837462625,NA,NA
+Random effects,SD residual (d),4.328395095878709,NA,NA
+Random effects,ICC (adjusted),0.3842339191367895,NA,NA
 Random effects,N reach-years,263,NA,NA
 Random effects,N reaches (COMID),104,NA,NA
 Random effects,N redds,3016,NA,NA
-Model performance,R<c2><b2> marginal,0.5229916813106943,NA,NA
-Model performance,R<c2><b2> conditional,0.7063350459298892,NA,NA
-Model performance,RMSE (days),4.1886705095013115,NA,NA
+Model performance,R<c2><b2> marginal,0.527886056864389,NA,NA
+Model performance,R<c2><b2> conditional,0.7092882475145083,NA,NA
+Model performance,RMSE (days),4.187834779351215,NA,NA

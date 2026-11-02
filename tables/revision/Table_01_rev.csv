@@ -1,13 +1,16 @@
 Group,Model,k,dAIC,RMSE,R2_m,R2_c,Notes
-1. Random-effect structure (fixed effects: T + stream + year),Reach + reach-year intercepts,15,0,4.192856538612469,0.5313045028686332,0.702721064857506,Final model
-1. Random-effect structure (fixed effects: T + stream + year),Reach intercept only,14,439.5877872787387,4.807135849560325,0.5653281916198399,0.6386861440902645,
-1. Random-effect structure (fixed effects: T + stream + year),"Reach + reach-year intercepts, random slopes for T",17,-6.475460670182656,4.193668029594693,0.6410923307118929,NA,Singular fit (intercept<e2><80><93>slope correlation = <e2><88><92>1); not supported
-2. Fixed effects (reach + reach-year intercepts),T + stream + year,15,0,4.192856538612469,0.5313045028686332,0.702721064857506,Final model
-2. Fixed effects (reach + reach-year intercepts),T + year,8,65.3475650602486,4.1786411007030315,0.35386906624182507,0.6919822101063534,
-2. Fixed effects (reach + reach-year intercepts),T + stream,12,43.95476481626247,4.179034388515067,0.6280954427168872,NA,Singular fit (reach variance estimated at 0; absorbed by reach-year term)
-2. Fixed effects (reach + reach-year intercepts),T,5,110.88377408571978,4.166947680864562,0.2546584141962893,0.6837323971675201,
-2. Fixed effects (reach + reach-year intercepts),stream + year (no temperature),14,110.2172402292199,4.174644762937002,0.34601866926131425,0.7180156151134816,
-3. Temperature form (stream + year; reach + reach-year intercepts),Linear: T,15,0,4.192856538612469,0.5313045028686332,0.702721064857506,Final model
-3. Temperature form (stream + year; reach + reach-year intercepts),Quadratic: T + T<c2><b2>,16,0.3098466027768154,4.19335504068409,0.5342398883818639,0.703202144122144,
-3. Temperature form (stream + year; reach + reach-year intercepts),Natural spline (df = 3),17,0.6872115053556627,4.193227721133174,0.5354376202437953,0.7029229035288387,
-3. Temperature form (stream + year; reach + reach-year intercepts),Within<e2><80><93>between: T<cc><84> + (T <e2><88><92> T<cc><84>),16,-0.06628342285694089,4.192340570054121,0.5368504868479109,0.7056626254190976,
+1. Random-effect structure (fixed effects: T̄ + (T − T̄) + stream + year),Reach + reach-year intercepts,16,0,4.192340570054121,0.5368504868479109,0.7056626254190976,Final model
+1. Random-effect structure (fixed effects: T̄ + (T − T̄) + stream + year),Reach intercept only,15,435.55608392521754,4.8017831002891125,0.560167666895382,0.6348371714010511,
+1. Random-effect structure (fixed effects: T̄ + (T − T̄) + stream + year),"Reach + reach-year intercepts, random slopes for (T − T̄)",18,3.503434924994508,4.192526776396905,0.648176124396007,NA,Singular fit; not supported
+2. Temperature terms (with stream + year),T̄ + (T − T̄),16,0,4.192340570054121,0.5368504868479109,0.7056626254190976,Final model
+2. Temperature terms (with stream + year),T (not split),15,0.06628342285694089,4.192856538612469,0.5313045028686332,0.702721064857506,
+2. Temperature terms (with stream + year),T̄ only,15,18.776957116369886,4.189661241563597,0.5039851007267218,0.6962738493637708,
+2. Temperature terms (with stream + year),(T − T̄) only,15,93.534937030312,4.176613294525335,0.3822785092065768,0.7238260677939635,
+2. Temperature terms (with stream + year),No temperature,14,110.28352365207684,4.174644762937002,0.34601866926131425,0.7180156151134816,
+3. Other fixed effects (relative to the final model),T̄ + (T − T̄) + stream + year,16,0,4.192340570054121,0.5368504868479109,0.7056626254190976,Final model
+3. Other fixed effects (relative to the final model),− stream,9,65.07879789529761,4.1786383201585435,0.35863955646942597,0.6919649969110102,
+3. Other fixed effects (relative to the final model),− year,13,26.514024931853783,4.185872562579863,0.49624723922372804,0.7001258593218777,
+3. Other fixed effects (relative to the final model),+ elevation,17,-40.63081041840633,4.203475436515857,0.6711313843562134,NA,Driven by Big Creek; not supported without it (Appendix)
+3. Other fixed effects (relative to the final model),+ reach slope,17,1.905933089186874,4.19216247736926,0.5368138901278118,0.7057696757011556,
+4. Shape of the between-reach temperature effect,Linear T̄,16,0,4.192340570054121,0.5368504868479109,0.7056626254190976,Final model
+4. Shape of the between-reach temperature effect,Natural spline on T̄ (df = 3),18,-3.2559463553334353,4.1946728016308406,0.5474979634604762,0.7070774362074345,Slight curvature; linear retained (Appendix)

@@ -95,16 +95,51 @@ redds <- redds |>
   filter(!is.na(temp_90))
 
 # -----------------------------------------------------------------------------
+# Daily series by COMID across years (2002-2006), for windows that cross
+# 1 January (post-spawn / incubation indices) and for emergence predictions.
+# win_mean_dates(COMID, start, end): mean temp over [start, end], any dates.
+# temp_series(COMID, start, end): the daily vector itself.
+# -----------------------------------------------------------------------------
+temps_all <- readRDS(here("data", "processed", "siegel_temperature", "siegel_mfsr_comid.RDS")) |>
+  transmute(COMID = as.character(COMID), date = as.Date(tim.date), temp = prd.stream_temp) |>
+  filter(date >= as.Date("2002-01-01"), date <= as.Date("2006-12-31"), COMID %in% redds$COMID)
+all_dates <- seq(as.Date("2002-01-01"), as.Date("2006-12-31"), by = "day")
+Mall <- matrix(NA_real_, nrow = n_distinct(temps_all$COMID), ncol = length(all_dates),
+               dimnames = list(sort(unique(temps_all$COMID)), NULL))
+Mall[cbind(match(temps_all$COMID, rownames(Mall)), match(temps_all$date, all_dates))] <- temps_all$temp
+cs_all_v <- cbind(0, t(apply(ifelse(is.na(Mall), 0, Mall), 1, cumsum)))
+cs_all_n <- cbind(0, t(apply(!is.na(Mall), 1, cumsum)))
+
+win_mean_dates <- function(comid, start, end) {
+  i <- match(comid, rownames(Mall))
+  s <- match(as.Date(start), all_dates); e <- match(as.Date(end), all_dates) + 1
+  (cs_all_v[cbind(i, e)] - cs_all_v[cbind(i, s)]) / (cs_all_n[cbind(i, e)] - cs_all_n[cbind(i, s)])
+}
+temp_series <- function(comid, start, end) {
+  Mall[comid, match(as.Date(start), all_dates):match(as.Date(end), all_dates)]
+}
+
+# Reach attributes: mean elevation (m) and slope, as in analysis/_shared.R ------
+reach_attr <- readRDS(here("data", "processed", "elevslope.rds")) |>
+  as_tibble() |>
+  transmute(COMID = as.character(COMID),
+            elev  = (MAXELEVSMO + MINELEVSMO) / 2 / 100,   # cm -> m
+            slope = ifelse(SLOPE > 0.2, 0.002, SLOPE)) |>
+  distinct(COMID, .keep_all = TRUE)
+
+# -----------------------------------------------------------------------------
 # Model dataset for the chosen index (used by R/09-R/11)
 #   T     : reach-year thermal index (same value for every redd in a reach-year)
-#   T_bar : reach mean of T over the years it was sampled
-#   T_dev : reach-year anomaly (T - T_bar)
+#   T_bar : reach mean of T over the years it was sampled (between-reach part)
+#   T_dev : reach-year anomaly, T - T_bar (within-reach, between-year part)
+#   E     : reach elevation, centred, in units of 100 m
 #   Ts    : T scaled (for spline/quadratic fits); t90s: scaled temp_90 (reference only)
 # -----------------------------------------------------------------------------
 model_data <- function(end_doy = INDEX_END_DOY, n = INDEX_N) {
   d <- redds |>
     mutate(T = win_mean(key, end_doy, n)) |>
     filter(!is.na(T)) |>
+    left_join(reach_attr, by = "COMID") |>
     group_by(COMID) |>
     mutate(T_bar = mean(T[!duplicated(key)])) |>
     ungroup() |>
@@ -113,6 +148,13 @@ model_data <- function(end_doy = INDEX_END_DOY, n = INDEX_N) {
            COMID = factor(COMID),
            key   = factor(key))
   d |> mutate(Ts   = (T - mean(T)) / sd(T),
-              t90s = (temp_90 - mean(temp_90)) / sd(temp_90))
+              t90s = (temp_90 - mean(temp_90)) / sd(temp_90),
+              E    = (elev - mean(elev)) / 100,
+              slope_s = (slope - mean(slope)) / sd(slope))
 }
+
+# Final model formula (chosen 2 Nov 2026; see R/09 F1, F5) ------------------
+# Elevation is tested as a sensitivity analysis (F5): its effect is driven by
+# Big Creek's long elevational gradient and is not supported network-wide.
+FINAL_FORMULA <- yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key)
 

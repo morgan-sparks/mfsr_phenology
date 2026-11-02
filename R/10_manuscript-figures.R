@@ -4,7 +4,8 @@
 # CJFAS revision: rebuild manuscript Figures 2-5 with the revised analysis.
 #   Figure 2  spawn-date distributions: all (A), by stream (B), by year (C)
 #   Figure 3  cumulative proportion of redds by stream and year
-#   Figure 4  spawn date vs reach-year thermal index (replaces temp_90 figure)
+#   Figure 4  partial effects: between-reach (T_bar) and within-reach (T - T_bar)
+#             temperature components (replaces the temp_90 figure)
 #   Figure 5  observed and temperature-adjusted mean spawn dates by stream (A)
 #             and year (B); the stream x year panel (old 5C) is dropped
 #             because the final model has no interaction and Fig. 3 already
@@ -93,39 +94,76 @@ fig3 <- ggplot(props, aes(x = fixed_date + yday, y = cum_p, color = year)) +
 save_fig(fig3, "Figure_03_rev", width = 17.6, height = 16)
 
 # -----------------------------------------------------------------------------
-# Final model (identical to R/09)
+# Final model (identical to R/09; FINAL_FORMULA in R/revision_setup.R)
 # -----------------------------------------------------------------------------
 d <- model_data()
-final <- lmer(yday ~ T + stream + year + (1 | COMID) + (1 | key), d, REML = TRUE,
-              control = lmerControl(optimizer = "bobyqa"))
+final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = lmerControl(optimizer = "bobyqa"))
+fe <- fixef(final)
 
 # -----------------------------------------------------------------------------
-# Figure 4: spawn date vs reach-year thermal index
+# Figure 4: partial effects of the two temperature components
+#   Spawn dates are adjusted for the stream and year fixed effects (set to
+#   their average over levels, matching emmeans), so points show what the
+#   model attributes to temperature.
+#   (A) Between reaches: reach mean adjusted spawn date vs reach mean index
+#       (T_bar); line = population-level fit at T_dev = 0, 95% CI.
+#   (B) Within reaches: reach-year anomaly in adjusted spawn date (relative to
+#       that reach's own mean) vs the reach-year anomaly in the index
+#       (T - T_bar); reaches sampled in >= 2 years; line = within-reach slope.
 # -----------------------------------------------------------------------------
-grid_T <- seq(min(d$T), max(d$T), length.out = 60)
-pred <- as_tibble(emmeans(final, ~ T, at = list(T = grid_T)))
-ry <- d |>
-  group_by(key, stream, year) |>
-  summarise(T = first(T), yday = mean(yday), n = n(), .groups = "drop")
+lev_eff <- function(f, prefix) {
+  lv <- levels(d[[f]]); e <- setNames(rep(0, length(lv)), lv)
+  hit <- paste0(prefix, lv) %in% names(fe); e[hit] <- fe[paste0(prefix, lv)[hit]]; e
+}
+s_eff <- lev_eff("stream", "stream"); y_eff <- lev_eff("year", "year")
+d <- d |> mutate(y_adj = yday - s_eff[as.character(stream)] - y_eff[as.character(year)] +
+                   mean(s_eff) + mean(y_eff))
 
-fig4 <- ggplot() +
-  geom_point(data = ry, aes(T, fixed_date + yday, color = stream, size = n), alpha = 0.75) +
-  geom_ribbon(data = pred, aes(T, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL),
+# (A) between reaches
+reach <- d |> group_by(COMID, stream) |>
+  summarise(T_bar = first(T_bar), y = mean(y_adj - fe[["T_dev"]] * T_dev), n = n(), .groups = "drop")
+grid_b <- seq(min(d$T_bar), max(d$T_bar), length.out = 60)
+pred_b <- as_tibble(emmeans(final, ~ T_bar, at = list(T_bar = grid_b, T_dev = 0)))
+
+x_lab_idx <- paste0("(\u00B0C; ", INDEX_N, "-d mean, ", doy_lab(INDEX_END_DOY - INDEX_N + 1),
+                    "\u2013", doy_lab(INDEX_END_DOY), ")")
+p4a <- ggplot() +
+  geom_ribbon(data = pred_b, aes(T_bar, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL),
               fill = "grey50", alpha = 0.3) +
-  geom_line(data = pred, aes(T, fixed_date + emmean), linewidth = 1) +
+  geom_line(data = pred_b, aes(T_bar, fixed_date + emmean), linewidth = 1) +
+  geom_point(data = reach, aes(T_bar, fixed_date + y, color = stream, size = n), alpha = 0.8) +
   scale_color_manual(values = cols.streams) +
-  scale_size_area(max_size = 5, breaks = c(10, 50, 100)) +
+  scale_size_area(max_size = 5, breaks = c(10, 100, 200)) +
   scale_y_date(date_breaks = "1 week", date_labels = "%d %b") +
-  labs(x = paste0("Reach-year thermal index (°C; ", INDEX_N, "-d mean, ",
-                  doy_lab(INDEX_END_DOY - INDEX_N + 1), "–", doy_lab(INDEX_END_DOY), ")"),
-       y = "Spawn date", color = "Stream", size = "Redds") +
+  labs(x = "Reach mean thermal index (\u00B0C)", y = "Adjusted spawn date",
+       color = "Stream", size = "Redds", subtitle = "Between reaches") +
   guides(color = guide_legend(override.aes = list(size = 2.5), order = 1))
-save_fig(fig4, "Figure_04_rev", width = 17.6, height = 11)
+
+# (B) within reaches, between years
+multi <- d |> group_by(COMID) |> filter(n_distinct(year) >= 2) |> ungroup()
+ryw <- multi |> group_by(COMID, stream, key) |>
+  summarise(T_dev = first(T_dev), y = mean(y_adj), n = n(), .groups = "drop") |>
+  group_by(COMID) |> mutate(y_anom = y - mean(y)) |> ungroup()
+b_dev <- fe[["T_dev"]]; se_dev <- sqrt(vcov(final)["T_dev", "T_dev"])
+grid_w <- tibble(T_dev = seq(min(ryw$T_dev), max(ryw$T_dev), length.out = 50)) |>
+  mutate(fit = b_dev * T_dev, lo = (b_dev - 1.96 * se_dev) * T_dev, hi = (b_dev + 1.96 * se_dev) * T_dev)
+p4b <- ggplot() +
+  geom_hline(yintercept = 0, linetype = 3) + geom_vline(xintercept = 0, linetype = 3) +
+  geom_ribbon(data = grid_w, aes(T_dev, ymin = pmin(lo, hi), ymax = pmax(lo, hi)), fill = "grey50", alpha = 0.3) +
+  geom_line(data = grid_w, aes(T_dev, fit), linewidth = 1) +
+  geom_point(data = ryw, aes(T_dev, y_anom, color = stream, size = n), alpha = 0.8) +
+  scale_color_manual(values = cols.streams, guide = "none") +
+  scale_size_area(max_size = 5, guide = "none") +
+  labs(x = "Reach-year anomaly in thermal index (\u00B0C)",
+       y = "Spawn-date anomaly (days)", subtitle = "Within reaches, between years")
+
+fig4 <- p4a + p4b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
+save_fig(fig4, "Figure_04_rev", width = 20, height = 10)
 
 # -----------------------------------------------------------------------------
 # Figure 5: observed vs temperature-adjusted means by stream (A) and year (B)
 #   grey jitter: individual redds; open diamond: observed mean;
-#   black point + bar: model-adjusted marginal mean (at mean T) with 95% CI
+#   black point + bar: model-adjusted marginal mean (at mean T_bar, T_dev ~ 0) with 95% CI
 # -----------------------------------------------------------------------------
 emm_s <- as_tibble(emmeans(final, ~ stream))
 emm_y <- as_tibble(emmeans(final, ~ year))
@@ -154,6 +192,6 @@ save_fig(fig5, "Figure_05_rev", width = 18, height = 9.5)
 message(sprintf("Fig 2: n = %d redds; mean %s; median %s; range %s-%s; SD %.1f d",
                 nrow(spawn), fmt_date(round(mean(spawn$yday))), fmt_date(median(spawn$yday)),
                 fmt_date(min(spawn$yday)), fmt_date(max(spawn$yday)), sd(spawn$yday)))
-message("Fig 4: index range ", sprintf("%.1f-%.1f C", min(d$T), max(d$T)),
-        "; slope ", sprintf("%.2f d/C", fixef(final)[["T"]]))
+message(sprintf("Fig 4: T_bar range %.1f-%.1f C; between %.2f d/C; within %.2f d/C (SE %.2f); %d multi-year reaches, %d reach-years",
+                min(d$T_bar), max(d$T_bar), fe[["T_bar"]], b_dev, se_dev, n_distinct(ryw$COMID), nrow(ryw)))
 message("Done.")

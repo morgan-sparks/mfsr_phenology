@@ -17,7 +17,8 @@ library(performance)
 source(here::here("R", "revision_setup.R"))   # model_data(), index, out_tab
 
 d <- model_data()
-d$Tc <- d$T - mean(d$T)                        # centred T: intercept = Bear Valley, 2002, mean T
+T_bar_ref <- mean(distinct(d, COMID, T_bar)$T_bar)  # average reach temperature
+d$T_bar_c <- d$T_bar - T_bar_ref                   # intercept = Bear Valley, 2002, average reach, T_dev = 0
 ctl <- lmerControl(optimizer = "bobyqa")
 fit <- function(f) lmer(f, data = d, REML = FALSE, control = ctl)
 
@@ -33,54 +34,65 @@ perf_row <- function(m, label) {
 # Table 1: model comparison
 # -----------------------------------------------------------------------------
 RE  <- "(1 | COMID) + (1 | key)"
-fin <- "T + stream + year"
+fm  <- function(fixed, re = RE) fit(as.formula(paste("yday ~", fixed, "+", re)))
+FIN <- "T_bar + T_dev + stream + year"
+LAB_FINAL <- "T\u0304 + (T \u2212 T\u0304) + stream + year"
 
 g1 <- bind_rows(
-  perf_row(fit(as.formula(paste("yday ~", fin, "+", RE))),            "Reach + reach-year intercepts"),
-  perf_row(fit(yday ~ T + stream + year + (1 | COMID)),                "Reach intercept only"),
-  perf_row(fit(yday ~ T + stream + year + (1 + T | COMID) + (1 | key)), "Reach + reach-year intercepts, random slopes for T")
-) |> mutate(Group = "1. Random-effect structure (fixed effects: T + stream + year)")
+  perf_row(fm(FIN),                                         "Reach + reach-year intercepts"),
+  perf_row(fm(FIN, "(1 | COMID)"),                          "Reach intercept only"),
+  perf_row(fm(FIN, "(1 + T_dev | COMID) + (1 | key)"),      "Reach + reach-year intercepts, random slopes for (T \u2212 T\u0304)")
+) |> mutate(Group = paste0("1. Random-effect structure (fixed effects: ", LAB_FINAL, ")"))
 
 g2 <- bind_rows(
-  perf_row(fit(as.formula(paste("yday ~ T + stream + year +", RE))), "T + stream + year"),
-  perf_row(fit(as.formula(paste("yday ~ T + year +", RE))),          "T + year"),
-  perf_row(fit(as.formula(paste("yday ~ T + stream +", RE))),        "T + stream"),
-  perf_row(fit(as.formula(paste("yday ~ T +", RE))),                 "T"),
-  perf_row(fit(as.formula(paste("yday ~ stream + year +", RE))),     "stream + year (no temperature)")
-) |> mutate(Group = "2. Fixed effects (reach + reach-year intercepts)")
+  perf_row(fm(FIN),                              "T\u0304 + (T \u2212 T\u0304)"),
+  perf_row(fm("T + stream + year"),              "T (not split)"),
+  perf_row(fm("T_bar + stream + year"),          "T\u0304 only"),
+  perf_row(fm("T_dev + stream + year"),          "(T \u2212 T\u0304) only"),
+  perf_row(fm("stream + year"),                  "No temperature")
+) |> mutate(Group = "2. Temperature terms (with stream + year)")
 
 g3 <- bind_rows(
-  perf_row(fit(as.formula(paste("yday ~ T + stream + year +", RE))),               "Linear: T"),
-  perf_row(fit(as.formula(paste("yday ~ Ts + I(Ts^2) + stream + year +", RE))),   "Quadratic: T + T²"),
-  perf_row(fit(as.formula(paste("yday ~ ns(Ts, 3) + stream + year +", RE))),      "Natural spline (df = 3)"),
-  perf_row(fit(as.formula(paste("yday ~ T_bar + T_dev + stream + year +", RE))),  "Within–between: T̄ + (T − T̄)")
-) |> mutate(Group = "3. Temperature form (stream + year; reach + reach-year intercepts)")
+  perf_row(fm(FIN),                              LAB_FINAL),
+  perf_row(fm("T_bar + T_dev + year"),           "\u2212 stream"),
+  perf_row(fm("T_bar + T_dev + stream"),         "\u2212 year"),
+  perf_row(fm(paste(FIN, "+ E")),                "+ elevation"),
+  perf_row(fm(paste(FIN, "+ slope_s")),          "+ reach slope")
+) |> mutate(Group = "3. Other fixed effects (relative to the final model)")
 
-tbl1 <- bind_rows(g1, g2, g3) |>
+g4 <- bind_rows(
+  perf_row(fm(FIN),                                       "Linear T\u0304"),
+  perf_row(fm("ns(T_bar, 3) + T_dev + stream + year"),   "Natural spline on T\u0304 (df = 3)")
+) |> mutate(Group = "4. Shape of the between-reach temperature effect")
+
+tbl1 <- bind_rows(g1, g2, g3, g4) |>
   group_by(Group) |>
   mutate(dAIC = AIC - AIC[1]) |>                      # first row of each group = reference
   ungroup() |>
   mutate(Notes = case_when(
-    singular & grepl("random slopes", Model) ~ "Singular fit (intercept–slope correlation = −1); not supported",
-    singular ~ "Singular fit (reach variance estimated at 0; absorbed by reach-year term)",
-    Model %in% c("Reach + reach-year intercepts", "T + stream + year", "Linear: T") ~ "Final model",
+    singular & grepl("random slopes", Model) ~ "Singular fit; not supported",
+    Model == "+ elevation" ~ "Driven by Big Creek; not supported without it (Appendix)",
+    grepl("^Natural spline", Model) ~ "Slight curvature; linear retained (Appendix)",
+    singular ~ "Singular fit (a variance component estimated at 0)",
+    row_number() == 1 | Model %in% c(LAB_FINAL, "Linear T\u0304", "T\u0304 + (T \u2212 T\u0304)") ~ "Final model",
     TRUE ~ "")) |>
   select(Group, Model, k, dAIC, RMSE, R2_m, R2_c, Notes)
-print(tbl1, n = 20, width = Inf)
+print(tbl1, n = 30, width = Inf)
 write_csv(tbl1, file.path(out_tab, "Table_01_rev.csv"))
 
 # -----------------------------------------------------------------------------
-# Table 2: final model (REML), T centred at its mean
+# Table 2: final model (REML); T_bar centred at the average reach temperature
 # -----------------------------------------------------------------------------
-final <- lmer(yday ~ Tc + stream + year + (1 | COMID) + (1 | key), d, REML = TRUE, control = ctl)
+final <- lmer(yday ~ T_bar_c + T_dev + stream + year + (1 | COMID) + (1 | key), d, REML = TRUE, control = ctl)
 ci <- confint(final, method = "Wald", parm = "beta_")
 fe <- tibble(term = names(fixef(final)), Estimate = unname(fixef(final)),
              SE = sqrt(diag(vcov(final)))) |>
   mutate(CI_low = ci[term, 1], CI_high = ci[term, 2],
          p = 2 * pnorm(-abs(Estimate / SE)),
          Parameter = case_when(
-           term == "(Intercept)"   ~ "Intercept (Bear Valley, 2002, mean T)",
-           term == "Tc"            ~ "Thermal index, T (d per °C)",
+           term == "(Intercept)"   ~ "Intercept (Bear Valley, 2002, average reach)",
+           term == "T_bar_c"       ~ "Reach mean thermal index, T\u0304 (d per \u00b0C)",
+           term == "T_dev"         ~ "Reach-year anomaly, T \u2212 T\u0304 (d per \u00b0C)",
            grepl("^stream", term)  ~ sub("stream", "Stream: ", term),
            grepl("^year", term)    ~ sub("year", "Year: ", term)),
          Section = "Fixed effects",
@@ -151,8 +163,9 @@ if (requireNamespace("gt", quietly = TRUE)) {
     sub_missing(columns = c(CI, p), missing_text = "—") |>
     gt_style() |>
     tab_footnote(md(paste0(
-      "Model: spawn day of year ~ T + stream + year + (1 | reach) + (1 | reach-year), fit by REML. ",
-      "T centred at its mean (", sprintf("%.1f", mean(d$T)), " °C). ",
+      "Model: spawn day of year ~ T̄ + (T − T̄) + stream + year + (1 | reach) + (1 | reach-year), fit by REML. ",
+      "T = reach-year thermal index; T̄ = reach mean over years sampled, centred at the average reach (",
+      sprintf("%.1f", T_bar_ref), " °C). ",
       "Reference levels: Stream = Bear Valley Creek; Year = 2002. CIs are Wald intervals."))) |>
     tab_header(title = "Table 2. Final model parameter estimates.")
   gtsave(t2, file.path(out_tab, "Table_02_rev.docx"))

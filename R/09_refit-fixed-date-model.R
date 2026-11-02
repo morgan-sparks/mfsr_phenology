@@ -2,24 +2,27 @@
 # 09_refit-fixed-date-model.R
 #
 # CJFAS revision: refit the spawn-timing model with a thermal index fixed in
-# calendar time (chosen from R/08_fixed-date-index.R), replacing the
-# date-anchored temp_90.
+# calendar time (chosen in R/08), replacing the date-anchored temp_90.
 #
-#   F1  model comparison (ML): no temperature, linear, spline, quadratic,
-#       within-between, random slopes, and no reach-year term; plus the
-#       submitted temp_90 model for reference only
-#   F2  final model (REML) coefficients
+# Final model (FINAL_FORMULA in R/revision_setup.R, chosen 2 Nov 2026):
+#   yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | COMID:year)
+#   T_bar = reach mean of the thermal index (between-reach thermal regime)
+#   T_dev = reach-year anomaly from that mean (within-reach, between-year)
+# Splitting T this way (within-subject centring; van de Pol & Wright 2009)
+# separates differences among places from responses of the same place to
+# warmer/cooler years; fixed reach traits cannot confound T_dev.
 #
 # Random effects: the thermal index is a reach-year value, so redds in the
-# same COMID-year share it. All candidate models therefore include a
-# reach-year random intercept (1 | key), key = COMID_year, in addition to
-# (1 | COMID). Dropping it inflates precision (pseudoreplication) and lets
-# random slopes absorb reach-year noise (see F1).
+# same COMID-year share it. All candidate models include a reach-year random
+# intercept (1 | key), key = COMID_year, in addition to (1 | COMID).
+#
+#   F1  model comparison (ML); submitted temp_90 model shown for reference only
+#   F2  final model (REML) coefficients and variance components
 #   F3  estimated marginal means + Tukey contrasts for stream and year
 #   F4  COMID random intercepts vs network position (R2 general points 1-2)
-#   plots: population-level temperature response; COMID intercepts vs
-#          drainage area / elevation within stream
-#
+#   F5  elevation sensitivity: all streams, without Big Creek, Big vs others
+#   plot: COMID intercepts vs drainage area within stream
+# Manuscript Figure 4 (partial effects) is built in R/10.
 # The thermal index (INDEX_END_DOY, INDEX_N) is set in R/revision_setup.R.
 # =============================================================================
 
@@ -43,18 +46,21 @@ message(sprintf("n = %d redds, %d COMIDs, %d COMID-years; index range %.1f-%.1f 
 # F1 Model comparison (ML)
 # -----------------------------------------------------------------------------
 ctl <- lmerControl(optimizer = "bobyqa")
+RE  <- "+ stream + year + (1 | COMID) + (1 | key)"
+fm  <- function(fixed, re = RE) lmer(as.formula(paste("yday ~", fixed, re)), d, REML = FALSE, control = ctl)
 mods <- list(
-  "no temperature"            = lmer(yday ~ stream + year + (1 | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "T linear"                  = lmer(yday ~ T + stream + year + (1 | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "T spline (df = 3)"         = lmer(yday ~ ns(Ts, 3) + stream + year + (1 | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "T quadratic"               = lmer(yday ~ Ts + I(Ts^2) + stream + year + (1 | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "within-between (T_bar + T_dev)" = lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "T linear + random slopes"  = lmer(yday ~ Ts + stream + year + (1 + Ts | COMID) + (1 | key), d, REML = FALSE, control = ctl),
-  "T linear, no reach-year RE" = lmer(yday ~ T + stream + year + (1 | COMID), d, REML = FALSE, control = ctl),
-  "T linear + random slopes, no reach-year RE" = lmer(yday ~ Ts + stream + year + (1 + Ts | COMID), d, REML = FALSE, control = ctl)
+  "FINAL: T_bar + T_dev"                 = fm("T_bar + T_dev"),
+  "T (not split)"                        = fm("T"),
+  "T_bar only"                           = fm("T_bar"),
+  "T_dev only"                           = fm("T_dev"),
+  "no temperature"                       = fm("1"),
+  "FINAL + elevation (see F5)"           = fm("T_bar + T_dev + E"),
+  "FINAL + reach slope"                  = fm("T_bar + T_dev + slope_s"),
+  "FINAL with spline on T_bar (df = 3)"  = fm("ns(T_bar, 3) + T_dev"),
+  "FINAL + random slopes for T_dev"      = fm("T_bar + T_dev", "+ stream + year + (1 + T_dev | COMID) + (1 | key)"),
+  "FINAL without reach-year RE"          = fm("T_bar + T_dev", "+ stream + year + (1 | COMID)")
 )
-ref <- lmer(yday ~ ns(t90s, 3) + stream + year + (1 + t90s | COMID), d, REML = FALSE,
-            control = lmerControl(optimizer = "bobyqa"))
+ref <- lmer(yday ~ ns(t90s, 3) + stream + year + (1 + t90s | COMID), d, REML = FALSE, control = ctl)
 
 summ <- function(m, name) {
   r2 <- suppressWarnings(performance::r2_nakagawa(m))
@@ -64,29 +70,24 @@ summ <- function(m, name) {
          singular = isSingular(m))
 }
 F1 <- imap_dfr(mods, summ) |>
-  mutate(dAIC = AIC - min(AIC)) |>
+  mutate(dAIC = AIC - AIC[1]) |>
   arrange(AIC) |>
   bind_rows(summ(ref, "REFERENCE ONLY: submitted model, date-anchored temp_90 (circular)")) |>
   relocate(model, dAIC)
 print(F1, width = Inf)
 write_csv(F1, file.path(out_tab, "F1_model_comparison_fixed_index.csv"))
 
-wb <- mods[["within-between (T_bar + T_dev)"]]
-message(sprintf("Within-between: T_bar %.2f (SE %.2f) d/C; T_dev %.2f (SE %.2f) d/C",
-                fixef(wb)["T_bar"], sqrt(vcov(wb)["T_bar", "T_bar"]),
-                fixef(wb)["T_dev"], sqrt(vcov(wb)["T_dev", "T_dev"])))
-lin <- mods[["T linear"]]
-message(sprintf("Linear: %.2f d per C (95%% Wald CI %.2f-%.2f)",
-                fixef(lin)["T"], fixef(lin)["T"] - 1.96 * sqrt(vcov(lin)["T", "T"]),
-                fixef(lin)["T"] + 1.96 * sqrt(vcov(lin)["T", "T"])))
+pr_coef <- function(m, terms) paste(sprintf("%s %.2f (SE %.2f)", terms, fixef(m)[terms],
+                                            sqrt(diag(vcov(m))[terms])), collapse = "; ")
+message("T (not split): ", pr_coef(mods[["T (not split)"]], "T"))
+message("FINAL: ", pr_coef(mods[[1]], c("T_bar", "T_dev")))
+message("FINAL + elevation: ", pr_coef(mods[["FINAL + elevation (see F5)"]], c("T_bar", "T_dev", "E")))
 
 # -----------------------------------------------------------------------------
-# F2 Final model (REML): linear T, stream, year; random intercepts for COMID
-#    and reach-year. (Spline/quadratic add nothing once the reach-year term
-#    is present; random slopes are singular -- see F1.)
+# F2 Final model (REML)
 # -----------------------------------------------------------------------------
-final <- lmer(yday ~ T + stream + year + (1 | COMID) + (1 | key), d, REML = TRUE, control = ctl)
-ci <- confint(final, method = "Wald")
+final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = ctl)
+ci <- confint(final, method = "Wald", parm = "beta_")
 F2 <- tibble(term = names(fixef(final)), estimate = fixef(final),
              se = sqrt(diag(vcov(final)))) |>
   mutate(ci_low = ci[term, 1], ci_high = ci[term, 2],
@@ -107,7 +108,7 @@ print(F2, n = 30); print(F2_re)
 write_csv(bind_rows(F2, F2_re), file.path(out_tab, "F2_final_model_fixed_index.csv"))
 
 # -----------------------------------------------------------------------------
-# F3 Marginal means (at mean T) and Tukey contrasts
+# F3 Marginal means (at mean T_bar and mean T_dev ~ 0) and Tukey contrasts
 # -----------------------------------------------------------------------------
 emm_s <- emmeans(final, ~ stream)
 emm_y <- emmeans(final, ~ year)
@@ -166,27 +167,36 @@ write_csv(F4, file.path(out_tab, "F4_comid_intercepts_vs_position.csv"))
 write_csv(re, file.path(out_tab, "F4_comid_random_intercepts.csv"))
 
 # -----------------------------------------------------------------------------
+# F5 Elevation sensitivity. Elevation is fixed per reach, so it competes only
+#    with T_bar. Big Creek spans ~650 m of surveyed elevation (others <= ~300 m).
+# -----------------------------------------------------------------------------
+fit5 <- function(dd, fixed) lmer(as.formula(paste("yday ~", fixed, RE)), droplevels(dd), REML = FALSE, control = ctl)
+coef_row <- function(m, v) if (v %in% names(fixef(m))) c(fixef(m)[[v]], sqrt(vcov(m)[v, v])) else c(NA, NA)
+F5 <- map_dfr(c("All streams", "Without Big Creek"), \(sub) {
+  dd <- if (sub == "All streams") d else filter(d, stream != "Big")
+  a <- fit5(dd, "T_bar + T_dev + E"); b <- fit5(dd, "T_bar + T_dev")
+  tibble(data = sub, n_redds = nrow(dd),
+         T_bar_noE = coef_row(b, "T_bar")[1], T_bar_noE_se = coef_row(b, "T_bar")[2],
+         T_bar_withE = coef_row(a, "T_bar")[1], T_bar_withE_se = coef_row(a, "T_bar")[2],
+         T_dev_withE = coef_row(a, "T_dev")[1], T_dev_withE_se = coef_row(a, "T_dev")[2],
+         E_per100m = coef_row(a, "E")[1], E_se = coef_row(a, "E")[2],
+         dAIC_adding_E = AIC(a) - AIC(b))
+})
+mb <- fit5(d |> mutate(E_big = E * (stream == "Big"), E_oth = E * (stream != "Big")), "T_bar + T_dev + E_big + E_oth")
+F5 <- bind_rows(F5, tibble(data = "All streams, elevation slope split",
+                           E_big = coef_row(mb, "E_big")[1], E_big_se = coef_row(mb, "E_big")[2],
+                           E_others = coef_row(mb, "E_oth")[1], E_others_se = coef_row(mb, "E_oth")[2]))
+elev_span <- d |> distinct(COMID, stream, elev) |> group_by(stream) |>
+  summarise(elev_min = min(elev), elev_max = max(elev), span_m = elev_max - elev_min, n_reaches = n())
+print(F5, width = Inf); print(elev_span)
+write_csv(F5, file.path(out_tab, "F5_elevation_sensitivity.csv"))
+write_csv(elev_span, file.path(out_tab, "F5_elevation_span_by_stream.csv"))
+
+# -----------------------------------------------------------------------------
 # Plots
 # -----------------------------------------------------------------------------
 cols <- c("Bear Valley" = "#55FF00", "Beaver" = "#7A8EF5", "Big" = "#C9C900", "Camas" = "#E64C00",
           "Elk" = "#B5B57A", "Loon" = "#3FC79A", "Marsh" = "#DF73FF", "Sulphur" = "#FFAA00")
-
-# Population-level response averaged over stream and year (emmeans)
-grid_T <- seq(min(d$T), max(d$T), length.out = 60)
-pr <- as_tibble(emmeans(final, ~ T, at = list(T = grid_T)))
-ry <- d |> group_by(key, stream, year) |>
-  summarise(T = first(T), yday = mean(yday), n = n(), .groups = "drop")
-p_resp <- ggplot() +
-  geom_point(data = ry, aes(T, as.Date(yday - 1, "2002-01-01"), colour = stream, size = n), alpha = 0.7) +
-  geom_ribbon(data = pr, aes(T, ymin = as.Date(asymp.LCL - 1, "2002-01-01"),
-                             ymax = as.Date(asymp.UCL - 1, "2002-01-01")), alpha = 0.25) +
-  geom_line(data = pr, aes(T, as.Date(emmean - 1, "2002-01-01")), linewidth = 1) +
-  scale_colour_manual(values = cols) + scale_size_area(max_size = 5) +
-  labs(x = paste0("Reach-year thermal index (°C): ", index_label),
-       y = "Spawn date", colour = "Stream", size = "Redds",
-       subtitle = "Points: reach-year mean spawn date (size = redds). Line: population-level fit, 95% CI") +
-  theme_bw()
-ggsave(file.path(out_plot, "F_temperature_response_fixed_index.png"), p_resp, width = 8, height = 5, dpi = 300)
 
 p_pos <- ggplot(re, aes(da_km2, intercept, colour = stream)) +
   geom_hline(yintercept = 0, linetype = 3) +
@@ -194,7 +204,7 @@ p_pos <- ggplot(re, aes(da_km2, intercept, colour = stream)) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   scale_x_log10() + scale_colour_manual(values = cols) +
   facet_wrap(~stream, scales = "free_x") +
-  labs(x = "Total drainage area (km², log scale; larger = further downstream)",
+  labs(x = "Total drainage area (km\u00B2, log scale; larger = further downstream)",
        y = "COMID random intercept (d)", size = "Redds") +
   theme_bw() + theme(legend.position = "none")
 ggsave(file.path(out_plot, "F_comid_intercepts_vs_drainage_area.png"), p_pos, width = 8, height = 6, dpi = 300)

@@ -18,7 +18,28 @@
 # is kept to show this. Also reported at the reach-year level (weighted mean
 # spawn date ~ T + stream + year).
 #
-# Outputs: tables/revision/E1_fixed_date_candidates.csv, plots/revision/E1_*.png
+# E2 (post-spawn / incubation indices; suggested by M. Sparks): tests the
+# hypothesis that spawn timing tracks incubation conditions so that fry emerge
+# in a favourable spring window (Brannon et al. 2004; Heggberget 1988). Each
+# index is a reach-year value on FIXED dates after the spawning season (the
+# submission's post-spawn windows started on each redd's own date and had the
+# mirror-image artefact). Prediction: colder/slower incubation -> earlier
+# spawning, i.e. a positive slope on incubation temperature and a negative
+# slope on predicted days to emergence.
+#   fall    1 Sep - 30 Nov (spawn year)
+#   winter  1 Dec - 28 Feb
+#   spring  1 Mar - 30 Apr (following year)
+#   incub   1 Sep - 30 Apr
+#   emerge  days to emergence for a fixed reference spawn date (1 Sep and
+#           15 Aug), Beacham & Murray (1990) Chinook emergence model 2, as
+#           implemented in hatchR (model_select(); falls back to the same
+#           expression if hatchR is not installed)
+# Each is fit (i) alone with stream + year, and (ii) added to the final model
+# (T_bar + T_dev + stream + year), all with (1|COMID) + (1|COMID:year);
+# (ii) is repeated without Big Creek (see R/09 F5).
+#
+# Outputs: tables/revision/E1_fixed_date_candidates.csv, plots/revision/E1_*.png,
+#          tables/revision/E2_post_spawn_indices.csv
 # =============================================================================
 
 library(lme4)
@@ -135,4 +156,61 @@ ggsave(file.path(out_plot, "E1_fixed_date_candidates.png"),
        patchwork::wrap_plots(p1, p2, p3, ncol = 1, guides = "collect") +
          patchwork::plot_annotation(subtitle = "Dashed line: first observed redd (any windows ending after it are still fixed in calendar time)"),
        width = 7, height = 9, dpi = 300)
+# =============================================================================
+# E2: post-spawn (incubation) indices
+# =============================================================================
+emerge_expr <- if (requireNamespace("hatchR", quietly = TRUE)) {
+  hatchR::model_select(author = "Beacham and Murray 1990", species = "chinook",
+                       model_id = 2, development_type = "emerge")$expression
+} else {
+  "1 / exp(6.872 - log(x + 0.332))"   # hatchR model_table: Beacham & Murray 1990, chinook, model 2, emerge
+}
+days_to_emerge <- function(comid, spawn_date) {
+  x <- pmax(temp_series(comid, spawn_date, as.Date(spawn_date) + 365), 0)  # clamp sub-zero to 0 (avoids NaN)
+  ef <- eval(parse(text = emerge_expr))
+  which(cumsum(ef) >= 1)[1]
+}
+
+cy2 <- redds |> distinct(key, COMID, year)
+post <- cy2 |>
+  mutate(fall   = win_mean_dates(COMID, paste0(year, "-09-01"), paste0(year, "-11-30")),
+         winter = win_mean_dates(COMID, paste0(year, "-12-01"), paste0(year + 1, "-02-28")),
+         spring = win_mean_dates(COMID, paste0(year + 1, "-03-01"), paste0(year + 1, "-04-30")),
+         incub  = win_mean_dates(COMID, paste0(year, "-09-01"), paste0(year + 1, "-04-30")),
+         emerge_1Sep  = map2_dbl(COMID, paste0(year, "-09-01"), days_to_emerge),
+         emerge_15Aug = map2_dbl(COMID, paste0(year, "-08-15"), days_to_emerge))
+write_csv(post, file.path(out_tab, "E2_post_spawn_index_values.csv"))
+
+dm <- model_data()                                           # final-model data (pre-spawn T, E)
+dm <- dm |> left_join(post |> select(-COMID, -year) |> mutate(key = factor(key, levels = levels(dm$key))), by = "key")
+base_full <- lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+base_T    <- lmer(yday ~ T + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+base_none <- lmer(yday ~ stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+
+lab_post <- c(fall = "Fall mean, 1 Sep\u201330 Nov", winter = "Winter mean, 1 Dec\u201328 Feb",
+              spring = "Spring mean, 1 Mar\u201330 Apr", incub = "Incubation mean, 1 Sep\u201330 Apr",
+              emerge_1Sep = "Days to emergence if spawned 1 Sep", emerge_15Aug = "Days to emergence if spawned 15 Aug")
+E2 <- map_dfr(names(lab_post), \(v) {
+  dm$P <- dm[[v]]
+  m_alone <- lmer(yday ~ P + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+  m_add   <- lmer(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dm, REML = FALSE, control = ctl)
+  dnb <- droplevels(filter(dm, stream != "Big"))      # Big Creek sensitivity (see R/09 F5)
+  base_nb <- lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID) + (1 | key), dnb, REML = FALSE, control = ctl)
+  m_nb    <- lmer(yday ~ T_bar + T_dev + P + stream + year + (1 | COMID) + (1 | key), dnb, REML = FALSE, control = ctl)
+  ry <- dm |> distinct(key, .keep_all = TRUE)
+  tibble(index = v, label = lab_post[[v]],
+         mean_value = mean(ry$P), sd_value = sd(ry$P),
+         r_with_prespawn_T = cor(ry$P, ry$T),
+         slope_alone = fixef(m_alone)[["P"]], se_alone = sqrt(vcov(m_alone)["P", "P"]),
+         dAIC_alone_vs_no_temp = AIC(m_alone) - AIC(base_none),
+         dAIC_alone_vs_prespawn_T = AIC(m_alone) - AIC(base_T),
+         slope_added = fixef(m_add)[["P"]], se_added = sqrt(vcov(m_add)["P", "P"]),
+         dAIC_added_vs_final = AIC(m_add) - AIC(base_full),
+         slope_added_noBig = fixef(m_nb)[["P"]], se_added_noBig = sqrt(vcov(m_nb)["P", "P"]),
+         dAIC_added_vs_final_noBig = AIC(m_nb) - AIC(base_nb))
+})
+print(E2 |> select(index, r_with_prespawn_T, slope_alone, se_alone, dAIC_alone_vs_prespawn_T,
+                   slope_added, se_added, dAIC_added_vs_final, slope_added_noBig, dAIC_added_vs_final_noBig), width = Inf)
+write_csv(E2, file.path(out_tab, "E2_post_spawn_indices.csv"))
+message("Emergence model expression: ", emerge_expr)
 message("Done.")
