@@ -200,7 +200,7 @@ write_csv(F5, file.path(out_tab, "F5_elevation_sensitivity.csv"))
 write_csv(elev_span, file.path(out_tab, "F5_elevation_span_by_stream.csv"))
 
 # -----------------------------------------------------------------------------
-# F4 plot: reach intercepts vs drainage area, by stream (Fig. A6.1)
+# F4 plot: reach intercepts vs drainage area, by stream (Fig. A5.1)
 # -----------------------------------------------------------------------------
 p_pos <- ggplot(re, aes(da_km2, intercept, colour = stream)) +
   geom_hline(yintercept = 0, linetype = 3) +

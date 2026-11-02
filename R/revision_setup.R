@@ -180,7 +180,7 @@ fit_summary <- function(m, label) {
 }
 
 # Spawn dates with the stream and year fixed effects removed, for partial-
-# effect plots (Fig. 4; Fig. A5.1). Each redd's yday has its stream and year
+# effect plots (Fig. 4; Fig. A4.1). Each redd's yday has its stream and year
 # coefficients subtracted and the average over levels added back, which is
 # the same averaging emmeans uses, so points sit on the plotted model line.
 adjust_stream_year <- function(d, model) {

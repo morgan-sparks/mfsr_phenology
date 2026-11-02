@@ -87,10 +87,10 @@ knitr::opts_chunk$set(
 
 {{< include ../analysis/appendix-rev/_A3_index-selection.qmd >}}
 
-{{< include ../analysis/appendix-rev/_A4_other-covariates.qmd >}}
+{{< include ../analysis/appendix-rev/_A4_model-selection.qmd >}}
 
-{{< include ../analysis/appendix-rev/_A5_model-selection.qmd >}}
+{{< include ../analysis/appendix-rev/_A5_final-model.qmd >}}
 
-{{< include ../analysis/appendix-rev/_A6_final-model.qmd >}}
+{{< include ../analysis/appendix-rev/_A6_sensitivity.qmd >}}
 
 {{< include ../analysis/appendix-rev/_A7_long-term-context.qmd >}}

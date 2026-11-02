@@ -2,7 +2,7 @@
 
 # Model structure, selection and diagnostics
 
-```{r a5-load}
+```{r a4-load}
 T1 <- rev_tab("Table_01_rev.csv")
 dA <- function(m) sprintf("%+.1f", T1$dAIC[T1$Model == m][1])
 
@@ -25,14 +25,14 @@ $$
 
 where $T_{jt}$ is the thermal index for reach $j$ in year $t$ (Section A3), $\bar{T}_j$ is the mean of $T_{jt}$ over the years reach $j$ was surveyed, $u_j \sim N(0, \sigma^2_{\text{reach}})$ and $v_{jt} \sim N(0, \sigma^2_{\text{reach-year}})$ are random intercepts for reach and reach-year, and $\varepsilon_{ijt} \sim N(0, \sigma^2)$. Models were fit with lme4 (Bates et al. 2015); comparisons used maximum likelihood and final estimates used REML.
 
-**Splitting temperature into two parts.** Writing the thermal index as $\bar{T}_j$ plus the anomaly $T_{jt} - \bar{T}_j$ (within-subject centring; van de Pol and Wright 2009) separates two contrasts that a single temperature term mixes. $\beta_1$ compares warmer and cooler *reaches*; it can be confounded with anything else that differs among places (elevation, migration distance, run timing). $\beta_2$ compares the *same reach* in warmer and cooler years; fixed reach characteristics cannot produce it, and with year fixed effects in the model it is estimated from how much a reach's temperature departed from its own average beyond the network-wide shift that year. The split does not change model fit (@tbl-a5-t1).
+**Splitting temperature into two parts.** Writing the thermal index as $\bar{T}_j$ plus the anomaly $T_{jt} - \bar{T}_j$ (within-subject centring; van de Pol and Wright 2009) separates two contrasts that a single temperature term mixes. $\beta_1$ compares warmer and cooler *reaches*; it can be confounded with anything else that differs among places (elevation, migration distance, run timing). $\beta_2$ compares the *same reach* in warmer and cooler years; fixed reach characteristics cannot produce it, and with year fixed effects in the model it is estimated from how much a reach's temperature departed from its own average beyond the network-wide shift that year. The split does not change model fit (@tbl-a4-t1).
 
 **Why a reach-year random intercept.** The thermal index has one value per reach-year, so redds in the same reach-year share it, and they also share unmeasured conditions (arrival timing, flows, the few females that spawned there). Without a reach-year term, a reach-year with 100 redds counts as 100 independent confirmations of one temperature--date pair. In a model without this term, residuals clustered strongly by reach-year (intraclass correlation `r sprintf("%.2f", icc_ry)`), and adding the term improved AIC by `r sprintf("%.0f", as.numeric(dA("Reach intercept only")))` units. Without it, random slopes for temperature also appeared to be supported; with it, they were not (singular fit).
 
 ## Model comparison
 
 ```{r}
-#| label: tbl-a5-t1
+#| label: tbl-a4-t1
 #| tbl-cap: "Model comparison (maximum likelihood; n = 3,016 redds). Within each group, ΔAIC is relative to the first row. $T$: reach-year thermal index; $\\bar{T}$: reach mean; $T-\\bar{T}$: reach-year anomaly. R² conditional is undefined for singular fits."
 tex_t <- function(x) x |> str_replace_all("T\u0304", "$\\\\bar{T}$") |> str_replace_all("\u2212", "$-$")
 T1t <- T1 |> mutate(Group = str_remove(Group, "^\\d\\. ") |> str_replace("\\(fixed effects: .*\\)$", "(fixed effects as in the final model)") |> tex_t(),
@@ -51,10 +51,10 @@ T1t |>
 
 ## Shape of the temperature effect
 
-A natural spline on $\bar{T}$ improved AIC slightly (`r sprintf("%+.1f", T1$dAIC[grepl("^Natural spline", T1$Model)])`; @tbl-a5-t1). The fitted curve departs little from the straight line over the range of the data (@fig-a5-spline), so we retained the linear term for interpretability. The plateau at warm sites reported in the original submission is not present with the fixed-date index.
+A natural spline on $\bar{T}$ improved AIC slightly (`r sprintf("%+.1f", T1$dAIC[grepl("^Natural spline", T1$Model)])`; @tbl-a4-t1). The fitted curve departs little from the straight line over the range of the data (@fig-a4-spline), so we retained the linear term for interpretability. The plateau at warm sites reported in the original submission is not present with the fixed-date index.
 
 ```{r}
-#| label: fig-a5-spline
+#| label: fig-a4-spline
 #| fig-cap: "Between-reach temperature effect fitted as linear (black) and as a natural spline with 3 df (blue), with 95% CIs. Points: reach mean spawn dates adjusted for stream, year and the reach-year anomaly."
 #| fig-width: 6
 #| fig-height: 3.6
@@ -82,10 +82,10 @@ ggplot() +
 
 ## Diagnostics for the final model
 
-Residuals showed no trend with fitted values, stream or year, but had heavier tails than a normal distribution, reflecting a small number of unusually early or late redds (@fig-a5-diag). With 3,016 redds and 263 reach-years, fixed-effect estimates are robust to this departure; random-effect distributions were close to normal. The residual spread reflects the spread of spawn dates within reach-years (residual SD `r sprintf("%.1f", sigma(final))` d), which the model does not attempt to explain; predicted reach-year means track observed means closely (@fig-a5-pred).
+Residuals showed no trend with fitted values, stream or year, but had heavier tails than a normal distribution, reflecting a small number of unusually early or late redds (@fig-a4-diag). With 3,016 redds and 263 reach-years, fixed-effect estimates are robust to this departure; random-effect distributions were close to normal. The residual spread reflects the spread of spawn dates within reach-years (residual SD `r sprintf("%.1f", sigma(final))` d), which the model does not attempt to explain; predicted reach-year means track observed means closely (@fig-a4-pred).
 
 ```{r}
-#| label: fig-a5-diag
+#| label: fig-a4-diag
 #| fig-cap: "Residual diagnostics for the final model. (A) Residuals vs fitted values. (B) Normal Q–Q plot of residuals. (C) Residuals by stream. (D) Residuals by year. (E) Normal Q–Q plot of reach-year random intercepts. (F) Normal Q–Q plot of reach random intercepts."
 #| fig-width: 8
 #| fig-height: 7.5
@@ -108,7 +108,7 @@ p6 <- ggplot(re_c, aes(sample = b)) + stat_qq(size = 0.8) + stat_qq_line(color =
 ```
 
 ```{r}
-#| label: fig-a5-pred
+#| label: fig-a4-pred
 #| fig-cap: "Observed vs predicted mean spawn date for each reach-year (predictions include random effects). Dashed line: 1:1. Point size: number of redds."
 #| fig-width: 5
 #| fig-height: 4

@@ -30,7 +30,7 @@ knitr::include_graphics(rev_plot("G1_network_index_by_year.png"))
 
 ## Is the index a property of the reach?
 
-Yes. The order of reaches from cold to warm was almost the same in every year: the median Spearman correlation between the reach values of any two years was `r sprintf("%.2f", G2r$spearman[1])` (minimum `r sprintf("%.2f", G2r$min[1])`), and reach means over the study years correlated `r sprintf("%.3f", G2r$spearman[3])` with reach means over 1990--2021. Over the full record, the index varied about as much between years network-wide (SD `r sprintf("%.2f", g2v("year", "1990-2021"))` °C) as among reaches (SD `r sprintf("%.2f", g2v("reach", "1990-2021"))` °C), and the reach-by-year part was small (SD `r sprintf("%.2f", g2v("reach_x_year", "1990-2021"))` °C; @tbl-a7-partition). The reach mean ($\bar{T}$) estimated from the study years therefore measures each reach's long-term thermal regime. The between-reach effect in the final model (Section A6) compares places that are consistently warmer or cooler, not places that happened to be warm in 2002--2005.
+Yes. The order of reaches from cold to warm was almost the same in every year: the median Spearman correlation between the reach values of any two years was `r sprintf("%.2f", G2r$spearman[1])` (minimum `r sprintf("%.2f", G2r$min[1])`), and reach means over the study years correlated `r sprintf("%.3f", G2r$spearman[3])` with reach means over 1990--2021. Over the full record, the index varied about as much between years network-wide (SD `r sprintf("%.2f", g2v("year", "1990-2021"))` °C) as among reaches (SD `r sprintf("%.2f", g2v("reach", "1990-2021"))` °C), and the reach-by-year part was small (SD `r sprintf("%.2f", g2v("reach_x_year", "1990-2021"))` °C; @tbl-a7-partition). The reach mean ($\bar{T}$) estimated from the study years therefore measures each reach's long-term thermal regime. The between-reach effect in the final model (Section A5) compares places that are consistently warmer or cooler, not places that happened to be warm in 2002--2005.
 
 ```{r}
 #| label: tbl-a7-partition
@@ -55,7 +55,7 @@ The within-reach temperature contrast in the final model ($T-\bar{T}$) is small:
 
 This has three consequences for interpretation:
 
-1. The within-reach slope (`r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` d per °C, Section A6) is estimated from anomalies of a few tenths of a degree. In the longer record, network-wide anomalies of 1--2 °C were common. Applying the slope to such years would extrapolate well beyond the data.
+1. The within-reach slope (`r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` d per °C, Section A5) is estimated from anomalies of a few tenths of a degree. In the longer record, network-wide anomalies of 1--2 °C were common. Applying the slope to such years would extrapolate well beyond the data.
 2. The year effects in the final model cannot be attributed to temperature. The four study years were thermally similar (network means within `r sprintf("%.1f", diff(range(g1s$network_mean)))` °C), yet adjusted mean spawn date differed by up to `r sprintf("%.0f", diff(range(F3m$emmean[F3m$factor == "year"])))` days among years. Something other than this thermal index (for example escapement, flow or the timing of adult arrival) must underlie those differences.
 3. A test of whether spawn timing tracks large between-year temperature differences would need redd surveys that include cold years (such as the late 1990s) and warm years (such as 2007, 2015 and 2021).
 

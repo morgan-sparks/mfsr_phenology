@@ -66,8 +66,8 @@ tbl1 <- bind_rows(g1, g2, g3, g4) |>
   ungroup() |>
   mutate(Notes = case_when(
     singular & grepl("random slopes", Model) ~ "Singular fit; not supported",
-    Model == "+ elevation" ~ "Driven by Big Creek; not supported without it (Appendix A4)",
-    grepl("^Natural spline", Model) ~ "Slight curvature; linear retained (Appendix A5)",
+    Model == "+ elevation" ~ "Driven by Big Creek; not supported without it (Appendix A6)",
+    grepl("^Natural spline", Model) ~ "Slight curvature; linear retained (Appendix A4)",
     singular ~ "Singular fit (a variance component estimated at 0)",
     row_number() == 1 | Model %in% c(LAB_FINAL, "Linear T\u0304", "T\u0304 + (T \u2212 T\u0304)") ~ "Final model",
     TRUE ~ "")) |>
