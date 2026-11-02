@@ -15,10 +15,10 @@ Fixed effects,Year: 2005,6.937921329543854,"[4.43, 9.45]",<0.001
 Random effects,SD reach-year intercept (d),3.1415713906588247,NA,NA
 Random effects,SD reach (COMID) intercept (d),1.3561526139986515,NA,NA
 Random effects,SD residual (d),4.328497632398831,NA,NA
-Random effects,ICC (adjusted),0.3845888722009311,NA,NA
 Random effects,N reach-years,263,NA,NA
 Random effects,N reaches (COMID),104,NA,NA
 Random effects,N redds,3016,NA,NA
 Model performance,R² marginal,0.5263775246751521,NA,NA
 Model performance,R² conditional,0.7085274583093486,NA,NA
+Model performance,ICC (adjusted),0.3845888722009311,NA,NA
 Model performance,RMSE (days),4.187904304260713,NA,NA

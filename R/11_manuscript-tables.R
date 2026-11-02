@@ -100,14 +100,16 @@ r2 <- performance::r2_nakagawa(final)
 re <- tibble(
   Section = "Random effects",
   Parameter = c("SD reach-year intercept (d)", "SD reach (COMID) intercept (d)", "SD residual (d)",
-                "ICC (adjusted)", "N reach-years", "N reaches (COMID)", "N redds"),
+                "N reach-years", "N reaches (COMID)", "N redds"),
   Estimate = c(vc$sdcor[vc$grp == "key"], vc$sdcor[vc$grp == "COMID"], vc$sdcor[vc$grp == "Residual"],
-               performance::icc(final)$ICC_adjusted, nlevels(d$key), nlevels(d$COMID), nrow(d)),
+               nlevels(d$key), nlevels(d$COMID), nrow(d)),
   CI = NA_character_, p = NA_character_)
+# ICC is a summary of fit, not a random effect (R2 comment on Table 2)
 mp <- tibble(
   Section = "Model performance",
-  Parameter = c("R² marginal", "R² conditional", "RMSE (days)"),
-  Estimate = c(r2$R2_marginal, r2$R2_conditional, sqrt(mean(residuals(final)^2))),
+  Parameter = c("R² marginal", "R² conditional", "ICC (adjusted)", "RMSE (days)"),
+  Estimate = c(r2$R2_marginal, r2$R2_conditional, performance::icc(final)$ICC_adjusted,
+               sqrt(mean(residuals(final)^2))),
   CI = NA_character_, p = NA_character_)
 
 tbl2 <- bind_rows(fe, re, mp)
