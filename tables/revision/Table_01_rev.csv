@@ -10,7 +10,7 @@ Group,Model,k,dAIC,RMSE,R2_m,R2_c,Notes
 3. Other fixed effects (relative to the final model),T̄ + (T − T̄) + stream + year,16,0,4.192426572602613,0.535286181683416,0.7048068155596139,Final model
 3. Other fixed effects (relative to the final model),− stream,9,65.04466316382604,4.178667593088491,0.3549752538090814,0.6907239666674498,
 3. Other fixed effects (relative to the final model),− year,13,22.70863036745868,4.186673454286891,0.49841249937230747,0.6989396887482564,
-3. Other fixed effects (relative to the final model),+ elevation,17,-40.21724811835156,4.203466869335595,0.6702190664723249,NA,Driven by Big Creek; not supported without it (Appendix)
+3. Other fixed effects (relative to the final model),+ elevation,17,-40.21724811835156,4.203466869335595,0.6702190664723249,NA,Driven by Big Creek; not supported without it (Appendix A4)
 3. Other fixed effects (relative to the final model),+ reach slope,17,1.9098407397323172,4.192255126497919,0.5352438681455857,0.7049067804058883,
 4. Shape of the between-reach temperature effect,Linear T̄,16,0,4.192426572602613,0.535286181683416,0.7048068155596139,Final model
-4. Shape of the between-reach temperature effect,Natural spline on T̄ (df = 3),18,-3.253692070789839,4.194647571687291,0.545934982678743,0.7062807700640972,Slight curvature; linear retained (Appendix)
+4. Shape of the between-reach temperature effect,Natural spline on T̄ (df = 3),18,-3.253692070789839,4.194647571687291,0.545934982678743,0.7062807700640972,Slight curvature; linear retained (Appendix A5)

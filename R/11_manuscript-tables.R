@@ -66,8 +66,8 @@ tbl1 <- bind_rows(g1, g2, g3, g4) |>
   ungroup() |>
   mutate(Notes = case_when(
     singular & grepl("random slopes", Model) ~ "Singular fit; not supported",
-    Model == "+ elevation" ~ "Driven by Big Creek; not supported without it (Appendix)",
-    grepl("^Natural spline", Model) ~ "Slight curvature; linear retained (Appendix)",
+    Model == "+ elevation" ~ "Driven by Big Creek; not supported without it (Appendix A4)",
+    grepl("^Natural spline", Model) ~ "Slight curvature; linear retained (Appendix A5)",
     singular ~ "Singular fit (a variance component estimated at 0)",
     row_number() == 1 | Model %in% c(LAB_FINAL, "Linear T\u0304", "T\u0304 + (T \u2212 T\u0304)") ~ "Final model",
     TRUE ~ "")) |>
@@ -115,6 +115,41 @@ mp <- tibble(
 tbl2 <- bind_rows(fe, re, mp)
 print(tbl2, n = 30, width = Inf)
 write_csv(tbl2, file.path(out_tab, "Table_02_rev.csv"))
+
+# -----------------------------------------------------------------------------
+# Word-ready versions: rounded values, group headings as their own rows, "--"
+# for empty cells, saved with a UTF-8 byte-order mark (write_excel_csv) so
+# Excel shows T-bar, minus signs and superscripts correctly. Open in Excel and
+# paste into Word, or use the .docx made below when gt is installed.
+# -----------------------------------------------------------------------------
+with_group_rows <- function(df, group) {
+  df |>
+    group_by(.data[[group]]) |>
+    group_modify(\(x, k) bind_rows(tibble(Model = k[[1]]), x)) |>   # heading row, then members
+    ungroup() |>
+    select(-all_of(group))
+}
+tbl1_fmt <- tbl1 |>
+  mutate(Group = str_remove(Group, "^\\d\\. ") |>
+           str_replace("\\(fixed effects: .*\\)$", "(fixed effects as in the final model)"),
+         k = as.character(k),
+         dAIC = sprintf("%.1f", dAIC), RMSE = sprintf("%.2f", RMSE),
+         R2_m = sprintf("%.3f", R2_m), R2_c = ifelse(is.na(R2_c), "--", sprintf("%.3f", R2_c))) |>
+  mutate(Group = factor(Group, levels = unique(Group))) |>
+  with_group_rows("Group") |>
+  mutate(across(everything(), \(x) replace_na(x, ""))) |>
+  rename(`ΔAIC` = dAIC, `RMSE (days)` = RMSE, `R² marginal` = R2_m, `R² conditional` = R2_c)
+write_excel_csv(tbl1_fmt, file.path(out_tab, "Table_01_rev_formatted.csv"))
+
+tbl2_fmt <- tbl2 |>
+  mutate(Estimate = ifelse(grepl("^N ", Parameter), sprintf("%.0f", Estimate), sprintf("%.2f", Estimate)),
+         CI = replace_na(CI, "--"), p = replace_na(p, "--"),
+         Section = factor(Section, levels = unique(Section))) |>
+  rename(Model = Parameter) |>                       # with_group_rows() writes headings into Model
+  with_group_rows("Section") |>
+  mutate(across(everything(), \(x) replace_na(x, ""))) |>
+  rename(Parameter = Model, `95% CI` = CI)
+write_excel_csv(tbl2_fmt, file.path(out_tab, "Table_02_rev_formatted.csv"))
 
 # -----------------------------------------------------------------------------
 # Word tables via gt (run locally; gt is not required for the CSVs above)
