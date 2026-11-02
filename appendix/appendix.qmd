@@ -5,7 +5,7 @@ format:
   pdf:
     output-file: "appendix.pdf"
     documentclass: article
-    latex-engine: lualatex
+    pdf-engine: xelatex
     toc: true
     number-sections: true
     toc-depth: 2
