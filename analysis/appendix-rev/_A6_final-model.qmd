@@ -1,0 +1,76 @@
+\newpage
+
+# Final model results
+
+```{r a6-load}
+T2  <- rev_tab("Table_02_rev.csv")
+F3m <- rev_tab("F3_emmeans_fixed_index.csv")
+F3c <- rev_tab("F3_contrasts_fixed_index.csv")
+F4  <- rev_tab("F4_comid_intercepts_vs_position.csv")
+lens <- rev_tab("F4_comid_random_intercepts.csv")
+g <- function(p) T2$Estimate[T2$Parameter == p]
+vc <- as.data.frame(VarCorr(final))
+```
+
+## Parameter estimates
+
+```{r}
+#| label: tbl-a6-t2
+#| tbl-cap: "Final model estimates (REML). Reference levels: Bear Valley Creek, 2002. The reach mean thermal index is centred at the average reach, so the intercept is the predicted spawn day of year for Bear Valley Creek in 2002 at average reach temperature."
+T2 |>
+  mutate(Estimate = ifelse(grepl("^N ", Parameter), sprintf("%.0f", Estimate), sprintf("%.2f", Estimate)),
+         CI = replace_na(CI, ""), p = replace_na(p, ""),
+         Parameter = Parameter |> str_replace_all("T\u0304", "$\\\\bar{T}$") |> str_replace_all("\u2212", "$-$") |>
+           str_replace_all("\u00b0", "$^\\\\circ$") |> str_replace_all("R\u00b2", "R$^2$")) |>
+  select(-Section) |>
+  kbl(booktabs = TRUE, linesep = "", align = "lrrr", escape = FALSE,
+      col.names = c("Parameter", "Estimate", "95\\% CI", "p")) |>
+  kable_styling(font_size = 8) |>
+  pack_rows(index = table(factor(T2$Section, levels = unique(T2$Section))))
+```
+
+Spawning was `r sprintf("%.1f", T2$Estimate[grepl("^Reach mean", T2$Parameter)])` days later per °C between reaches and `r sprintf("%.1f", T2$Estimate[grepl("^Reach-year anomaly", T2$Parameter)])` days later per °C within reaches between years. The within-reach estimate rests on anomalies of about ±0.5 °C (Fig. 4 of the main text), so it corresponds to shifts of roughly ±3 days. Once temperature, stream and year were accounted for, persistent differences among reaches were small (reach SD `r sprintf("%.1f", vc$sdcor[vc$grp == "COMID"])` d) compared with year-specific shifts within reaches (reach-year SD `r sprintf("%.1f", vc$sdcor[vc$grp == "key"])` d) and the spread of individual redds (residual SD `r sprintf("%.1f", vc$sdcor[vc$grp == "Residual"])` d).
+
+## Stream and year means
+
+Marginal means are predicted spawn dates at the average reach temperature, averaged over the other factor (emmeans; Lenth 2024). They differ from observed means where a stream's or year's temperatures differ from average (Fig. 5 of the main text).
+
+```{r}
+#| label: tbl-a6-emm
+#| tbl-cap: "Observed and temperature-adjusted (marginal) mean spawn dates by stream and year."
+obs <- bind_rows(d |> group_by(level = as.character(stream)) |> summarise(obs = mean(yday), n = n()) |> mutate(factor = "stream"),
+                 d |> group_by(level = as.character(year))   |> summarise(obs = mean(yday), n = n()) |> mutate(factor = "year"))
+F3m |>
+  left_join(obs, by = c("factor", "level")) |>
+  transmute(` ` = level, Redds = n, `Observed mean` = fmt_d(round(obs)),
+            `Adjusted mean` = fmt_d(round(emmean)),
+            `95% CI` = paste(fmt_d(round(asymp.LCL)), "–", fmt_d(round(asymp.UCL))),
+            `Day of year (SE)` = sprintf("%.1f (%.2f)", emmean, SE)) |>
+  kbl(booktabs = TRUE, linesep = "", align = "lrrrrr") |>
+  kable_styling(font_size = 8) |>
+  pack_rows("Stream", 1, sum(F3m$factor == "stream")) |>
+  pack_rows("Year", sum(F3m$factor == "stream") + 1, nrow(F3m))
+```
+
+```{r}
+#| label: tbl-a6-contrasts
+#| tbl-cap: "Pairwise differences in adjusted mean spawn date between streams and between years (Tukey-adjusted)."
+F3c |>
+  transmute(` ` = str_replace_all(contrast, "year", "") |> str_replace_all(" - ", " \u2212 "), `Difference (d)` = sprintf("%.2f", estimate), SE = sprintf("%.2f", SE),
+            z = sprintf("%.2f", z.ratio), `Tukey p` = ifelse(p.value < 0.001, "<0.001", sprintf("%.3f", p.value))) |>
+  kbl(booktabs = TRUE, linesep = "", align = "lrrrr") |>
+  kable_styling(latex_options = "scale_down", font_size = 8) |>
+  pack_rows("Stream", 1, sum(F3c$factor == "stream")) |>
+  pack_rows("Year", sum(F3c$factor == "stream") + 1, nrow(F3c))
+```
+
+## Reach effects and position in the network
+
+Reach random intercepts showed no consistent upstream--downstream pattern within streams: the pooled within-stream slope on log drainage area was `r sprintf("%.2f", F4$r_intercept_logDA[grepl("ALL", F4$stream)])` days (@fig-a6-position). Big Creek was the exception, with downstream reaches spawning later than predicted; this is the same gradient that drives the elevation result in Section A4.
+
+```{r}
+#| label: fig-a6-position
+#| fig-cap: "Reach random intercepts from the final model against total drainage area (log scale; larger = further downstream), by stream. Point size: number of redds; lines: linear fits."
+#| out-width: "90%"
+knitr::include_graphics(rev_plot("F_comid_intercepts_vs_drainage_area.png"))
+```

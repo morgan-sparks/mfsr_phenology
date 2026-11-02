@@ -19,6 +19,6 @@ Random effects,ICC (adjusted),0.3842339191367895,NA,NA
 Random effects,N reach-years,263,NA,NA
 Random effects,N reaches (COMID),104,NA,NA
 Random effects,N redds,3016,NA,NA
-Model performance,R<c2><b2> marginal,0.527886056864389,NA,NA
-Model performance,R<c2><b2> conditional,0.7092882475145083,NA,NA
+Model performance,R² marginal,0.527886056864389,NA,NA
+Model performance,R² conditional,0.7092882475145083,NA,NA
 Model performance,RMSE (days),4.187834779351215,NA,NA

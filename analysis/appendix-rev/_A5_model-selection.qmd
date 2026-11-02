@@ -1,0 +1,112 @@
+\newpage
+
+# Model structure, selection and diagnostics
+
+```{r a5-load}
+T1 <- rev_tab("Table_01_rev.csv")
+dA <- function(m) sprintf("%+.1f", T1$dAIC[T1$Model == m][1])
+```
+
+## Model structure
+
+Spawn day of year for redd $i$ in reach $j$ and year $t$ was modelled as
+
+$$
+y_{ijt} = \beta_0 + \beta_1 \bar{T}_j + \beta_2 (T_{jt} - \bar{T}_j) + \text{stream}_{s(j)} + \text{year}_t + u_j + v_{jt} + \varepsilon_{ijt},
+$$
+
+where $T_{jt}$ is the thermal index for reach $j$ in year $t$ (Section A3), $\bar{T}_j$ is the mean of $T_{jt}$ over the years reach $j$ was surveyed, $u_j \sim N(0, \sigma^2_{\text{reach}})$ and $v_{jt} \sim N(0, \sigma^2_{\text{reach-year}})$ are random intercepts for reach and reach-year, and $\varepsilon_{ijt} \sim N(0, \sigma^2)$. Models were fit with lme4 (Bates et al. 2015); comparisons used maximum likelihood and final estimates used REML.
+
+**Splitting temperature into two parts.** Writing the thermal index as $\bar{T}_j$ plus the anomaly $T_{jt} - \bar{T}_j$ (within-subject centring; van de Pol and Wright 2009) separates two contrasts that a single temperature term mixes. $\beta_1$ compares warmer and cooler *reaches*; it can be confounded with anything else that differs among places (elevation, migration distance, run timing). $\beta_2$ compares the *same reach* in warmer and cooler years; fixed reach characteristics cannot produce it, and with year fixed effects in the model it is estimated from how much a reach's temperature departed from its own average beyond the network-wide shift that year. The split does not change model fit (@tbl-a5-t1).
+
+**Why a reach-year random intercept.** The thermal index has one value per reach-year, so redds in the same reach-year share it, and they also share unmeasured conditions (arrival timing, flows, the few females that spawned there). Without a reach-year term, a reach-year with 100 redds counts as 100 independent confirmations of one temperature--date pair. In a model without this term, residuals clustered strongly by reach-year (intraclass correlation `r sprintf("%.2f", local({m <- lmer(yday ~ T_bar + T_dev + stream + year + (1 | COMID), d, REML = TRUE, control = ctl); r <- tibble(res = residuals(m), key = d$key); v <- as.data.frame(VarCorr(lmer(res ~ 1 + (1 | key), r))); v$vcov[1] / sum(v$vcov)}))`), and adding the term improved AIC by `r sprintf("%.0f", as.numeric(dA("Reach intercept only")))` units. Without it, random slopes for temperature also appeared to be supported; with it, they were not (singular fit).
+
+## Model comparison
+
+```{r}
+#| label: tbl-a5-t1
+#| tbl-cap: "Model comparison (maximum likelihood; n = 3,016 redds). Within each group, ΔAIC is relative to the first row. $T$: reach-year thermal index; $\\bar{T}$: reach mean; $T-\\bar{T}$: reach-year anomaly. R² conditional is undefined for singular fits."
+tex_t <- function(x) x |> str_replace_all("T\u0304", "$\\\\bar{T}$") |> str_replace_all("\u2212", "$-$")
+T1t <- T1 |> mutate(Group = str_remove(Group, "^\\d\\. ") |> str_replace("\\(fixed effects: .*\\)$", "(fixed effects as in the final model)") |> tex_t(),
+                    Model = tex_t(Model))
+T1t |>
+  transmute(Model, k,
+            `ΔAIC` = sprintf("%.1f", dAIC), `RMSE (d)` = sprintf("%.2f", RMSE),
+            `R² marginal` = sprintf("%.3f", R2_m),
+            `R² conditional` = ifelse(is.na(R2_c), "--", sprintf("%.3f", R2_c)),
+            Notes = replace_na(Notes, "")) |>
+  kbl(booktabs = TRUE, linesep = "", align = "lrrrrrl", escape = FALSE) |>
+  kable_styling(latex_options = "scale_down", font_size = 8) |>
+  pack_rows(index = table(factor(T1t$Group, levels = unique(T1t$Group))), escape = FALSE) |>
+  column_spec(1, width = "5.2cm") |> column_spec(7, width = "4.2cm")
+```
+
+## Shape of the temperature effect
+
+A natural spline on $\bar{T}$ improved AIC slightly (`r sprintf("%+.1f", T1$dAIC[grepl("^Natural spline", T1$Model)])`; @tbl-a5-t1). The fitted curve departs little from the straight line over the range of the data (@fig-a5-spline), so we retained the linear term for interpretability. The plateau at warm sites reported in the original submission is not present with the fixed-date index.
+
+```{r}
+#| label: fig-a5-spline
+#| fig-cap: "Between-reach temperature effect fitted as linear (black) and as a natural spline with 3 df (blue), with 95% CIs. Points: reach mean spawn dates adjusted for stream, year and the reach-year anomaly."
+#| fig-width: 6
+#| fig-height: 3.6
+m_sp <- lmer(yday ~ ns(T_bar, 3) + T_dev + stream + year + (1 | COMID) + (1 | key), d, REML = TRUE, control = ctl)
+grid_b <- seq(min(d$T_bar), max(d$T_bar), length.out = 60)
+pl <- bind_rows(
+  as_tibble(emmeans(final, ~ T_bar, at = list(T_bar = grid_b, T_dev = 0))) |> mutate(model = "Linear"),
+  as_tibble(emmeans(m_sp,  ~ T_bar, at = list(T_bar = grid_b, T_dev = 0))) |> mutate(model = "Spline (df = 3)"))
+fe <- fixef(final)
+lev <- function(f) { lv <- levels(d[[f]]); e <- setNames(rep(0, length(lv)), lv)
+  k <- paste0(f, lv) %in% names(fe); e[k] <- fe[paste0(f, lv)[k]]; e }
+se_ <- lev("stream"); ye_ <- lev("year")
+pts <- d |> mutate(y = yday - se_[as.character(stream)] - ye_[as.character(year)] + mean(se_) + mean(ye_) - fe[["T_dev"]] * T_dev) |>
+  group_by(COMID, stream) |> summarise(T_bar = first(T_bar), y = mean(y), n = n(), .groups = "drop")
+ggplot() +
+  geom_point(data = pts, aes(T_bar, fixed_date + y, size = n), color = "grey55", alpha = 0.6) +
+  geom_ribbon(data = pl, aes(T_bar, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL, fill = model), alpha = 0.2) +
+  geom_line(data = pl, aes(T_bar, fixed_date + emmean, color = model), linewidth = 0.9) +
+  scale_color_manual(values = c("Linear" = "black", "Spline (df = 3)" = "steelblue")) +
+  scale_fill_manual(values = c("Linear" = "black", "Spline (df = 3)" = "steelblue")) +
+  scale_size_area(max_size = 4, guide = "none") +
+  labs(x = "Reach mean thermal index (°C)", y = "Adjusted spawn date", color = NULL, fill = NULL)
+```
+
+## Diagnostics for the final model
+
+Residuals showed no trend with fitted values, stream or year, but had heavier tails than a normal distribution, reflecting a small number of unusually early or late redds (@fig-a5-diag). With 3,016 redds and 263 reach-years, fixed-effect estimates are robust to this departure; random-effect distributions were close to normal. The residual spread reflects the spread of spawn dates within reach-years (residual SD `r sprintf("%.1f", sigma(final))` d), which the model does not attempt to explain; predicted reach-year means track observed means closely (@fig-a5-pred).
+
+```{r}
+#| label: fig-a5-diag
+#| fig-cap: "Residual diagnostics for the final model. (A) Residuals vs fitted values. (B) Normal Q–Q plot of residuals. (C) Residuals by stream. (D) Residuals by year. (E) Normal Q–Q plot of reach-year random intercepts. (F) Normal Q–Q plot of reach random intercepts."
+#| fig-width: 8
+#| fig-height: 7.5
+rd <- d |> mutate(fit = fitted(final), res = residuals(final))
+p1 <- ggplot(rd, aes(fit, res)) + geom_point(alpha = 0.2, size = 0.6) + geom_hline(yintercept = 0, linetype = 2) +
+  geom_smooth(se = FALSE, color = "red", linewidth = 0.6) + labs(x = "Fitted (day of year)", y = "Residual (d)")
+p2 <- ggplot(rd, aes(sample = res)) + stat_qq(size = 0.6, alpha = 0.4) + stat_qq_line(color = "red") +
+  labs(x = "Theoretical quantile", y = "Residual quantile")
+p3 <- ggplot(rd, aes(stream, res, fill = stream)) + geom_boxplot(outlier.size = 0.4) +
+  scale_fill_manual(values = cols.streams, guide = "none") + labs(x = NULL, y = "Residual (d)") +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1))
+p4 <- ggplot(rd, aes(year, res, fill = year)) + geom_boxplot(outlier.size = 0.4) +
+  scale_fill_manual(values = cols.years, guide = "none") + labs(x = NULL, y = "Residual (d)")
+re_k <- tibble(b = ranef(final)$key[, 1]); re_c <- tibble(b = ranef(final)$COMID[, 1])
+p5 <- ggplot(re_k, aes(sample = b)) + stat_qq(size = 0.8) + stat_qq_line(color = "red") +
+  labs(x = "Theoretical quantile", y = "Reach-year intercept (d)")
+p6 <- ggplot(re_c, aes(sample = b)) + stat_qq(size = 0.8) + stat_qq_line(color = "red") +
+  labs(x = "Theoretical quantile", y = "Reach intercept (d)")
+(p1 + p2) / (p3 + p4) / (p5 + p6) + plot_annotation(tag_levels = "A")
+```
+
+```{r}
+#| label: fig-a5-pred
+#| fig-cap: "Observed vs predicted mean spawn date for each reach-year (predictions include random effects). Dashed line: 1:1. Point size: number of redds."
+#| fig-width: 5
+#| fig-height: 4
+d |> mutate(pred = fitted(final)) |>
+  group_by(key, stream) |> summarise(obs = mean(yday), pred = mean(pred), n = n(), .groups = "drop") |>
+  ggplot(aes(fixed_date + pred, fixed_date + obs, color = stream, size = n)) +
+  geom_abline(linetype = 2) + geom_point(alpha = 0.7) +
+  scale_color_manual(values = cols.streams) + scale_size_area(max_size = 4, guide = "none") +
+  labs(x = "Predicted reach-year mean", y = "Observed reach-year mean", color = "Stream")
+```

@@ -1,0 +1,81 @@
+\newpage
+
+# Other covariates and the Big Creek gradient
+
+```{r a4-load}
+F5   <- rev_tab("F5_elevation_sensitivity.csv")
+span <- rev_tab("F5_elevation_span_by_stream.csv")
+T1   <- rev_tab("Table_01_rev.csv")
+f5a  <- F5 |> filter(data == "All streams")
+f5b  <- F5 |> filter(data == "Without Big Creek")
+f5c  <- F5 |> filter(grepl("split", data))
+```
+
+Reach elevation and reach slope (NHDPlus Version 2) and discharge were considered as additional covariates. Results are in `R/09_refit-fixed-date-model.R` (F5) and Table 1 of the main text.
+
+## Elevation
+
+Elevation is fixed for each reach, so it can only compete with the between-reach component of temperature ($\bar{T}$; Section A5). Added to the final model, elevation improved fit by `r sprintf("%.0f", -f5a$dAIC_adding_E)` AIC units: higher reaches spawned `r sprintf("%.1f", -f5a$E_per100m)` days earlier per 100 m (SE `r sprintf("%.1f", f5a$E_se)`), and the between-reach temperature effect fell from `r sprintf("%.1f", f5a$T_bar_noE)` to `r sprintf("%.1f", f5a$T_bar_withE)` days per °C (@tbl-a4-elev). The within-reach temperature effect was unchanged (`r sprintf("%.1f", f5a$T_dev_withE)` days per °C).
+
+This effect depends on one stream. Surveyed reaches in Big Creek span `r sprintf("%.0f", span$span_m[span$stream == "Big"])` m of elevation, compared with `r sprintf("%.0f", min(span$span_m[span$stream != "Big"]))`--`r sprintf("%.0f", max(span$span_m[span$stream != "Big"]))` m elsewhere (@tbl-a1-survey). Without Big Creek, elevation had no detectable effect (`r sprintf("%.1f", f5b$E_per100m)` days per 100 m, SE `r sprintf("%.1f", f5b$E_se)`) and did not improve fit (ΔAIC = `r sprintf("%+.1f", f5b$dAIC_adding_E)`). Allowing separate elevation slopes gave `r sprintf("%.1f", f5c$E_big)` (SE `r sprintf("%.1f", f5c$E_big_se)`) days per 100 m in Big Creek and `r sprintf("%.1f", f5c$E_others)` (SE `r sprintf("%.1f", f5c$E_others_se)`) elsewhere (@fig-a4-elev). We therefore did not include elevation in the final model.
+
+Within Big Creek, upper reaches spawned earlier than their summer temperatures predict, and lower reaches later. Several explanations fit this single gradient and cannot be separated with these data: run-timing structure (summer-run fish spawn in lower Big Creek; Copeland et al. 2019), migration distance or arrival order, and colder fall and winter incubation conditions in upper reaches (post-spawn indices behaved the same way as elevation; Section A3).
+
+```{r}
+#| label: tbl-a4-elev
+#| tbl-cap: "Elevation added to the final model, with all streams and without Big Creek. Temperature effects ($\\bar{T}$, reach mean; $T-\\bar{T}$, reach-year anomaly) in days per °C; SE in parentheses."
+F5 |> filter(!grepl("split", data)) |>
+  transmute(Data = data,
+            `$\\bar{T}$, no elevation` = sprintf("%.2f (%.2f)", T_bar_noE, T_bar_noE_se),
+            `$\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_bar_withE, T_bar_withE_se),
+            `$T-\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_dev_withE, T_dev_withE_se),
+            `Elevation (d per 100 m)` = sprintf("%.2f (%.2f)", E_per100m, E_se),
+            `ΔAIC adding elevation` = sprintf("%+.1f", dAIC_adding_E)) |>
+  kbl(booktabs = TRUE, linesep = "", align = "lrrrrr", escape = FALSE) |>
+  kable_styling(font_size = 8) |>
+  column_spec(2:6, width = "2.1cm")
+```
+
+```{r}
+#| label: fig-a4-elev
+#| fig-cap: "Reach random intercepts from the final model (no elevation) against reach elevation, for Big Creek and the other streams. Lines: linear fits. Positive intercepts = later spawning than temperature, stream and year predict."
+#| fig-width: 7
+#| fig-height: 3.2
+re_e <- ranef(final)$COMID |> rownames_to_column("COMID") |> rename(intercept = `(Intercept)`) |>
+  left_join(d |> distinct(COMID = as.character(COMID), stream, elev), by = "COMID") |>
+  mutate(group = ifelse(stream == "Big", "Big Creek", "Other streams"))
+ggplot(re_e, aes(elev, intercept)) +
+  geom_hline(yintercept = 0, linetype = 3) +
+  geom_point(aes(color = stream), size = 2, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.6) +
+  facet_wrap(~group) +
+  scale_color_manual(values = cols.streams) +
+  labs(x = "Reach elevation (m)", y = "Reach random intercept (d)", color = "Stream")
+```
+
+## Reach slope
+
+Reach slope ranged narrowly (`r sprintf("%.1f", 100 * min(d$slope))`--`r sprintf("%.1f", 100 * max(d$slope))`%) and did not improve the final model (ΔAIC = `r sprintf("%+.1f", T1$dAIC[T1$Model == "+ reach slope"])`; Table 1 of the main text).
+
+## Discharge
+
+Discharge was available only from one gauge downstream of all study reaches (USGS 13309220), so it varies among years but not among reaches, and it is confounded with the year effect. Discharge summaries in the original submission were also computed over windows anchored to each redd's spawn date and so share the artefact in Section A2. We did not retain discharge.
+
+```{r}
+#| label: fig-a4-flow
+#| fig-cap: "Mean daily discharge at the Middle Fork Salmon River gauge near Middle Fork Lodge (USGS 13309220), 2002–2005."
+#| fig-width: 7
+#| fig-height: 3
+readr::read_csv(here::here("data", "processed", "mfsr_flow.csv"), show_col_types = FALSE) |>
+  transmute(date = as.Date(Date), flow = Flow) |>
+  filter(lubridate::year(date) %in% 2002:2005) |>
+  mutate(year = factor(lubridate::year(date)), doy = lubridate::yday(date)) |>
+  ggplot(aes(fixed_date + doy, flow, color = year)) +
+  annotate("rect", xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
+           ymin = 0, ymax = Inf, fill = "steelblue", alpha = 0.15) +
+  geom_line(linewidth = 0.5) +
+  scale_y_log10() +
+  scale_color_manual(values = cols.years) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  labs(x = NULL, y = expression(Discharge~(ft^3~s^-1)), color = "Year")
+```

@@ -1,0 +1,79 @@
+\newpage
+
+# Why the antecedent temperature window was replaced
+
+```{r a2-load}
+D2 <- rev_tab("D2_within_reach_window_change.csv")
+D3 <- rev_tab("D3_shuffled_date_null.csv")
+D4 <- rev_tab("D4_comid_slope_vs_artefact.csv")
+d3o <- D3 |> filter(run == "observed"); d3n <- D3 |> filter(run == "null_mean")
+d2_90 <- D2 |> filter(window == "temp_90")
+```
+
+In the original submission, each redd's thermal covariate was the mean modeled temperature over the 90 days ending on that redd's own spawn date ("temp_90"). Because the window is anchored to the response, spawn date enters both sides of the model: any seasonal trend in stream temperature produces an association between spawn date and temp_90 even if spawning is unrelated to temperature. This appendix quantifies that artefact. The analyses are in `R/07_window-artefact-diagnostics.R`.
+
+## Seasonal context
+
+Stream temperature across surveyed reaches peaked in late July, and every redd was completed after the peak (@fig-a2-thermograph). A 90-day window ending in August or September therefore spans cold late-spring days at its start and warm summer days at its end. Moving the end date later drops cold days and adds warm ones, so a later spawn date mechanically yields a warmer temp_90.
+
+```{r}
+#| label: fig-a2-thermograph
+#| fig-cap: "Network-mean modeled daily stream temperature for surveyed reaches, 2002–2005 (grey band: 10th–90th percentiles). Shaded: range of observed spawn dates; dashed line: thermal peak."
+#| out-width: "80%"
+knitr::include_graphics(rev_plot("D1_seasonal_thermograph.png"))
+```
+
+## Within a reach-year, the window re-codes the date
+
+Redds in the same reach and year share the same stream; they differ only in spawn date. Within reach-years, temp_90 rose `r sprintf("%.2f", d2_90$change_per_10d)` °C for every 10 days of later spawning and was almost perfectly correlated with spawn date (r = `r sprintf("%.2f", d2_90$r_within)`; @tbl-a2-windows). The direction of the artefact depends on window length: a 30-d window ending in August sits on the summer peak and becomes *cooler* as it moves later, whereas the 90-d window becomes warmer. This explains why the 90-d window was the best predictor in the original screening, and why biologically more plausible shorter windows were not: only the 90-d artefact reinforces the spatial pattern.
+
+```{r}
+#| label: tbl-a2-windows
+#| tbl-cap: "Change in date-anchored antecedent temperature with spawn date among redds in the same reach and year."
+D2 |>
+  transmute(Window = sub("temp_", "", window) |> paste0("-d antecedent mean"),
+            `Change per 10 d later (°C)` = sprintf("%+.2f", change_per_10d),
+            `r with date, within reach-year` = sprintf("%.2f", r_within),
+            `r with date, raw` = sprintf("%.2f", r_raw),
+            `Variance within reach-year` = sprintf("%.0f%%", 100 * var_share_within)) |>
+  kbl2( align = "lrrrr")
+```
+
+## A null model with no biology
+
+To ask how much of the original fit the artefact alone could produce, we shuffled spawn dates among redds within each year (200 permutations), recomputed temp_90 at each redd's own reach for its new date, and refit the models. Shuffling destroys any real link between a place's temperature and its spawn timing but keeps the window construction intact.
+
+Random dates still produced R² = `r sprintf("%.2f", d3n$r2_quad)` for spawn date on temp_90 (quadratic; observed `r sprintf("%.2f", d3o$r2_quad)`), and a within-reach slope of `r sprintf("%.1f", d3n$within_slope_d_per_C)` d per °C, slightly steeper than observed (`r sprintf("%.1f", d3o$within_slope_d_per_C)`; @tbl-a2-null, @fig-a2-null). The mixed model fit to random dates predicted them with a residual SD of `r sprintf("%.1f", d3n$lmer_resid_sd)` d, against `r sprintf("%.1f", d3o$lmer_resid_sd)` d for the real data. The within-reach temperature response in the original model is therefore indistinguishable from the artefact; the real signal lies in temperature differences among reaches and years.
+
+```{r}
+#| label: tbl-a2-null
+#| tbl-cap: "Observed fit statistics compared with 200 shuffled-date null datasets."
+D3 |>
+  filter(run %in% c("observed", "null_mean", "null_q025", "null_q975")) |>
+  mutate(run = recode(run, observed = "Observed", null_mean = "Null, mean",
+                      null_q025 = "Null, 2.5%", null_q975 = "Null, 97.5%")) |>
+  transmute(` ` = run,
+            `R² (quadratic)` = sprintf("%.2f", r2_quad),
+            `R² (+ stream + year)` = sprintf("%.2f", r2_quad_stream_year),
+            `Within reach-year slope (d per °C)` = sprintf("%.1f", within_slope_d_per_C),
+            `Mixed-model residual SD (d)` = sprintf("%.2f", lmer_resid_sd)) |>
+  kbl2( align = "lrrrr")
+```
+
+```{r}
+#| label: fig-a2-null
+#| fig-cap: "Distribution of fit statistics from 200 shuffled-date null datasets (grey) and the observed value (red)."
+#| out-width: "90%"
+knitr::include_graphics(rev_plot("D3_shuffled_date_null.png"))
+```
+
+## Reach-specific slopes reflect thermograph shape
+
+If temp_90 rises at a rate of *b* °C per day within a reach-year, a regression of spawn date on temp_90 within that reach has slope 1/*b* days per °C regardless of biology. For the `r nrow(D4)` reaches with at least 15 redds, the observed within-reach slope tracked this artefact-only expectation (r = `r sprintf("%.2f", cor(D4$slope_observed, D4$slope_artefact))`; medians `r sprintf("%.1f", median(D4$slope_observed))` and `r sprintf("%.1f", median(D4$slope_artefact))` d per °C; @fig-a2-slopes). The reach-specific random slopes reported in the original submission ("thermal sensitivity") therefore largely describe how quickly each reach's 90-day mean warms through August, not how fish respond to temperature. The new analysis uses a thermal index that is fixed in calendar time (Section A3).
+
+```{r}
+#| label: fig-a2-slopes
+#| fig-cap: "Observed within-reach slope of spawn date on temp_90 versus the slope expected from window construction alone (1 / rate at which the window warms), for reaches with at least 15 redds. Dashed line: 1:1."
+#| out-width: "75%"
+knitr::include_graphics(rev_plot("D4_comid_slope_vs_artefact.png"))
+```

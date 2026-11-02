@@ -1,6 +1,6 @@
 ---
-title: "Appendices"
-subtitle: "Habitat heterogeneity and phenotypic variation: Site temperature largely predicts diverse spawning portfolios of an interior Chinook Salmon stock"
+title: "Supplementary Appendices"
+subtitle: "Chinook salmon spawning phenology in the Middle Fork Salmon River (CJFAS revision)"
 format:
   pdf:
     output-file: "appendix.pdf"
@@ -13,6 +13,12 @@ format:
     include-in-header:
       text: |
         \usepackage{float}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{threeparttable}
+        \usepackage{makecell}
+        \usepackage[section]{placeins}
 fontsize: 10pt
 date: today
 date-format: "DD MMMM YYYY"
@@ -24,22 +30,60 @@ editor_options:
 #| label: setup
 #| include: false
 
-source(here::here("analysis", "_shared.R"))
+# Revised appendix (CJFAS revision). Data, the thermal index, the final model
+# formula and the plotting theme come from R/revision_setup.R; tables and
+# figures produced by R/07-R/11 are read from tables/revision/ and
+# plots/revision/, so run those scripts first.
+# The submitted appendix fragments (analysis/_01_eda.qmd etc.) are no longer
+# included.
 
-# Appendix specific options
+source(here::here("R", "revision_setup.R"))
+library(lme4)
+library(splines)
+library(emmeans)
+library(patchwork)
+library(knitr)
+library(kableExtra)
+emm_options(lmer.df = "asymptotic")
+theme_set(theme_mfsr(base_size = 10))
+
+rev_tab  <- function(f) readr::read_csv(here::here("tables", "revision", f), show_col_types = FALSE)
+rev_plot <- function(f) here::here("plots", "revision", f)
+kbl2 <- function(x, ...) {
+  kbl(x, booktabs = TRUE, linesep = "", ...) |>
+    kable_styling(font_size = 8)
+}
+fmt_d <- function(doy) format(fixed_date + doy, "%d %b")
+
+# Final model, refit here for diagnostics (identical to R/09)
+d     <- model_data()
+ctl   <- lmerControl(optimizer = "bobyqa")
+final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = ctl)
+
 knitr::opts_chunk$set(
-  echo    = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  cache   = FALSE,
+  echo      = FALSE,
+  warning   = FALSE,
+  message   = FALSE,
+  cache     = FALSE,
   fig.align = "center",
-  fig.pos = "H",
+  fig.pos   = "H",
   out.extra = ""
 )
 ```
 
-{{< include ../analysis/_01_eda.qmd >}}
+\newpage
+\renewcommand{\thesection}{A\arabic{section}}
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
 
-{{< include ../analysis/_02_modeling.qmd >}}
+{{< include ../analysis/appendix-rev/_A1_data.qmd >}}
 
-{{< include ../analysis/_03_results.qmd >}}
+{{< include ../analysis/appendix-rev/_A2_temperature-covariate.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A3_index-selection.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A4_other-covariates.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A5_model-selection.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A6_final-model.qmd >}}
