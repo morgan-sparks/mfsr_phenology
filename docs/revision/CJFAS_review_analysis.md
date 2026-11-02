@@ -1,6 +1,6 @@
 # CJFAS Phenology Revision — Review Analysis & Task List
 
-Bryan M. Maitland · 30 Oct 2026
+Bryan M. Maitland · 30 Oct 2026 (updated 2 Nov 2026)
 
 > Snapshot of the shared doc "CJFAS Phenology Revision — Review Analysis & Task List" (Claude Docs), which is the live version. Codes in square brackets (D1–F4) refer to outputs from `R/07`–`R/09`; see [Revision outputs map](#revision-outputs-map).
 
@@ -109,8 +109,8 @@ The corrected model gives spawning about 5.0 days later per °C of reach-year th
 | Shuffled-date null (200 runs), within-reach slope | 13.5 d/°C null vs 12.6 observed | D3 |
 | Shuffled-date null, mixed-model residual SD | 2.4 d null vs 2.0 observed | D3 |
 | Per-reach slope vs artefact-only slope (37 COMIDs) | r = 0.75, medians 13.1 vs 13.1 | D4 |
-| Fixed-date indices tested | 32; slope 4–7 d/°C and marginal R² 0.54–0.57 for all | E1 |
-| Best-fitting indices | pre-spawn windows ending 1–16 Jul, within ~10 AIC | E1 |
+| Fixed-date indices tested | 32; slope 3.8–6.1 d/°C and marginal R² 0.52–0.55 for all (with reach-year RE) | E1 |
+| Best-fitting indices | none stands out: all 32 within 22 AIC once the reach-year RE is included (93 without it). August-ending windows rank slightly higher; pre-spawn windows are 10–22 AIC back | E1 |
 | Reach-year random intercept (1\|COMID:year) | ΔAIC ≈ −425; required, since the index is a reach-year value | F1 |
 | Random slopes (with reach-year RE) | singular (ρ = −1): drop | F1 |
 | Spline vs linear | no gain (ΔAIC < 1): use linear; the warm-site plateau does not hold | F1 |
@@ -120,7 +120,7 @@ The corrected model gives spawning about 5.0 days later per °C of reach-year th
 | Year means | 28 Aug (2002) to 2 Sep (2005) | F3 |
 | COMID length | median 0.95 km (0.07–3.21) | F4 |
 
-Open decision: the index. The script default is the 60-d mean ending 16 Jul (18 May–16 Jul); 90-d ending 1 Jul fits equally well. Both precede spawning and most adult arrival, so describe the index as a reach thermal-regime signature rather than an exposure cue.
+Open decision: the index. The data cannot choose the window (E1), so pick it on biological grounds. A window ending before the first redd (25 Jul) is the easiest to defend, because no temperature after any fish spawned enters it. The script default is the 60-d mean ending 16 Jul (18 May–16 Jul; slope 5.0 d/°C). Describe the index as a reach thermal-regime signature rather than an exposure cue.
 
 ## Revision outputs map
 
@@ -132,7 +132,7 @@ Each code used in this doc points to the files below in the CJFAS-revisions bran
 | D2 | R/07 | tables/revision/D2_within_reach_window_change.csv | Change in 30/60/90-d antecedent temperature per day of later spawning, same reach-year; share of variance within reach-year | R1 main; R2 general 3 (why the 90-d window won) |
 | D3 | R/07 | tables/revision/D3_shuffled_date_null.csv, D3_shuffled_date_null_runs.csv; plots/revision/D3_shuffled_date_null.png | 200 shuffled-date nulls vs observed: R², within-reach slope, mixed-model residual SD | R1 main; AE request for an analysis |
 | D4 | R/07 | tables/revision/D4_comid_slope_vs_artefact.csv; plots/revision/D4_comid_slope_vs_artefact.png | Per-COMID observed slope vs artefact-only slope (1 / window warming rate) | R1 Ln 245; current Fig. 6 |
-| E1 | R/08 | tables/revision/E1_fixed_date_candidates.csv; plots/revision/E1_fixed_date_candidates.png | 32 date-independent indices: ΔAIC, slope, marginal R², reach-year r | AE; R1 Ln 194; R2 general 3 |
+| E1 | R/08 | tables/revision/E1_fixed_date_candidates.csv; plots/revision/E1_fixed_date_candidates.png | 32 date-independent indices fit with COMID and reach-year random intercepts: ΔAIC, slope, marginal R², reach-year r; AIC without the reach-year term kept for comparison | AE; R1 Ln 194; R2 general 3 |
 | F1 | R/09 | tables/revision/F1_model_comparison_fixed_index.csv | Model comparison: reach-year RE, random slopes, spline, quadratic, within–between; submitted model as reference | New Table 1; R1 plasticity vs divergence |
 | F2 | R/09 | tables/revision/F2_final_model_fixed_index.csv | Final model coefficients, variance components, R², ICC, RMSE | New Table 2; R2 Table 2 (ICC) |
 | F3 | R/09 | tables/revision/F3_emmeans_fixed_index.csv, F3_contrasts_fixed_index.csv | Stream and year marginal means with Tukey contrasts | New Fig. 5A–B; Abstract date range; R2 Ln 26 |
@@ -148,7 +148,7 @@ Each code used in this doc points to the files below in the CJFAS-revisions bran
 **Re-analysis (Bryan, Morgan)**
 
 - [x] Reproduce the diagnostics in R: within-reach temp_90 vs date, the shuffled-date null, and the 30/60/90-d window comparison. Done: R/07_window-artefact-diagnostics.R.
-- [ ] Choose a fixed-date thermal index. Sensitivity done (E1); script default is the 60-d mean ending 16 Jul, tied with the 90-d mean ending 1 Jul. Bryan to decide.
+- [ ] Choose a fixed-date thermal index. Sensitivity done (E1): the data cannot distinguish windows (all within 22 AIC; slopes 3.8–6.1 d/°C). Choose on biology; script default is the pre-spawn 60-d mean ending 16 Jul. Bryan to decide.
 - [x] Refit with the fixed-date index. Draft done in R/09 (F1–F3): linear T + stream + year with COMID and reach-year random intercepts; within–between split included. Rerun once the index is chosen.
 - [x] Reconcile n = 3,013 vs 3,016 redds and 103 vs 104 COMIDs. Resolved: the analysis/_shared.R pipeline gives 3,016 and 104, matching the manuscript; model_data_final.rds is a stale 3,013-row copy.
 - [x] Plot COMID random intercepts against network position (Hydroseq/distance upstream) within stream for Tim. Consider an SSN tail-up check. Done with drainage area (R/09, F4): no consistent pattern except Big Cr.
