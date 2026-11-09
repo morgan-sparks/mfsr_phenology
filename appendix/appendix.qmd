@@ -1,11 +1,11 @@
 ---
-title: "Appendices"
-subtitle: "Habitat heterogeneity and phenotypic variation: Site temperature largely predicts diverse spawning portfolios of an interior Chinook Salmon stock"
+title: "Supplementary Appendices"
+subtitle: "Chinook salmon spawning phenology in the Middle Fork Salmon River (CJFAS revision)"
 format:
   pdf:
     output-file: "appendix.pdf"
     documentclass: article
-    latex-engine: lualatex
+    pdf-engine: xelatex
     toc: true
     number-sections: true
     toc-depth: 2
@@ -13,6 +13,12 @@ format:
     include-in-header:
       text: |
         \usepackage{float}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{threeparttable}
+        \usepackage{makecell}
+        \usepackage[section]{placeins}
 fontsize: 10pt
 date: today
 date-format: "DD MMMM YYYY"
@@ -24,22 +30,67 @@ editor_options:
 #| label: setup
 #| include: false
 
-source(here::here("analysis", "_shared.R"))
+# Revised appendix (CJFAS revision).
+# - Data, the thermal index, the final model formula, ctl (lmer optimizer),
+#   helper functions and the plotting theme come from R/revision_setup.R.
+# - Tables and figures made by R/07-R/12 are read from tables/revision/ and
+#   plots/revision/, so run those scripts first.
+# - Each section is a child file in analysis/appendix-rev/ (_A1 ... _A7).
+#   They share this R session, so objects defined here (d, final, helpers)
+#   are available in every section.
 
-# Appendix specific options
+source(here::here("R", "revision_setup.R"))
+library(lme4)
+library(splines)
+library(emmeans)
+library(patchwork)
+library(knitr)
+library(kableExtra)
+emm_options(lmer.df = "asymptotic")
+theme_set(theme_mfsr(base_size = 10))
+
+# Read a revision table / locate a revision plot
+rev_tab  <- function(f) read_csv(here("tables", "revision", f), show_col_types = FALSE)
+rev_plot <- function(f) here("plots", "revision", f)
+# Default table style
+kbl2 <- function(x, ...) {
+  kbl(x, booktabs = TRUE, linesep = "", ...) |>
+    kable_styling(font_size = 8)
+}
+# Day of year -> "28 Aug"
+fmt_d <- function(doy) format(fixed_date + doy, "%d %b")
+
+# Final model, refit here for diagnostics and partial-effect plots
+# (identical to R/09 F2)
+d     <- model_data()
+final <- lmer(FINAL_FORMULA, d, REML = TRUE, control = ctl)
+
 knitr::opts_chunk$set(
-  echo    = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  cache   = FALSE,
+  echo      = FALSE,
+  warning   = FALSE,
+  message   = FALSE,
+  cache     = FALSE,
   fig.align = "center",
-  fig.pos = "H",
+  fig.pos   = "H",
   out.extra = ""
 )
 ```
 
-{{< include ../analysis/_01_eda.qmd >}}
+\newpage
+\renewcommand{\thesection}{A\arabic{section}}
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
 
-{{< include ../analysis/_02_modeling.qmd >}}
+{{< include ../analysis/appendix-rev/_A1_data.qmd >}}
 
-{{< include ../analysis/_03_results.qmd >}}
+{{< include ../analysis/appendix-rev/_A2_temperature-covariate.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A3_index-selection.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A4_model-selection.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A5_final-model.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A6_sensitivity.qmd >}}
+
+{{< include ../analysis/appendix-rev/_A7_long-term-context.qmd >}}

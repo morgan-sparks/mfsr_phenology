@@ -1,0 +1,37 @@
+\newpage
+
+# Choosing a fixed-date thermal index
+
+```{r a3-load}
+E1 <- rev_tab("E1_fixed_date_candidates.csv")
+```
+
+We replaced temp_90 with reach-year thermal indices computed over the same calendar window for every redd in a reach-year, so the index cannot depend on spawn date. The analyses are in `R/08_fixed-date-index.R`. Indices computed after spawning (incubation temperatures, predicted emergence) were tested as a sensitivity analysis (Section A6).
+
+We compared `r nrow(E1)` candidates: mean temperature over 30, 60 or 90 days ending on ten dates from 1 July to 15 August, plus the mean for 1 July--31 August and the maximum 7-day mean (MWAT) for June--September. Each was fit with the same model, spawn date ~ index + stream + year, with random intercepts for reach and reach-year (the reach-year term is explained in Section A4).
+
+The data could not distinguish among the candidates: all fell within `r sprintf("%.0f", max(E1$dAIC_linear))` AIC units of the best (`r sprintf("%.0f", max(E1$dAIC_linear_noRY))` units without the reach-year term), and the estimated effect ranged from `r sprintf("%.1f", min(E1$slope_lmer))` to `r sprintf("%.1f", max(E1$slope_lmer))` days per °C (@tbl-a3-e1, @fig-a3-e1). These indices are strongly correlated and rank reaches and years in nearly the same order. We therefore chose the index on biological grounds: the mean of the 60 days ending 16 July (18 May--16 July), which ends before the first observed redd (`r format(fixed_date + min(redds$yday), '%e %B') |> trimws()`) and so contains no temperatures experienced after any fish spawned. We interpret the index as a signature of each reach's thermal regime, not as the temperature individual fish experienced. Over 1990--2021 the index ranked reaches in almost the same order every year (Section A7), which supports this interpretation.
+
+```{r}
+#| label: tbl-a3-e1
+#| tbl-cap: "Candidate fixed-date thermal indices ranked by AIC. Slope is the linear effect (SE) from spawn date ~ index + stream + year with reach and reach-year random intercepts. Pre-spawn: window ends before the first observed redd."
+E1 |>
+  arrange(dAIC_linear) |>
+  transmute(Index = index |> str_replace("mean(\\d+)_end", "\\1-d mean ending ") |>
+              str_replace("_", " "),
+            `Pre-spawn` = ifelse(pre_spawn, "yes", "no"),
+            `ΔAIC` = sprintf("%.1f", dAIC_linear),
+            `ΔAIC (no reach-year term)` = sprintf("%.1f", dAIC_linear_noRY),
+            `Slope (d per °C)` = sprintf("%.2f (%.2f)", slope_lmer, slope_lmer_se),
+            `R² marginal` = sprintf("%.3f", R2m_linear),
+            `r (reach-year means)` = sprintf("%.2f", r_reach_year)) |>
+  kbl(booktabs = TRUE, linesep = "", align = "llrrrrr") |>
+  kable_styling(latex_options = "scale_down", font_size = 7.5)
+```
+
+```{r}
+#| label: fig-a3-e1
+#| fig-cap: "Fit (ΔAIC), effect size (± 2 SE) and correlation with reach-year mean spawn date for fixed-date indices of 30, 60 and 90 days, by window end date. Dashed line: first observed redd."
+#| out-width: "80%"
+knitr::include_graphics(rev_plot("E1_fixed_date_candidates.png"))
+```
