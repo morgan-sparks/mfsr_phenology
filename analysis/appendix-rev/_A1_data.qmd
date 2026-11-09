@@ -1,15 +1,22 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
 # Data and study design
 
 ## Redd data and reaches
 
 ```{r a1-numbers}
-n_redds   <- nrow(redds)
-n_reach   <- n_distinct(redds$COMID)
-n_ry      <- n_distinct(redds$key)
-yrs_reach <- redds |> distinct(COMID, year) |> count(COMID)
-n_multi   <- sum(yrs_reach$n >= 2)
-n_all4    <- sum(yrs_reach$n == 4)
-lens      <- rev_tab("F4_comid_random_intercepts.csv")
+n_redds <- nrow(redds)
+n_reach <- n_distinct(redds$COMID)
+n_ry <- n_distinct(redds$key)
+yrs_reach <- redds |>
+  distinct(COMID, year) |>
+  count(COMID)
+n_multi <- sum(yrs_reach$n >= 2)
+n_all4 <- sum(yrs_reach$n == 4)
+lens <- rev_tab("F4_comid_random_intercepts.csv")
 ```
 
 Chinook salmon redds were surveyed every 3--5 days from the onset of redd construction in late July to the end of spawning in mid-September, 2002--2005, in eight streams of the Middle Fork Salmon River. Spawn date was taken as the first date a completed redd was observed and expressed as day of year on a non-leap calendar (dates in 2004 after 28 February shifted back one day), so that the same calendar date has the same value in every year. Data from 2001 and from Knapp and Cape Horn creeks were excluded because they were not sampled consistently. The analysis dataset contains `r format(n_redds, big.mark = ",")` redds in `r n_reach` reaches and `r n_ry` reach-years (@tbl-a1-survey).
@@ -22,15 +29,27 @@ Each redd location was joined to the NHDPlus Version 2 flowline network, and eac
 surv <- redds |>
   count(stream, year) |>
   pivot_wider(names_from = year, values_from = n, values_fill = 0) |>
-  left_join(redds |> group_by(stream) |> summarise(Redds = n(), Reaches = n_distinct(COMID)), by = "stream") |>
-  left_join(rev_tab("F5_elevation_span_by_stream.csv") |>
-              transmute(stream, `Elevation (m)` = sprintf("%.0f–%.0f", elev_min, elev_max)), by = "stream") |>
+  left_join(
+    redds |> group_by(stream) |> summarise(Redds = n(), Reaches = n_distinct(COMID)),
+    by = "stream"
+  ) |>
+  left_join(
+    rev_tab(
+      "F5_elevation_span_by_stream.csv"
+    ) |>
+      transmute(stream, `Elevation (m)` = sprintf("%.0f–%.0f", elev_min, elev_max)),
+    by = "stream"
+  ) |>
   rename(Stream = stream)
-surv <- bind_rows(surv |> mutate(across(where(is.numeric), as.character)),
-                  tibble(Stream = "Total",
-                         `2002` = as.character(sum(redds$year == 2002)), `2003` = as.character(sum(redds$year == 2003)),
-                         `2004` = as.character(sum(redds$year == 2004)), `2005` = as.character(sum(redds$year == 2005)),
-                         Redds = as.character(n_redds), Reaches = as.character(n_reach), `Elevation (m)` = ""))
+surv <- bind_rows(
+  surv |>
+    mutate(across(where(is.numeric), as.character)), tibble(
+    Stream = "Total",
+    `2002` = as.character(sum(redds$year == 2002)), `2003` = as.character(sum(redds$year == 2003)),
+    `2004` = as.character(sum(redds$year == 2004)), `2005` = as.character(sum(redds$year == 2005)),
+    Redds = as.character(n_redds), Reaches = as.character(n_reach), `Elevation (m)` = ""
+  )
+)
 kbl2(surv, align = "lrrrrrrr")
 ```
 
@@ -39,12 +58,20 @@ kbl2(surv, align = "lrrrrrrr")
 #| fig-cap: "Sampling structure. (A) Number of reaches per stream. (B) Number of redds per reach. (C) Number of years each reach was surveyed."
 #| fig-width: 8
 #| fig-height: 2.8
-pa <- redds |> distinct(stream, COMID) |> count(stream) |>
-  ggplot(aes(n, fct_rev(stream), fill = stream)) + geom_col() +
-  scale_fill_manual(values = cols.streams, guide = "none") + labs(x = "Reaches", y = NULL)
-pb <- redds |> count(COMID) |> ggplot(aes(n)) + geom_histogram(binwidth = 5, fill = "grey60", color = "black") +
+pa <- redds |>
+  distinct(stream, COMID) |>
+  count(stream) |>
+  ggplot(aes(n, fct_rev(stream), fill = stream)) +
+  geom_col() +
+  scale_fill_manual(values = cols.streams, guide = "none") +
+  labs(x = "Reaches", y = NULL)
+pb <- redds |>
+  count(COMID) |>
+  ggplot(aes(n)) +
+  geom_histogram(binwidth = 5, fill = "grey60", color = "black") +
   labs(x = "Redds per reach", y = "Reaches")
-pc <- yrs_reach |> ggplot(aes(factor(n))) + geom_bar(fill = "grey60", color = "black") +
+pc <- yrs_reach |> ggplot(aes(factor(n))) +
+  geom_bar(fill = "grey60", color = "black") +
   labs(x = "Years surveyed", y = "Reaches")
 pa + pb + pc + plot_annotation(tag_levels = "A")
 ```
@@ -54,7 +81,9 @@ pa + pb + pc + plot_annotation(tag_levels = "A")
 #| fig-cap: "Spawn dates by reach within each stream. Boxes show the interquartile range; points are individual redds. Reaches are ordered by drainage area (upstream at top)."
 #| fig-width: 8
 #| fig-height: 8.5
-da <- lens |> select(COMID, da_km2) |> mutate(COMID = as.character(COMID))
+da <- lens |>
+  select(COMID, da_km2) |>
+  mutate(COMID = as.character(COMID))
 redds |>
   left_join(da, by = "COMID") |>
   mutate(COMID = fct_reorder(COMID, -da_km2)) |>
@@ -83,10 +112,14 @@ temps |>
   group_by(stream, year, doy) |>
   summarise(temp = mean(temp, na.rm = TRUE), .groups = "drop") |>
   ggplot(aes(fixed_date + doy, temp, color = factor(year))) +
-  annotate("rect", xmin = fixed_date + INDEX_END_DOY - INDEX_N + 1, xmax = fixed_date + INDEX_END_DOY,
-           ymin = -Inf, ymax = Inf, fill = "grey85") +
-  annotate("rect", xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
-           ymin = -Inf, ymax = Inf, fill = "steelblue", alpha = 0.15) +
+  annotate("rect",
+    xmin = fixed_date + INDEX_END_DOY - INDEX_N + 1, xmax = fixed_date + INDEX_END_DOY,
+    ymin = -Inf, ymax = Inf, fill = "grey85"
+  ) +
+  annotate("rect",
+    xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
+    ymin = -Inf, ymax = Inf, fill = "steelblue", alpha = 0.15
+  ) +
   geom_line(linewidth = 0.5) +
   facet_wrap(~stream, ncol = 2) +
   scale_color_manual(values = cols.years) +

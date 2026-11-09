@@ -38,25 +38,30 @@ spawn <- redds |> mutate(year = factor(year))
 # -----------------------------------------------------------------------------
 # Figure 2: distributions of spawn dates
 # -----------------------------------------------------------------------------
-yr_means <- spawn |> group_by(year) |> summarise(mean = mean(yday))
-x_breaks <- as.Date(c("2001-08-01", "2001-08-15", "2001-09-01", "2001-09-15"))  # fixed_date + yday is in 2001
+yr_means <- spawn |>
+  group_by(year) |>
+  summarise(mean = mean(yday))
+x_breaks <- as.Date(c("2001-08-01", "2001-08-15", "2001-09-01", "2001-09-15")) # fixed_date + yday is in 2001
 stats_lab <- with(spawn, paste0(
   "mean = ", fmt_date(round(mean(yday))), "\n",
   "median = ", fmt_date(median(yday)), "\n",
   "range = ", fmt_date(min(yday)), " – ", fmt_date(max(yday)), "\n",
-  "SD = ", sprintf("%.1f", sd(yday)), " d"))
+  "SD = ", sprintf("%.1f", sd(yday)), " d"
+))
 
 p2a <- ggplot(spawn, aes(x = fixed_date + yday)) +
   geom_histogram(aes(y = after_stat(density)), binwidth = 3, fill = "gray80", color = "black") +
   geom_density(color = "black", linewidth = 1, adjust = 1.5) +
   geom_vline(xintercept = fixed_date + mean(spawn$yday), linetype = "dashed", linewidth = 1) +
   geom_vline(data = yr_means, aes(xintercept = fixed_date + mean, color = year), linewidth = 1) +
-  annotate("text", x = fixed_date + min(spawn$yday), y = 0.016, hjust = 0, vjust = 0.5,
-           size = 3.2, lineheight = 0.95, label = stats_lab) +
+  annotate("text",
+    x = fixed_date + min(spawn$yday), y = 0.016, hjust = 0, vjust = 0.5,
+    size = 3.2, lineheight = 0.95, label = stats_lab
+  ) +
   scale_color_manual(values = cols.years) +
   scale_x_date(breaks = x_breaks, date_labels = "%d %b") +
   labs(x = NULL, y = "Density of spawn dates", color = NULL) +
-  theme(legend.position = c(0.06, 0.78))   # works in ggplot2 3.4 and 3.5+
+  theme(legend.position = c(0.06, 0.78)) # works in ggplot2 3.4 and 3.5+
 
 p2b <- ggplot(spawn, aes(x = fixed_date + yday, y = fct_rev(stream), fill = stream)) +
   geom_density_ridges(scale = 1.4, linewidth = 0.3) +
@@ -112,47 +117,72 @@ fe <- fixef(final)
 #       that reach's own mean) vs the reach-year anomaly in the index
 #       (T - T_bar); reaches sampled in >= 2 years; line = within-reach slope.
 # -----------------------------------------------------------------------------
-d <- adjust_stream_year(d, final)             # adds y_adj
+d <- adjust_stream_year(d, final) # adds y_adj
 
 # (A) between reaches: one point per reach. The reach's own anomaly effect
 #     (b_T_dev * T_dev) is also removed so points reflect T_bar alone.
-reach <- d |> group_by(COMID, stream) |>
-  summarise(T_bar = first(T_bar), y = mean(y_adj - fe[["T_dev"]] * T_dev), n = n(), .groups = "drop")
+reach <- d |>
+  group_by(COMID, stream) |>
+  summarise(
+    T_bar = first(T_bar), 
+    y = mean(y_adj - fe[["T_dev"]] * T_dev), 
+    n = n(), 
+    .groups = "drop"
+    )
 grid_b <- seq(min(d$T_bar), max(d$T_bar), length.out = 60)
-pred_b <- as_tibble(emmeans(final, ~ T_bar, at = list(T_bar = grid_b, T_dev = 0)))
+pred_b <- as_tibble(emmeans(final, ~T_bar, at = list(T_bar = grid_b, T_dev = 0)))
 
 p4a <- ggplot() +
-  geom_ribbon(data = pred_b, aes(T_bar, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL),
-              fill = "grey50", alpha = 0.3) +
+  geom_ribbon(
+    data = pred_b, aes(T_bar, ymin = fixed_date + asymp.LCL, ymax = fixed_date + asymp.UCL),
+    fill = "grey50", alpha = 0.3
+  ) +
   geom_line(data = pred_b, aes(T_bar, fixed_date + emmean), linewidth = 1) +
   geom_point(data = reach, aes(T_bar, fixed_date + y, color = stream, size = n), alpha = 0.8) +
   scale_color_manual(values = cols.streams) +
   scale_size_area(max_size = 5, breaks = c(10, 100, 200)) +
   scale_y_date(date_breaks = "1 week", date_labels = "%d %b") +
-  labs(x = "Reach mean thermal index (\u00B0C)", y = "Adjusted spawn date",
-       color = "Stream", size = "Redds", subtitle = "Between reaches") +
+  labs(
+    x = "Reach mean thermal index (\u00B0C)", y = "Adjusted spawn date",
+    color = "Stream", size = "Redds", subtitle = "Between reaches"
+  ) +
   guides(color = guide_legend(override.aes = list(size = 2.5), order = 1))
 
 # (B) within reaches, between years: one point per reach-year, for reaches
 #     surveyed in >= 2 years. y_anom = reach-year mean adjusted spawn date
 #     minus that reach's mean over its reach-years. The line and its CI are
 #     b_T_dev * T_dev (it passes through 0 by construction).
-multi <- d |> group_by(COMID) |> filter(n_distinct(year) >= 2) |> ungroup()
-ryw <- multi |> group_by(COMID, stream, key) |>
+multi <- d |>
+  group_by(COMID) |>
+  filter(n_distinct(year) >= 2) |>
+  ungroup()
+ryw <- multi |>
+  group_by(COMID, stream, key) |>
   summarise(T_dev = first(T_dev), y = mean(y_adj), n = n(), .groups = "drop") |>
-  group_by(COMID) |> mutate(y_anom = y - mean(y)) |> ungroup()
-b_dev <- fe[["T_dev"]]; se_dev <- sqrt(vcov(final)["T_dev", "T_dev"])
-grid_w <- tibble(T_dev = seq(min(ryw$T_dev), max(ryw$T_dev), length.out = 50)) |>
-  mutate(fit = b_dev * T_dev, lo = (b_dev - 1.96 * se_dev) * T_dev, hi = (b_dev + 1.96 * se_dev) * T_dev)
+  group_by(COMID) |>
+  mutate(y_anom = y - mean(y)) |>
+  ungroup()
+b_dev <- fe[["T_dev"]]
+se_dev <- sqrt(vcov(final)["T_dev", "T_dev"])
+grid_w <- tibble(
+  T_dev = seq(min(ryw$T_dev), max(ryw$T_dev), length.out = 50)) |>
+  mutate(
+    fit = b_dev * T_dev, 
+    lo = (b_dev - 1.96 * se_dev) * T_dev, 
+    hi = (b_dev + 1.96 * se_dev) * T_dev)
+
 p4b <- ggplot() +
-  geom_hline(yintercept = 0, linetype = 3) + geom_vline(xintercept = 0, linetype = 3) +
+  geom_hline(yintercept = 0, linetype = 3) +
+  geom_vline(xintercept = 0, linetype = 3) +
   geom_ribbon(data = grid_w, aes(T_dev, ymin = pmin(lo, hi), ymax = pmax(lo, hi)), fill = "grey50", alpha = 0.3) +
   geom_line(data = grid_w, aes(T_dev, fit), linewidth = 1) +
   geom_point(data = ryw, aes(T_dev, y_anom, color = stream, size = n), alpha = 0.8) +
   scale_color_manual(values = cols.streams, guide = "none") +
   scale_size_area(max_size = 5, guide = "none") +
-  labs(x = "Reach-year anomaly in thermal index (\u00B0C)",
-       y = "Spawn-date anomaly (days)", subtitle = "Within reaches, between years")
+  labs(
+    x = "Reach-year anomaly in thermal index (\u00B0C)",
+    y = "Spawn-date anomaly (days)", subtitle = "Within reaches, between years"
+  )
 
 fig4 <- p4a + p4b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 save_fig(fig4, "Figure_04_rev", width = 20, height = 10)
@@ -162,19 +192,29 @@ save_fig(fig4, "Figure_04_rev", width = 20, height = 10)
 #   grey jitter: individual redds; open diamond: observed mean;
 #   black point + bar: model-adjusted marginal mean (at mean T_bar, T_dev ~ 0) with 95% CI
 # -----------------------------------------------------------------------------
-emm_s <- as_tibble(emmeans(final, ~ stream))
-emm_y <- as_tibble(emmeans(final, ~ year))
-obs_s <- d |> group_by(stream) |> summarise(mean = mean(yday))
-obs_y <- d |> group_by(year)   |> summarise(mean = mean(yday))
+emm_s <- as_tibble(emmeans(final, ~stream))
+emm_y <- as_tibble(emmeans(final, ~year))
+obs_s <- d |>
+  group_by(stream) |>
+  summarise(mean = mean(yday))
+obs_y <- d |>
+  group_by(year) |>
+  summarise(mean = mean(yday))
 
 panel5 <- function(x, emm, obs, cols) {
   ggplot(d, aes(x = .data[[x]], y = fixed_date + yday)) +
     geom_jitter(aes(color = .data[[x]]), width = 0.25, height = 0.3, size = 0.6, alpha = 0.35) +
-    geom_point(data = obs, aes(y = fixed_date + mean), shape = 23, size = 2.8,
-               fill = "white", color = "black", position = position_nudge(x = -0.28)) +
-    geom_pointrange(data = emm, aes(y = fixed_date + emmean, ymin = fixed_date + asymp.LCL,
-                                    ymax = fixed_date + asymp.UCL),
-                    size = 0.45, linewidth = 0.8, color = "black", position = position_nudge(x = 0.28)) +
+    geom_point(
+      data = obs, aes(y = fixed_date + mean), shape = 23, size = 2.8,
+      fill = "white", color = "black", position = position_nudge(x = -0.28)
+    ) +
+    geom_pointrange(
+      data = emm, aes(
+        y = fixed_date + emmean, ymin = fixed_date + asymp.LCL,
+        ymax = fixed_date + asymp.UCL
+      ),
+      size = 0.45, linewidth = 0.8, color = "black", position = position_nudge(x = 0.28)
+    ) +
     scale_color_manual(values = cols, guide = "none") +
     scale_y_date(date_breaks = "2 weeks", date_labels = "%d %b") +
     labs(x = NULL, y = "Spawn date")
@@ -191,4 +231,3 @@ message(sprintf("Fig 2: n = %d redds; mean %s; median %s; range %s-%s; SD %.1f d
                 fmt_date(min(spawn$yday)), fmt_date(max(spawn$yday)), sd(spawn$yday)))
 message(sprintf("Fig 4: T_bar range %.1f-%.1f C; between %.2f d/C; within %.2f d/C (SE %.2f); %d multi-year reaches, %d reach-years",
                 min(d$T_bar), max(d$T_bar), fe[["T_bar"]], b_dev, se_dev, n_distinct(ryw$COMID), nrow(ryw)))
-message("Done.")

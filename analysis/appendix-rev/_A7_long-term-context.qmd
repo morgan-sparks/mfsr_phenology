@@ -7,12 +7,12 @@ G1 <- rev_tab("G1_index_by_year.csv")
 G2 <- rev_tab("G2_variance_partition.csv")
 G2r <- rev_tab("G2_reach_rank_stability.csv")
 G3 <- rev_tab("G3_anomaly_summary.csv")
-T2  <- rev_tab("Table_02_rev.csv")
+T2 <- rev_tab("Table_02_rev.csv")
 F3m <- rev_tab("F3_emmeans_fixed_index.csv")
 g1s <- filter(G1, study_year)
 g2v <- function(comp, per, col = "sd") G2[[col]][G2$component == comp & G2$period == per]
 g3v <- function(pattern, col) G3[[col]][grepl(pattern, G3$set)]
-rank_desc <- function(p) round(p * nrow(G1))          # pct_rank -> rank from coldest
+rank_desc <- function(p) round(p * nrow(G1)) # pct_rank -> rank from coldest
 ```
 
 Siegel et al. (2023) predict daily temperatures for every year from 1990 to 2021, so we computed the thermal index (Section A3) for every surveyed reach in every year of that record (`R/12_long-term-thermal-context.R`). This shows how the four study years compare with the longer record. It also shows how much of the variation in the index is fixed among reaches and how much changes between years.
@@ -36,16 +36,20 @@ Yes. The order of reaches from cold to warm was almost the same in every year: t
 #| label: tbl-a7-partition
 #| tbl-cap: "Variation in the thermal index among reaches, among years (network-wide) and in the reach-by-year interaction, for the full record and for the study years. Two-way decomposition on reaches with a complete record; SD in °C."
 G2 |>
-  mutate(component = recode(component, reach = "Among reaches",
-                             year = "Among years (network-wide)",
-                             reach_x_year = "Reach-by-year")) |>
+  mutate(component = recode(component,
+    reach = "Among reaches",
+    year = "Among years (network-wide)",
+    reach_x_year = "Reach-by-year"
+  )) |>
   select(period, component, sd, share) |>
   pivot_wider(names_from = period, values_from = c(sd, share)) |>
-  transmute(Component = component,
-            `SD, 1990–2021` = sprintf("%.2f", `sd_1990-2021`),
-            `Share, 1990–2021` = sprintf("%.0f%%", 100 * `share_1990-2021`),
-            `SD, 2002–2005` = sprintf("%.2f", `sd_2002-2005`),
-            `Share, 2002–2005` = sprintf("%.0f%%", 100 * `share_2002-2005`)) |>
+  transmute(
+    Component = component,
+    `SD, 1990–2021` = sprintf("%.2f", `sd_1990-2021`),
+    `Share, 1990–2021` = sprintf("%.0f%%", 100 * `share_1990-2021`),
+    `SD, 2002–2005` = sprintf("%.2f", `sd_2002-2005`),
+    `Share, 2002–2005` = sprintf("%.0f%%", 100 * `share_2002-2005`)
+  ) |>
   kbl2(align = "lrrrr")
 ```
 

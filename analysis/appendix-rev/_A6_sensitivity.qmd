@@ -3,14 +3,14 @@
 # Sensitivity analyses: other covariates, post-spawn temperatures and the Big Creek gradient
 
 ```{r a6-load}
-F5   <- rev_tab("F5_elevation_sensitivity.csv")
+F5 <- rev_tab("F5_elevation_sensitivity.csv")
 span <- rev_tab("F5_elevation_span_by_stream.csv")
-T1   <- rev_tab("Table_01_rev.csv")
-f5a  <- F5 |> filter(data == "All streams")
-f5b  <- F5 |> filter(data == "Without Big Creek")
-f5c  <- F5 |> filter(grepl("split", data))
-E2   <- rev_tab("E2_post_spawn_indices.csv")
-E2v  <- rev_tab("E2_post_spawn_index_values.csv")
+T1 <- rev_tab("Table_01_rev.csv")
+f5a <- F5 |> filter(data == "All streams")
+f5b <- F5 |> filter(data == "Without Big Creek")
+f5c <- F5 |> filter(grepl("split", data))
+E2 <- rev_tab("E2_post_spawn_indices.csv")
+E2v <- rev_tab("E2_post_spawn_index_values.csv")
 ```
 
 We tested whether reach elevation, reach slope, discharge or temperatures after spawning explained spawn timing beyond the final model. Results are in `R/09_refit-fixed-date-model.R` (F5), `R/08_fixed-date-index.R` (E2) and Table 1 of the main text.
@@ -26,13 +26,16 @@ Within Big Creek, upper reaches spawned earlier than their summer temperatures p
 ```{r}
 #| label: tbl-a6-elev
 #| tbl-cap: "Elevation added to the final model, with all streams and without Big Creek. Temperature effects ($\\bar{T}$, reach mean; $T-\\bar{T}$, reach-year anomaly) in days per °C; SE in parentheses."
-F5 |> filter(!grepl("split", data)) |>
-  transmute(Data = data,
-            `$\\bar{T}$, no elevation` = sprintf("%.2f (%.2f)", T_bar_noE, T_bar_noE_se),
-            `$\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_bar_withE, T_bar_withE_se),
-            `$T-\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_dev_withE, T_dev_withE_se),
-            `Elevation (d per 100 m)` = sprintf("%.2f (%.2f)", E_per100m, E_se),
-            `ΔAIC adding elevation` = sprintf("%+.1f", dAIC_adding_E)) |>
+F5 |>
+  filter(!grepl("split", data)) |>
+  transmute(
+    Data = data,
+    `$\\bar{T}$, no elevation` = sprintf("%.2f (%.2f)", T_bar_noE, T_bar_noE_se),
+    `$\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_bar_withE, T_bar_withE_se),
+    `$T-\\bar{T}$, with elevation` = sprintf("%.2f (%.2f)", T_dev_withE, T_dev_withE_se),
+    `Elevation (d per 100 m)` = sprintf("%.2f (%.2f)", E_per100m, E_se),
+    `ΔAIC adding elevation` = sprintf("%+.1f", dAIC_adding_E)
+  ) |>
   kbl(booktabs = TRUE, linesep = "", align = "lrrrrr", escape = FALSE) |>
   kable_styling(font_size = 8) |>
   column_spec(2:6, width = "2.1cm")
@@ -43,7 +46,9 @@ F5 |> filter(!grepl("split", data)) |>
 #| fig-cap: "Reach random intercepts from the final model (no elevation) against reach elevation, for Big Creek and the other streams. Lines: linear fits. Positive intercepts = later spawning than temperature, stream and year predict."
 #| fig-width: 7
 #| fig-height: 3.2
-re_e <- ranef(final)$COMID |> rownames_to_column("COMID") |> rename(intercept = `(Intercept)`) |>
+re_e <- ranef(final)$COMID |>
+  rownames_to_column("COMID") |>
+  rename(intercept = `(Intercept)`) |>
   left_join(d |> distinct(COMID = as.character(COMID), stream, elev), by = "COMID") |>
   mutate(group = ifelse(stream == "Big", "Big Creek", "Other streams"))
 ggplot(re_e, aes(elev, intercept)) +
@@ -57,7 +62,7 @@ ggplot(re_e, aes(elev, intercept)) +
 
 ## Post-spawn (incubation) indices
 
-Salmon may time spawning so that fry emerge in a favourable spring window, so that reaches with colder incubation spawn earlier (Heggberget 1988; Brannon et al. 2004). The original submission tested post-spawn windows that began on each redd's own spawn date, which carries the mirror image of the artefact in Section A2. We instead computed fixed-date reach-year means for fall (1 Sep--30 Nov), winter (1 Dec--28 Feb), spring (1 Mar--30 Apr) and the whole incubation period (1 Sep--30 Apr), and the number of days to emergence for a fixed reference spawn date (1 Sep or 15 Aug), using the Beacham and Murray (1990) Chinook emergence model (model 2) as implemented in hatchR (Sparks et al. 2026). For a 1 September spawn, predicted emergence ranged from `r format(as.Date("2002-09-01") + min(E2v$emerge_1Sep), "%d %b")` to `r format(as.Date("2002-09-01") + max(E2v$emerge_1Sep), "%d %b")` among reach-years.
+Salmon may time spawning so that fry emerge in a favourable spring window, so that reaches with colder incubation spawn earlier (Heggberget 1988; Brannon et al. 2004). The original submission tested post-spawn windows that began on each redd's own spawn date, which carries the mirror image of the artifact in Section A2. We instead computed fixed-date reach-year means for fall (1 Sep--30 Nov), winter (1 Dec--28 Feb), spring (1 Mar--30 Apr) and the whole incubation period (1 Sep--30 Apr), and the number of days to emergence for a fixed reference spawn date (1 Sep or 15 Aug), using the Beacham and Murray (1990) Chinook emergence model (model 2) as implemented in hatchR (Sparks et al. 2026). For a 1 September spawn, predicted emergence ranged from `r format(as.Date("2002-09-01") + min(E2v$emerge_1Sep), "%d %b")` to `r format(as.Date("2002-09-01") + max(E2v$emerge_1Sep), "%d %b")` among reach-years.
 
 On their own, all post-spawn indices predicted spawn timing in the direction the hypothesis predicts (warmer incubation, later spawning; @tbl-a6-e2). For example, spawn date shifted `r sprintf("%.2f", -E2$slope_alone[E2$index == "emerge_1Sep"])` days earlier for each additional day of predicted incubation, offsetting roughly a quarter of the among-reach difference in development time. However, post-spawn indices were strongly correlated with the pre-spawn index (r up to `r sprintf("%.2f", max(abs(E2$r_with_prespawn_T)))`). When added to the final model they improved fit only because of Big Creek; without Big Creek, none improved fit and their effects were near zero (@tbl-a6-e2). The data are therefore consistent with incubation matching but cannot separate it from the summer thermal regime of a reach (see Section A6.1).
 
@@ -65,14 +70,17 @@ On their own, all post-spawn indices predicted spawn timing in the direction the
 #| label: tbl-a6-e2
 #| tbl-cap: "Post-spawn (incubation) indices. Alone: spawn date ~ index + stream + year. Added: index added to the final model (Section A4), with all streams and without Big Creek. Slopes are days per °C, or days per day of predicted incubation for emergence indices. Negative ΔAIC = better fit."
 E2 |>
-  transmute(Index = label,
-            `r with pre-spawn index` = sprintf("%.2f", r_with_prespawn_T),
-            `Alone: slope (SE); ΔAIC vs pre-spawn` = sprintf("%.2f (%.2f); %+.1f", slope_alone, se_alone, dAIC_alone_vs_prespawn_T),
-            `Added to final: slope (SE); ΔAIC` = sprintf("%.2f (%.2f); %+.1f", slope_added, se_added, dAIC_added_vs_final),
-            `Added, no Big Creek: slope (SE); ΔAIC` = sprintf("%.2f (%.2f); %+.1f", slope_added_noBig, se_added_noBig, dAIC_added_vs_final_noBig)) |>
+  transmute(
+    Index = label,
+    `r with pre-spawn index` = sprintf("%.2f", r_with_prespawn_T),
+    `Alone: slope (SE); ΔAIC vs pre-spawn` = sprintf("%.2f (%.2f); %+.1f", slope_alone, se_alone, dAIC_alone_vs_prespawn_T),
+    `Added to final: slope (SE); ΔAIC` = sprintf("%.2f (%.2f); %+.1f", slope_added, se_added, dAIC_added_vs_final),
+    `Added, no Big Creek: slope (SE); ΔAIC` = sprintf("%.2f (%.2f); %+.1f", slope_added_noBig, se_added_noBig, dAIC_added_vs_final_noBig)
+  ) |>
   kbl(booktabs = TRUE, linesep = "", align = "lrrrr") |>
   kable_styling(font_size = 8) |>
-  column_spec(1, width = "3.6cm") |> column_spec(3:5, width = "2.9cm")
+  column_spec(1, width = "3.6cm") |>
+  column_spec(3:5, width = "2.9cm")
 ```
 
 ## Reach slope
@@ -81,7 +89,7 @@ Reach slope ranged narrowly (`r sprintf("%.1f", 100 * min(d$slope))`--`r sprintf
 
 ## Discharge
 
-Discharge was available only from one gauge downstream of all study reaches (USGS 13309220), so it varies among years but not among reaches, and it is confounded with the year effect. Discharge summaries in the original submission were also computed over windows anchored to each redd's spawn date and so share the artefact in Section A2. We did not retain discharge.
+Discharge was available only from one gauge downstream of all study reaches (USGS 13309220), so it varies among years but not among reaches, and it is confounded with the year effect. Discharge summaries in the original submission were also computed over windows anchored to each redd's spawn date and so share the artifact in Section A2. We did not retain discharge.
 
 ```{r}
 #| label: fig-a6-flow
@@ -93,11 +101,13 @@ read_csv(here("data", "processed", "mfsr_flow.csv"), show_col_types = FALSE) |>
   filter(year(date) %in% 2002:2005, format(date, "%m-%d") != "02-29") |>
   mutate(year = factor(year(date)), doy = std_doy(date)) |>
   ggplot(aes(fixed_date + doy, flow, color = year)) +
-  annotate("rect", xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
-           ymin = 0, ymax = Inf, fill = "steelblue", alpha = 0.15) +
+  annotate("rect",
+    xmin = fixed_date + min(redds$yday), xmax = fixed_date + max(redds$yday),
+    ymin = 0, ymax = Inf, fill = "steelblue", alpha = 0.15
+  ) +
   geom_line(linewidth = 0.5) +
   scale_y_log10() +
   scale_color_manual(values = cols.years) +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
-  labs(x = NULL, y = expression(Discharge~(ft^3~s^-1)), color = "Year")
+  labs(x = NULL, y = expression(Discharge ~ (ft^3 ~ s^-1)), color = "Year")
 ```
