@@ -13,7 +13,7 @@ E2 <- rev_tab("E2_post_spawn_indices.csv")
 E2v <- rev_tab("E2_post_spawn_index_values.csv")
 ```
 
-We tested whether reach elevation, reach slope, discharge or temperatures after spawning explained spawn timing beyond the final model. Results are in `R/09_refit-fixed-date-model.R` (F5), `R/08_fixed-date-index.R` (E2) and Table 1 of the main text.
+We tested whether reach elevation, reach slope, discharge, temperatures after spawning, or within-window temperature variability explained spawn timing beyond the final model. Results are in `R/09_refit-fixed-date-model.R` (F5), `R/08_fixed-date-index.R` (E2) and Table 1 of the main text.
 
 ## Elevation
 
@@ -111,3 +111,7 @@ read_csv(here("data", "processed", "mfsr_flow.csv"), show_col_types = FALSE) |>
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   labs(x = NULL, y = expression(Discharge ~ (ft^3 ~ s^-1)), color = "Year")
 ```
+
+## Within-window temperature variability
+
+We also asked whether the shape of the daily temperature series, and not only its mean, was associated with spawn timing. For each reach-year we computed the SD, range, linear trend, warmest 7-day mean and mean day-to-day change of modeled daily temperatures in the index window (18 May–16 July) and in a fixed holding window (17 July–15 August), and added each metric in turn to the final model (`R/13_window-variability.R`). Within the index window, no metric improved fit with all streams included (ΔAIC −0.7 to +1.9), and most were only moderately correlated with the index (r = 0.36–0.52; warmest 7-day mean r = 0.86). The holding-window mean, warmest 7-day mean, SD and range improved fit (ΔAIC −7.0 to −15.3) only with Big Creek included, the same pattern as elevation and the post-spawn indices. The holding-window trend was the only metric that improved fit both with and without Big Creek (ΔAIC −4.1 and −5.0; slower cooling, later spawning). When we split it into between-reach and within-reach parts, as for the thermal index, the estimates were unstable and changed sign depending on which parts were in the model, so we did not pursue it. Because Siegel et al. (2023) predict daily means, these metrics do not capture diel variation.

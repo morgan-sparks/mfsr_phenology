@@ -60,6 +60,7 @@ mfsr_phenology/
 │   ├── 10_manuscript-figures.R      # Figures 2–5
 │   ├── 11_manuscript-tables.R       # Tables 1–2
 │   ├── 12_long-term-thermal-context.R   # Study years in the 1990–2021 record (A7)
+│   ├── 13_window-variability.R      # exploratory
 │   │
 │   ├── palettes-themes.R            # Colour palettes and theme_mfsr()
 │   ├── utils.R                      # Table helpers (used by R/11)
