@@ -73,7 +73,19 @@ F3c |>
   pack_rows("Year", sum(F3c$factor == "stream") + 1, nrow(F3c))
 ```
 
-## Reach effects and position in the network
+## Random effects and reach position
+
+```{r a5-ranef}
+vc   <- as.data.frame(lme4::VarCorr(final))
+sd_r <- vc$sdcor[vc$grp == "COMID"]
+sd_k <- vc$sdcor[vc$grp == "key"]
+sd_e <- vc$sdcor[vc$grp == "Residual"]
+v    <- c(reach = sd_r^2, ry = sd_k^2, res = sd_e^2)
+pct  <- round(100 * v / sum(v))
+q95  <- diff(quantile(residuals(final), c(0.025, 0.975)))
+```
+
+These terms describe spawn-timing variation not explained by temperature, stream and year, and that variation is part of the portfolio. Reach intercepts (SD 1.4 d) describe persistent differences among reaches in the same stream. Reach-year intercepts (SD 3.1 d) show that a reach’s mean date shifted between years beyond what temperature and the network-wide year effect predict. Residual variation among redds within a reach-year (SD 4.3 d) means about 95% of redds in a typical reach-year span roughly 17 days. Of the unexplained variance, about 62% lies among redds within reach-years, 32% between years within reaches, and 6% among reaches.
 
 Reach random intercepts showed no consistent upstream--downstream pattern within streams: the pooled within-stream slope on log drainage area was `r sprintf("%.2f", F4$slope_logDA[grepl("ALL", F4$stream)])` days per log unit (SE `r sprintf("%.2f", F4$slope_logDA_se[grepl("ALL", F4$stream)])`; @fig-a5-position). Big Creek was the exception, with downstream reaches spawning later than predicted; this is the same gradient that drives the elevation result in Section A6.
 
