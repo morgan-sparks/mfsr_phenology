@@ -50,10 +50,17 @@ stats_lab <- with(spawn, paste0(
 ))
 
 p2a <- ggplot(spawn, aes(x = fixed_date + yday)) +
-  geom_histogram(aes(y = after_stat(density)), binwidth = 3, fill = "gray80", color = "black") +
+  geom_histogram(
+    aes(y = after_stat(density)), 
+    binwidth = 3, fill = "gray80", color = "black") +
   geom_density(color = "black", linewidth = 1, adjust = 1.5) +
-  geom_vline(xintercept = fixed_date + mean(spawn$yday), linetype = "dashed", linewidth = 1) +
-  geom_vline(data = yr_means, aes(xintercept = fixed_date + mean, color = year), linewidth = 1) +
+  # geom_vline(
+  #   xintercept = fixed_date + mean(spawn$yday), 
+  #   linetype = "dashed", linewidth = 1) +
+  geom_vline(
+    data = yr_means, 
+    aes(xintercept = fixed_date + mean, color = year), 
+    linewidth = 1) +
   annotate("text",
     x = fixed_date + min(spawn$yday), y = 0.016, hjust = 0, vjust = 0.5,
     size = 3.2, lineheight = 0.95, label = stats_lab
